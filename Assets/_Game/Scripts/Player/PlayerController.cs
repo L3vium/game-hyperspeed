@@ -28,7 +28,7 @@ namespace Com.IsartDigital.Hyperspeed
         private const float SKIN = 0.04f;
         private const float GROUND_MIN_DOT = 0.55f;
         private const float STICK_MIN_SPEED = 16f;
-        private const float RAIL_RADIUS = 3.6f;
+        private const float RAIL_RADIUS = 4.5f;
         private const float KILL_DISTANCE = 55f;
 
         // ---------------- state
