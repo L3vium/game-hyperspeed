@@ -172,7 +172,7 @@ namespace Com.IsartDigital.Hyperspeed
             _press.fontStyle = FontStyles.Italic;
             UIFactory.Outline(_press, UIFactory.BLACK, 0.3f);
 
-            _mainMenu = MenuList.Create(_root, new Vector2(0.5f, 0.5f), new Vector2(460f, -40f));
+            _mainMenu = MenuList.Create(_root, new Vector2(0.5f, 0.5f), new Vector2(500f, -330f));
             _mainMenu.Add("PLAY", ShowLevels);
             _mainMenu.Add("CONTROLS", ShowControls);
             _mainMenu.Add("QUIT", Quit);

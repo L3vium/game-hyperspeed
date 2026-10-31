@@ -64,6 +64,7 @@ namespace Com.IsartDigital.Hyperspeed
             float lStart = _level.chaser ? _level.chaserStart : 4f;
             _rival = Rival.Create(_level.rival, _level.rivalSpeed, _level.rivalDelay, _level.chaser, lStart, lRoot);
 
+            if (_level.chaser) _player.OnRespawned += () => _rival.distance = Mathf.Min(_rival.distance, _player.Progress - 90f);
             _hud = HUD.Create(_player, _rival, _path, _level);
             gameObject.AddComponent<Autopilot>().Init(_player);
         }

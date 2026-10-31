@@ -92,8 +92,8 @@ namespace Com.IsartDigital.Hyperspeed
 
         private Vector3 DesiredPosition(float pSpeed)
         {
-            float lDistance = Mathf.Lerp(5.2f, 8.5f, pSpeed) + _lag + _hyperBlend * 6f;
-            float lHeight = Mathf.Lerp(2.0f, 2.6f, pSpeed) + _hyperBlend * 1.2f;
+            float lDistance = Mathf.Lerp(4.6f, 7.8f, pSpeed) + _lag + _hyperBlend * 6f;
+            float lHeight = Mathf.Lerp(1.8f, 2.4f, pSpeed) + _hyperBlend * 1.2f;
             return target.FocusPosition + _up * lHeight - _forward * lDistance;
         }
 

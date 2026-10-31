@@ -104,12 +104,16 @@ namespace Com.IsartDigital.Hyperspeed
             return Mathf.Clamp(lSample.distance + lAlong, 0f, Length);
         }
 
+        // Last checkpoint before a distance that sits on solid road.
         public float LastCheckpointBefore(float pDistance)
         {
-            float lResult = 0f;
-            foreach (float lCheckpoint in checkpoints)
-                if (lCheckpoint <= pDistance) lResult = lCheckpoint;
-            return lResult;
+            for (int i = checkpoints.Count - 1; i >= 0; i--)
+            {
+                float lCheckpoint = checkpoints[i];
+                if (lCheckpoint > pDistance) continue;
+                if (Evaluate(lCheckpoint + 4f).solid && Evaluate(lCheckpoint + 14f).solid) return lCheckpoint;
+            }
+            return 0f;
         }
     }
 }

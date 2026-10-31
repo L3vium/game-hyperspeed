@@ -87,7 +87,7 @@ namespace Com.IsartDigital.Hyperspeed
             _speedText = UIFactory.CreateText(_root, "0", 96f, UIFactory.WHITE, new Vector2(0f, 1f), new Vector2(190f, -76f), new Vector2(300f, 110f), true, TextAlignmentOptions.Right);
             _speedText.fontStyle = FontStyles.Italic;
             _speedText.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 6f);
-            TextMeshProUGUI lUnit = UIFactory.CreateText(_root, "m/s", 34f, UIFactory.RED, new Vector2(0f, 1f), new Vector2(360f, -100f), new Vector2(100f, 50f), false);
+            TextMeshProUGUI lUnit = UIFactory.CreateText(_root, "m/s", 34f, UIFactory.WHITE, new Vector2(0f, 1f), new Vector2(352f, -104f), new Vector2(100f, 50f), false);
             lUnit.fontStyle = FontStyles.Italic | FontStyles.Bold;
             _speedBar = UIFactory.CreateShape(_root, "SpeedBar", UIShape.ShapeKind.Parallelogram, UIFactory.CYAN, new Vector2(0f, 1f), new Vector2(60f, -150f), new Vector2(10f, 16f), 6f);
             _speedBar.rectTransform.pivot = new Vector2(0f, 0.5f);
@@ -415,16 +415,16 @@ namespace Com.IsartDigital.Hyperspeed
                 lRank.gameObject.AddComponent<UIJitter>().amount = 3f;
             }
 
-            UIFactory.CreateShape(lPanel, "TimeBack", UIShape.ShapeKind.Parallelogram, UIFactory.BLACK, new Vector2(0.5f, 0.5f), new Vector2(40f, 110f), new Vector2(720f, 90f), -4f);
-            TextMeshProUGUI lTime = UIFactory.CreateText(lPanel, "TIME  " + GameSession.FormatTime(pTime), 56f, UIFactory.WHITE, new Vector2(0.5f, 0.5f), new Vector2(40f, 112f), new Vector2(700f, 90f), true);
+            UIFactory.CreateShape(lPanel, "TimeBack", UIShape.ShapeKind.Parallelogram, UIFactory.BLACK, new Vector2(0.5f, 0.5f), new Vector2(-330f, 110f), new Vector2(720f, 90f), -4f);
+            TextMeshProUGUI lTime = UIFactory.CreateText(lPanel, "TIME  " + GameSession.FormatTime(pTime), 56f, UIFactory.WHITE, new Vector2(0.5f, 0.5f), new Vector2(-330f, 112f), new Vector2(700f, 90f), true);
             lTime.fontStyle = FontStyles.Italic;
             lTime.rectTransform.localRotation = Quaternion.Euler(0f, 0f, -4f);
             string lBestLine = pRecord ? "<color=#FFE01A>NEW RECORD!</color>" : "BEST  " + GameSession.FormatTime(pBest);
-            TextMeshProUGUI lBest = UIFactory.CreateText(lPanel, lBestLine, 40f, UIFactory.WHITE, new Vector2(0.5f, 0.5f), new Vector2(60f, 40f), new Vector2(700f, 60f), false);
+            TextMeshProUGUI lBest = UIFactory.CreateText(lPanel, lBestLine, 40f, UIFactory.WHITE, new Vector2(0.5f, 0.5f), new Vector2(-300f, 40f), new Vector2(700f, 60f), false);
             lBest.fontStyle = FontStyles.Italic | FontStyles.Bold;
             UIFactory.Outline(lBest, UIFactory.BLACK, 0.25f);
 
-            MenuList lMenu = MenuList.Create(lPanel, new Vector2(0.5f, 0.5f), new Vector2(-380f, 20f));
+            MenuList lMenu = MenuList.Create(lPanel, new Vector2(0.5f, 0.5f), new Vector2(-420f, -370f));
             if (pWin && pHasNext) lMenu.Add("NEXT STAGE", pNext);
             lMenu.Add("RETRY", pRetry);
             lMenu.Add("STAGE SELECT", pMenu);
@@ -443,7 +443,7 @@ namespace Com.IsartDigital.Hyperspeed
             lTitle.fontStyle = FontStyles.Italic;
             lTitle.rectTransform.localRotation = Quaternion.Euler(0f, 0f, 8f);
             UIFactory.Outline(lTitle, UIFactory.BLACK, 0.2f);
-            MenuList lMenu = MenuList.Create(lPanel, new Vector2(0.5f, 0.5f), new Vector2(250f, 160f));
+            MenuList lMenu = MenuList.Create(lPanel, new Vector2(0.5f, 0.5f), new Vector2(260f, -170f));
             lMenu.Add("RESUME", pResume);
             lMenu.Add("RESTART", pRetry);
             lMenu.Add("STAGE SELECT", pMenu);

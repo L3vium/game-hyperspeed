@@ -326,7 +326,7 @@ namespace Com.IsartDigital.Hyperspeed
             bool lFast = lSpeed > 55f;
             _handTrailL.emitting = lFast;
             _handTrailR.emitting = lFast;
-            _scarf.time = Mathf.Lerp(0.05f, 0.11f, lSpeed / 100f);
+            _scarf.time = Mathf.Clamp(1.6f / Mathf.Max(lSpeed, 1f), 0.02f, 0.15f);
             UpdateShadow();
         }
 

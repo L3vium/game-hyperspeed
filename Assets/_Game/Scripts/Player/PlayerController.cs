@@ -284,7 +284,11 @@ namespace Com.IsartDigital.Hyperspeed
             // Speed economy
             Sliding = _slideHeld && !Drifting;
             float lSlope = Vector3.Dot(_heading, Vector3.down);
-            _speed += lSlope * SLOPE_ACCEL * (Sliding ? 1.8f : 1f) * pDt;
+            // Loop assist : on steep or inverted surfaces climbing costs less and speed never drops too low.
+            bool lSteep = Vector3.Dot(_up, Vector3.up) < 0.5f;
+            float lSlopeScale = lSteep && lSlope < 0f ? 0.3f : 1f;
+            _speed += lSlope * SLOPE_ACCEL * lSlopeScale * (Sliding ? 1.8f : 1f) * pDt;
+            if (lSteep) _speed = Mathf.Max(_speed, 34f);
             float lForward = HSInput.Forward;
             float lTargetRun = RUN_SPEED * (1f + 0.12f * Mathf.Max(0f, lForward));
             if (State == PlayerState.Finished) lTargetRun = Progress > _path.Length - 90f ? 0f : 26f;
@@ -403,6 +407,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (State == PlayerState.Air)
                 lFlat = Quaternion.AngleAxis(Steer * 95f * pDt, _gravityUp) * lFlat;
             _velocity = lFlat + lVertical;
+            if (State == PlayerState.Air) WallMagnet(pDt);
             if (lFlat.sqrMagnitude > 1f) _heading = lFlat.normalized;
             else _heading = Vector3.ProjectOnPlane(_heading, _gravityUp).normalized;
 
@@ -496,7 +501,7 @@ namespace Com.IsartDigital.Hyperspeed
             for (int lSide = -1; lSide <= 1; lSide += 2)
             {
                 RaycastHit lHit;
-                if (!Physics.Raycast(lCenter, lRight * lSide, out lHit, 1.4f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)) continue;
+                if (!Physics.Raycast(lCenter, lRight * lSide, out lHit, 2.6f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)) continue;
                 if (Mathf.Abs(Vector3.Dot(lHit.normal, _gravityUp)) > 0.35f) continue;
                 if (Vector3.Dot(lHit.normal, _lastWallNormal) > 0.9f && _wallCooldown > -0.6f) continue;
                 Vector3 lDir = Vector3.ProjectOnPlane(Vector3.ProjectOnPlane(_velocity, lHit.normal), _gravityUp);
@@ -517,9 +522,32 @@ namespace Com.IsartDigital.Hyperspeed
             }
         }
 
+        // Over a floorless stretch, gently pull toward the closest wall so wall runs are easy to catch.
+        private void WallMagnet(float pDt)
+        {
+            if (_path == null || _path.samples[_pathIndex].solid || _wallCooldown > 0f) return;
+            Vector3 lRight = Vector3.Cross(_gravityUp, _heading).normalized;
+            Vector3 lCenter = transform.position + _gravityUp;
+            float lBest = 7f;
+            int lSide = 0;
+            for (int i = -1; i <= 1; i += 2)
+            {
+                RaycastHit lHit;
+                if (Physics.Raycast(lCenter, lRight * i, out lHit, 7f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore)
+                    && Mathf.Abs(Vector3.Dot(lHit.normal, _gravityUp)) < 0.35f && lHit.distance < lBest)
+                {
+                    lBest = lHit.distance;
+                    lSide = i;
+                }
+            }
+            if (lSide == 0 || lBest < 0.9f) return;
+            if (Steer * lSide < -0.3f) return;
+            _velocity += lRight * lSide * 26f * pDt;
+        }
+
         private void WallStep(float pDt)
         {
-            float lGravity = StateTime > 1.3f ? 34f : 8f;
+            float lGravity = StateTime > 1.6f ? 34f : 7f;
             _wallVertical -= lGravity * pDt;
             _wallSpeed = Mathf.Min(MAX_SPEED, _wallSpeed + 3f * pDt);
             _velocity = _wallRunDir * _wallSpeed + _gravityUp * _wallVertical;
@@ -768,7 +796,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (Invulnerable || State == PlayerState.Crash || State == PlayerState.Frozen || State == PlayerState.Finished) return;
             Vector3 lAway = transform.position - pPoint;
             lAway = Vector3.ProjectOnPlane(lAway, _gravityUp).normalized;
-            float lSpeed = Mathf.Max(TotalSpeed * 0.35f, 12f);
+            float lSpeed = Mathf.Max(Speed * 0.5f, 18f);
             if (State == PlayerState.Ground || State == PlayerState.Grind) _gravityUp = _up;
             _velocity = _heading * lSpeed + lAway * 5f + _gravityUp * 11f;
             _crashTimer = 0.55f;
@@ -915,7 +943,7 @@ namespace Com.IsartDigital.Hyperspeed
                         TryWallRun();
                         if (State == PlayerState.WallRun) return false;
                     }
-                    _velocity = Vector3.ProjectOnPlane(_velocity, lNormal) * 0.9f;
+                    _velocity = Vector3.ProjectOnPlane(_velocity, lNormal);
                     return true;
                 case PlayerState.WallRun:
                     if (Vector3.Dot(lNormal, _gravityUp) > 0.5f) { Land(lNormal, pHit.point); return false; }
@@ -952,7 +980,7 @@ namespace Com.IsartDigital.Hyperspeed
             TrackSample lSample = _path.samples[_pathIndex];
             Progress = _path.ProjectDistance(transform.position, _pathIndex);
             DistanceFromPath = Vector3.Distance(transform.position, lSample.position);
-            if (_autoRun) return;
+            if (State == PlayerState.Finished) return;
             if (DistanceFromPath > KILL_DISTANCE || _airTime > 7f) Respawn();
         }
 
@@ -963,7 +991,7 @@ namespace Com.IsartDigital.Hyperspeed
             Diving = false;
             EndDrift(false);
             Place(lSample);
-            _speed = RUN_SPEED * 0.75f;
+            _speed = RUN_SPEED;
             _velocity = _heading * _speed;
             _invulnerable = 1.2f;
             _airTime = 0f;
@@ -971,7 +999,7 @@ namespace Com.IsartDigital.Hyperspeed
             HasAirDash = true;
             Combo = 0;
             Respawns++;
-            SetState(PlayerState.Ground);
+            SetState(_autoRun ? PlayerState.Finished : PlayerState.Ground);
             Juice.Flash(Color.white, 0.8f);
             Juice.Popup("RESPAWN", Color.white, 1f);
             AudioManager.Play("sfx_respawn", 0.8f);

@@ -5,8 +5,8 @@ namespace Com.IsartDigital.Hyperspeed
     // Springy pad that throws the player up and forward over big gaps.
     public class LaunchPad : Interactable
     {
-        public float upVelocity = 30f;
-        public float forwardBoost = 10f;
+        public float upVelocity = 27f;
+        public float forwardBoost = 18f;
 
         private Transform _spring;
 

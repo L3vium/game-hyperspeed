@@ -110,7 +110,7 @@ namespace Com.IsartDigital.Hyperspeed
             new LevelDefinition
             {
                 title = "VS. THE FIGHTER JET", tagline = "Mach 2. You brought sneakers.", world = 1,
-                rival = RivalKind.FighterJet, rivalSpeed = 50f, theme = Theme.Industrial, seed = 77,
+                rival = RivalKind.FighterJet, rivalSpeed = 48f, theme = Theme.Industrial, seed = 77,
                 build = b => b.Start()
                     .BoostStrip(60f, 2).Corridor(120f, 30f).Ramp(20f, 10f).WallRun(128f).Straight(40)
                     .Hint("METEORS! PUNCH THE ROCKS OR DODGE").Meteors(260f, 0.9f).Turn(-70f, 90f, 25f)
@@ -122,7 +122,7 @@ namespace Com.IsartDigital.Hyperspeed
             new LevelDefinition
             {
                 title = "VS. A SNIPER BULLET", tagline = "Fired 2 km away. Do not get in front of it.", world = 1,
-                rival = RivalKind.Bullet, rivalSpeed = 53f, theme = Theme.Ice, seed = 88,
+                rival = RivalKind.Bullet, rivalSpeed = 50f, theme = Theme.Ice, seed = 88,
                 build = b => b.Start()
                     .Hint("AT HYPER SPEED YOU SMASH EVERYTHING").BoostStrip(70f, 3).IceField(110f, 5f)
                     .Turn(60f, 90f, 20f).Drop(160f, 26f).Pad().IceField(90f, 5f).Narrow(30f, 9f)
@@ -135,7 +135,7 @@ namespace Com.IsartDigital.Hyperspeed
             new LevelDefinition
             {
                 title = "VS. THE ROCKETS", tagline = "Three of them. They are not friendly.", world = 1,
-                rival = RivalKind.Rockets, rivalSpeed = 55f, theme = Theme.Industrial, seed = 99,
+                rival = RivalKind.Rockets, rivalSpeed = 52f, theme = Theme.Industrial, seed = 99,
                 build = b => b.Start()
                     .BoostStrip(70f, 3).Meteors(240f, 0.6f).Turn(70f, 90f, 25f)
                     .Corridor(80f).Ramp(20f, 10f).WallRun(128f).Straight(20)
@@ -148,18 +148,18 @@ namespace Com.IsartDigital.Hyperspeed
             new LevelDefinition
             {
                 title = "VS. THE STARFIGHTER", tagline = "A long time ago, in a lane far, far away.", world = 2,
-                rival = RivalKind.Spaceship, rivalSpeed = 58f, theme = Theme.Space, seed = 110, music = "music_race2",
+                rival = RivalKind.Spaceship, rivalSpeed = 53f, theme = Theme.Space, seed = 110, music = "music_race2",
                 build = b => b.Start()
-                    .BoostStrip(70f, 3).Corkscrew(180f).Pad().Straight(20).Loop(26f).Corkscrew(220f, 1.5f)
+                    .BoostStrip(70f, 3).Corkscrew(180f).Pad().Straight(20).Loop(26f).Corkscrew(220f, 1f)
                     .Straight(20).Turn(80f, 90f, 30f).Ramp(20f, 10f).WallRun(160f).Straight(30)
-                    .Launch().Rings(80f, 8f, 5).Straight(30).WallRide(160f, 90f, 40f).WallRide(160f, -90f, -40f)
+                    .Launch().Rings(80f, 8f, 5).Straight(30).WallRide(160f, 80f, 40f).Straight(30).WallRide(160f, -80f, -40f)
                     .Meteors(200f, 0.6f).Pad().Loop(24f).Narrow(25f, 8f).RailGap(160f, 50f, 5f).Widen(20f)
                     .IceField(70f, 5f).BoostStrip(80f, 3).Finish()
             },
             new LevelDefinition
             {
                 title = "VS. LIGHT ITSELF", tagline = "299 792 458 m/s. Good luck.", world = 2,
-                rival = RivalKind.Light, rivalSpeed = 61f, theme = Theme.Void, seed = 121, music = "music_race2",
+                rival = RivalKind.Light, rivalSpeed = 55f, theme = Theme.Void, seed = 121, music = "music_race2",
                 build = b => b.Start()
                     .BoostStrip(100f, 4).Drop(200f, 28f).IceField(90f, 4.5f).Pad().Straight(20).Loop(28f)
                     .BoostStrip(80f, 3).Corkscrew(200f, 2f).Pad().Launch().Rings(90f, 10f, 5)
@@ -170,7 +170,7 @@ namespace Com.IsartDigital.Hyperspeed
             new LevelDefinition
             {
                 title = "VS. TIME", tagline = "Tick. Tock. You are late.", world = 2,
-                rival = RivalKind.Time, rivalSpeed = 63f, theme = Theme.Void, seed = 132, music = "music_race2",
+                rival = RivalKind.Time, rivalSpeed = 57f, theme = Theme.Void, seed = 132, music = "music_race2",
                 build = b => b.Start()
                     .BoostStrip(80f, 3).Turn(90f, 80f, 30f).Turn(-90f, 80f, 30f).Pad().Loop(25f)
                     .Corkscrew(200f).Ramp(20f, 10f).WallRun(160f).Straight(20).Meteors(200f, 0.5f)
@@ -181,7 +181,7 @@ namespace Com.IsartDigital.Hyperspeed
             new LevelDefinition
             {
                 title = "VS. DEATH", tagline = "It is right behind you. Literally.", world = 2,
-                rival = RivalKind.Death, rivalSpeed = 50f, chaser = true, chaserStart = -130f, rivalDelay = 2.5f, theme = Theme.Night, seed = 143, music = "music_race2",
+                rival = RivalKind.Death, rivalSpeed = 46f, chaser = true, chaserStart = -130f, rivalDelay = 2.5f, theme = Theme.Night, seed = 143, music = "music_race2",
                 build = b => b.Start()
                     .Hint("DON'T LET DEATH CATCH YOU").BoostStrip(70f, 2).Turn(60f, 90f, 25f).Crates(80f, 7)
                     .Ramp(20f, 10f).WallRun(128f).Straight(30).Meteors(200f, 0.6f).Pad().Loop(25f)
@@ -192,7 +192,7 @@ namespace Com.IsartDigital.Hyperspeed
             new LevelDefinition
             {
                 title = "VS. A SUPERNOVA", tagline = "A star just exploded. Outrun the light cone.", world = 2,
-                rival = RivalKind.Supernova, rivalSpeed = 56f, chaser = true, chaserStart = -170f, rivalDelay = 2f, theme = Theme.Space, seed = 154, music = "music_race2",
+                rival = RivalKind.Supernova, rivalSpeed = 50f, chaser = true, chaserStart = -170f, rivalDelay = 2f, theme = Theme.Space, seed = 154, music = "music_race2",
                 build = b => b.Start()
                     .Hint("OUTRUN THE EXPLOSION!").BoostStrip(100f, 4).Drop(200f, 26f).Pad().Loop(27f)
                     .Corkscrew(220f, 2f).Ramp(20f, 10f).WallRun(160f).Straight(20).Meteors(240f, 0.4f)

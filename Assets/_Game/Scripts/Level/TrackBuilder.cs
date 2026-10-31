@@ -85,6 +85,7 @@ namespace Com.IsartDigital.Hyperspeed
         private float _lastCheckpoint;
         private float _lastPillar;
         private int _chunkIndex;
+        private bool _launchPending;
 
         public float Distance => _distance;
         public Theme Theme => _theme;
@@ -110,12 +111,8 @@ namespace Com.IsartDigital.Hyperspeed
         private void Step(float pDs, float pYaw, float pPitch, float pRoll, float pLateral, bool pSolid)
         {
             Quaternion lBefore = _rotation;
-            if (pYaw != 0f)
-            {
-                Vector3 lUp = _rotation * Vector3.up;
-                Vector3 lAxis = Vector3.Dot(lUp, Vector3.up) > 0.5f ? Vector3.up : lUp;
-                _rotation = Quaternion.AngleAxis(pYaw, lAxis) * _rotation;
-            }
+            // Turns always yaw around the world vertical, so banked / wall-ride roads curve horizontally.
+            if (pYaw != 0f) _rotation = Quaternion.AngleAxis(pYaw, Vector3.up) * _rotation;
             if (pPitch != 0f) _rotation = _rotation * Quaternion.Euler(pPitch, 0f, 0f);
             if (pRoll != 0f) _rotation = _rotation * Quaternion.Euler(0f, 0f, pRoll);
             Quaternion lMid = Quaternion.Slerp(lBefore, _rotation, 0.5f);
@@ -266,10 +263,10 @@ namespace Com.IsartDigital.Hyperspeed
                 case WallMode.Zigzag:
                     for (int k = 0; k < 64; k++)
                     {
-                        float lStart = k * 32f;
+                        float lStart = k * 34f;
                         if (lStart > pLocalDistance) break;
                         int lSide = k % 2 == 0 ? -1 : 1;
-                        if (lSide == pSign && pLocalDistance >= lStart && pLocalDistance <= lStart + 38f) return true;
+                        if (lSide == pSign && pLocalDistance >= lStart && pLocalDistance <= lStart + 50f) return true;
                     }
                     return false;
             }
@@ -338,6 +335,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         public TrackBuilder Gap(float pLength, float pDrop = 0f)
         {
+            _launchPending = false;
             Flatten();
             int lSteps = Mathf.Max(1, Mathf.CeilToInt(pLength / STEP));
             float lDs = pLength / lSteps;
@@ -352,7 +350,6 @@ namespace Com.IsartDigital.Hyperspeed
 
         public TrackBuilder Loop(float pRadius = 24f)
         {
-            MaybeCheckpoint();
             Flatten();
             float lLength = 2f * Mathf.PI * pRadius;
             float lShift = _width + 6f;
@@ -363,7 +360,6 @@ namespace Com.IsartDigital.Hyperspeed
 
         public TrackBuilder Corkscrew(float pLength, float pTurns = 1f)
         {
-            MaybeCheckpoint();
             Run(pLength, pT => new Vector3(0f, 0f, 360f * pTurns * Smooth(pT)), 0f, true, WallMode.None);
             return this;
         }
@@ -371,7 +367,6 @@ namespace Com.IsartDigital.Hyperspeed
         // Banked wall ride : the road rolls up to pAngle then back, gravity follows.
         public TrackBuilder WallRide(float pLength, float pAngle = 80f, float pYaw = 0f)
         {
-            MaybeCheckpoint();
             Run(pLength, pT => new Vector3(pYaw * Smooth(pT), 0f, pAngle * Bump(pT, 0.3f)), 0f, true, WallMode.None);
             return this;
         }
@@ -396,12 +391,11 @@ namespace Com.IsartDigital.Hyperspeed
         }
 
         // Floorless section : run on the walls and wall jump across.
-        public TrackBuilder WallRun(float pLength, bool pZigzag = true)
+        public TrackBuilder WallRun(float pLength, bool pZigzag = false)
         {
-            MaybeCheckpoint();
             float lWidth = _width;
-            _width = 13f;
-            _targetWidth = 13f;
+            _width = 10f;
+            _targetWidth = 10f;
             Run(pLength, pT => Vector3.zero, 0f, false, pZigzag ? WallMode.Zigzag : WallMode.Both);
             _width = lWidth;
             _targetWidth = lWidth;
@@ -411,7 +405,6 @@ namespace Com.IsartDigital.Hyperspeed
         // Floorless section crossed by a grind rail.
         public TrackBuilder RailGap(float pLength, float pYaw = 0f, float pDip = 0f)
         {
-            MaybeCheckpoint();
             GrindRail lRail = new GameObject("GrindRail").AddComponent<GrindRail>();
             lRail.transform.SetParent(root, false);
             lRail.AddPoint(_position + (_rotation * Vector3.up) * 0.9f - (_rotation * Vector3.forward) * 6f, _rotation * Vector3.up);
@@ -466,6 +459,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         public TrackBuilder Launch(float pBack = 6f)
         {
+            _launchPending = true;
             TrackSample lSample = path.Evaluate(_distance - pBack);
             LaunchPad.Create(root, lSample.position, RotationAt(lSample), _theme.accent);
             return this;
@@ -485,18 +479,22 @@ namespace Com.IsartDigital.Hyperspeed
             return this;
         }
 
-        public TrackBuilder Rings(float pGapLength, float pDrop, int pCount, float pArc = 7f)
+        // Gap crossed by a descending line of boost rings that carries you to the landing.
+        public TrackBuilder Rings(float pGapLength, float pDrop, int pCount)
         {
             Flatten();
             Vector3 lStart = _position;
-            Quaternion lRotation = _rotation;
+            float lFirstHeight = _launchPending ? 8f : 3.2f;
+            _launchPending = false;
             Gap(pGapLength, pDrop);
             Vector3 lEnd = _position;
+            Vector3 lFrom = Vector3.Lerp(lStart, lEnd, 0.2f) + Vector3.up * lFirstHeight;
+            Vector3 lTo = lEnd + Vector3.up * 2.5f - (lEnd - lStart).normalized * 4f;
+            Quaternion lRotation = Quaternion.LookRotation(lTo - lFrom, Vector3.up);
             for (int i = 0; i < pCount; i++)
             {
-                float lT = (i + 1f) / (pCount + 1f);
-                Vector3 lPoint = Vector3.Lerp(lStart, lEnd, lT) + Vector3.up * (pArc * 4f * lT * (1f - lT) + 2.5f);
-                BoostRing.Create(root, lPoint, lRotation, _theme.accent, 4.5f);
+                float lT = pCount > 1 ? i / (pCount - 1f) : 0f;
+                BoostRing.Create(root, Vector3.Lerp(lFrom, lTo, lT * 0.8f), lRotation, _theme.accent, 4.5f);
             }
             return this;
         }

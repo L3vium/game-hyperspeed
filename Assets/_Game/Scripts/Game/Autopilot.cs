@@ -48,6 +48,21 @@ namespace Com.IsartDigital.Hyperspeed
             float lAngle = Vector3.SignedAngle(Vector3.ProjectOnPlane(_player.Heading, lUp), lToTarget, lUp);
             HSInput.BotSteer = Mathf.Clamp(lAngle / 25f, -1f, 1f);
 
+            // Over a floorless stretch : head for the closest wall to wall run.
+            if (_player.State == PlayerState.Air && !lPath.Evaluate(lProgress + 4f).solid)
+            {
+                Vector3 lRight = Vector3.Cross(_player.GravityUp, _player.Heading).normalized;
+                Vector3 lCenter = _player.transform.position + _player.GravityUp;
+                RaycastHit lLeft, lRightHit;
+                bool lHasLeft = Physics.Raycast(lCenter, -lRight, out lLeft, 9f);
+                bool lHasRight = Physics.Raycast(lCenter, lRight, out lRightHit, 9f);
+                if (lHasLeft || lHasRight)
+                {
+                    bool lGoRight = lHasRight && (!lHasLeft || lRightHit.distance < lLeft.distance);
+                    HSInput.BotSteer = lGoRight ? 1f : -1f;
+                }
+            }
+
             TrackSample lHere = lPath.Evaluate(lProgress);
             TrackSample lAhead = lPath.Evaluate(lProgress + lSpeed * 0.05f + 2f);
             float lHeight = Vector3.Dot(_player.transform.position - lHere.position, lHere.Up);
