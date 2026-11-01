@@ -1,0 +1,227 @@
+#pragma kernel PhaseChanges
+#pragma kernel ActivateNewParticles
+
+#include "../../../../Resources/Compute/MathUtils.cginc"
+#include "../../../../Resources/Compute/Phases.cginc"
+
+struct ToyMaterial
+{
+    float4 color;
+    float4 hotColor;
+    float4 fluidMaterial;
+    float4 fluidMaterial2;
+    float4 fluidInterface;
+};
+
+StructuredBuffer<int> activeParticles;
+StructuredBuffer<ToyMaterial> toyMaterials;
+
+RWStructuredBuffer<float4> positions;
+RWStructuredBuffer<float4> principalRadii;
+RWStructuredBuffer<float4> userData;
+RWStructuredBuffer<float4> colors;
+RWStructuredBuffer<float> life;
+RWStructuredBuffer<float> invMasses;
+RWStructuredBuffer<float4> fluidMaterials;
+RWStructuredBuffer<float4> fluidMaterials2;
+RWStructuredBuffer<float4> fluidInterface;
+RWStructuredBuffer<int> phases;
+
+RWStructuredBuffer<int> activeMossParticleCount;
+StructuredBuffer<int> mossSolverIndices;
+
+uint particleCount;
+float randomSeed;
+float deltaTime;
+
+[numthreads(128,1,1)]
+void PhaseChanges (uint3 id : SV_DispatchThreadID)
+{
+    if(id.x >= particleCount)
+        return;
+
+    int p = activeParticles[id.x];
+    
+    // read particle data:
+    float4 user = userData[p];
+    float4 color = colors[p];
+    float4 fluidMat = fluidMaterials[p];
+    float4 fluidMat2 = fluidMaterials2[p];
+    float4 fluidIf = fluidInterface[p];
+
+    float temperature = user.x;
+    float ambientTransferRate = user.y;
+    float humidity = user.z;
+    int materialType = user.w;
+
+    // skip particles with no phase change:
+    if (materialType <= 0 || materialType > 12) return;
+
+    // update color due to temperature:
+    color = lerp(toyMaterials[materialType].color, toyMaterials[materialType].hotColor, saturate(temperature / 50));
+
+    // humidity is reduced as temperature increases:
+    humidity -= temperature * 0.1 * deltaTime;
+
+    // dissipate temperature:
+    temperature -= sign(temperature) * max(0,ambientTransferRate) * deltaTime; 
+    
+    // sand turns into mud when humid:
+    if (materialType == 1 && humidity > 0.5)
+    {
+        materialType = 5;
+        humidity = 2;
+        fluidMat = toyMaterials[materialType].fluidMaterial;
+        phases[p] |= Fluid;
+    }
+
+    // snow becomes water at high temperatures:
+    if (materialType == 2 && temperature > 5)
+    {   
+        materialType = 3;
+        humidity = 10;
+        fluidMat = toyMaterials[materialType].fluidMaterial;
+        phases[p] |= Fluid;
+    }
+
+    // water turns to smoke at high temperatures, disappears in contact with moss.
+    if (materialType == 3)
+    {
+        if (temperature > 30)
+        {
+            materialType = 7;
+            humidity = 3;
+            fluidMat = toyMaterials[materialType].fluidMaterial;
+            fluidMat2 = toyMaterials[materialType].fluidMaterial2;
+            fluidIf = toyMaterials[materialType].fluidInterface;
+            if (life[p] > 10)
+                life[p] = 10; 
+        }
+
+        if (ambientTransferRate < 0)
+        {
+            life[p] = 0;
+        }
+    }
+
+    // mud turns into sand when dry:
+    if (materialType == 5 && humidity <= 0.5)
+    {
+        materialType = 1;
+        humidity = 0;
+        fluidMat = toyMaterials[materialType].fluidMaterial;
+        phases[p] &= ~(Fluid);
+    }
+
+    // slime behaves like water at high temperatures:
+    if (materialType == 6)
+    {   
+        fluidMat = lerp(toyMaterials[materialType].fluidMaterial, toyMaterials[3].fluidMaterial, saturate(temperature / 20));
+    }
+
+    // smoke (water vapor) disappears when humidity is low.
+    /*if (materialType == 7 && humidity < 0.2)
+    {
+        life[p] -= deltaTime * 30;
+    }*/
+
+    // fire disappears when humidity is high.
+    if (materialType == 8 && humidity > 1)
+    {
+        life[p] -= deltaTime * 50;
+    }
+
+    // lava hardens into stone when cold.
+    if (materialType == 9 && temperature < 10)
+    {
+        materialType = 11;
+        humidity = 0;
+        invMasses[p] = 0;
+        fluidMat = toyMaterials[materialType].fluidMaterial;
+        phases[p] &= ~(Fluid);
+    }
+
+    // wood ignites (start increasing its own temperature) at high temperatures.
+    if (materialType == 10 && temperature > 20)
+    {
+        temperature += 20 * deltaTime;
+
+        // when burnt, fall down.
+        if (temperature > 80)
+        {
+            invMasses[p] = 40;
+            color = float4(0.3,0.3,0.3,1);
+        }
+    }
+
+    // moss disappears at hight temperatures:
+    if (materialType == 12 && temperature > 3)
+    {
+        if (life[p] > 10) life[p] = 0.2;
+    }
+
+    // write data back:
+    user.x = min(100, temperature);
+    user.z = humidity;
+    user.w = materialType;
+    userData[p] = user;
+    fluidMaterials[p] = fluidMat;
+    fluidMaterials2[p] = fluidMat2;
+    fluidInterface[p] = fluidIf;
+    colors[p] = color;
+}
+
+[numthreads(128,1,1)]
+void ActivateNewParticles (uint3 id : SV_DispatchThreadID)
+{
+    if(id.x >= particleCount)
+        return;
+
+    int p = activeParticles[id.x];
+
+    principalRadii[p].w = 1;
+    
+    // read particle data:
+    float4 user = userData[p];
+    float4 fluidMat = fluidMaterials[p];
+    float4 fluidIf = fluidInterface[p];
+
+    float temperature = user.x;
+    float humidity = user.z;
+    int materialType = user.w;
+
+    // skip particles with no phase change:
+    if (materialType <= 0 || materialType > 12) return;
+    
+    // moss generates more moss when humid:
+    if (materialType == 12 && humidity > 3)
+    {
+        // atomically activate one moss particle and get its index in the moss emitter:
+        int activeParticle;
+        InterlockedAdd(activeMossParticleCount[0],1,activeParticle);
+
+        if (activeParticle < 5000)
+        {
+            // get the new particle's solver index:
+            int s = mossSolverIndices[activeParticle];
+
+            // set new particle's basic data:
+            userData[s] = float4(temperature,-10,2.5,materialType); 
+            fluidMaterials[s] = fluidMat;
+            fluidInterface[s] = fluidIf;
+            life[s] = life[p];
+            phases[s] = phases[p];
+            principalRadii[s] = principalRadii[p];
+            principalRadii[s].w = 0;
+
+            // calculate a random position for it, above the spawning particle:
+            float offset = hash13(float3(positions[p].xy,randomSeed)) * 2 - 1;
+            positions[s] = positions[p] + normalize(float4(offset,1,0,0)) * principalRadii[p].x * 2;
+
+            // consume humidity:
+            user.z = 0.2f;
+            userData[p] = user;
+        }
+        else activeMossParticleCount[0] = 5000;
+    }
+}
