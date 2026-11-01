@@ -528,11 +528,227 @@ def music_lose():
     write("music_lose", None, 0.65, (left, right))
 
 
+# ============================================================================= v2 : richer sound design
+
+def reverb_ir(duration=1.6, decay=0.45, brightness=6000):
+    n = noise(duration) * np.exp(-t_axis(duration) / decay)
+    return lowpass(n, brightness) * 0.25
+
+
+def reverb(x, duration=1.4, decay=0.4, wet=0.25, brightness=6000):
+    ir = reverb_ir(duration, decay, brightness)
+    tail = signal.fftconvolve(np.concatenate([x, np.zeros(len(ir))]), ir)[:len(x) + len(ir)]
+    dry = np.concatenate([x, np.zeros(len(ir))])
+    return dry * (1 - wet * 0.5) + normalize(tail, np.max(np.abs(x)) + 1e-9) * wet
+
+
+def sub(f0, f1, duration, decay):
+    return sine_sweep(f0, f1, duration, 0.3) * env_exp(duration, decay)
+
+
+def sparkle(duration, count=18, lo=3000, hi=9000):
+    out = np.zeros(int(SR * duration))
+    for _ in range(count):
+        f = rng.uniform(lo, hi)
+        d = rng.uniform(0.04, 0.18)
+        p = np.sin(2 * np.pi * f * t_axis(d)) * env_exp(d, d * 0.3)
+        o = int(SR * rng.uniform(0, duration * 0.6))
+        out[o:o + len(p)] += p[:len(out) - o] * rng.uniform(0.2, 0.5)
+    return out
+
+
+def riser(duration, f0=300, f1=6000):
+    return sweep_filter(noise(duration), f0, f1, "low") * np.linspace(0, 1, int(SR * duration)) ** 2
+
+
+def engine_loop(base, harmonics, duration=2.0, wobble=3.0, grit=0.3):
+    t = t_axis(duration)
+    f = base * (1 + 0.03 * np.sin(2 * np.pi * wobble * t))
+    phase = 2 * np.pi * np.cumsum(f) / SR
+    tone = sum(np.sin(phase * h) / h for h in harmonics)
+    tone = drive(tone * 1.5, 2.0)
+    rough = bandpass(noise(duration), base * 2, base * 12) * grit
+    return loopable(lowpass(tone + rough, base * 20), 0.2)
+
+
+def make_sfx_v2():
+    # Player : crisp human moves instead of slime squishes.
+    tap = lambda: mix(highpass(noise(0.03), 1500) * env_exp(0.03, 0.006) * 0.6, sub(180, 90, 0.08, 0.025) * 0.8)
+    write("sfx_step", fade(tap()), 0.55)
+    write("sfx_jump", fade(reverb(mix(whoosh(0.22, 900, 4500) * 0.9, sub(160, 90, 0.1, 0.03) * 0.5, sine_sweep(500, 900, 0.12) * env_exp(0.12, 0.04) * 0.15), 0.8, 0.2, 0.15)), 0.75)
+    write("sfx_doublejump", fade(reverb(mix(whoosh(0.3, 1500, 7000), sine_sweep(700, 1600, 0.2, 0.6) * env_exp(0.2, 0.06) * 0.3, sparkle(0.35, 10) * 0.6), 1.0, 0.3, 0.25)), 0.8)
+    write("sfx_land", fade(mix(sub(140, 50, 0.18, 0.05), lowpass(noise(0.1), 1500) * env_exp(0.1, 0.02) * 0.5, tap() * 0.5)), 0.75)
+    write("sfx_land_heavy", fade(drive(mix(sub(120, 35, 0.4, 0.1) * 1.3, lowpass(noise(0.3), 1200) * env_exp(0.3, 0.06)), 1.8)), 0.9)
+
+    # Boost : sub punch + jet whoosh + rising shimmer + tail.
+    boost = mix(drive(sub(90, 40, 0.5, 0.15), 2) * 1.0, whoosh(0.9, 400, 9000) * 1.2,
+                at(sine_sweep(400, 1600, 0.5, 0.5) * env_exp(0.5, 0.2) * 0.25, 0.02), at(sparkle(0.6, 16, 4000, 10000) * 0.6, 0.05))
+    write("sfx_boost", fade(reverb(boost, 1.4, 0.4, 0.3)), 0.95)
+    write("sfx_boost_small", fade(reverb(mix(whoosh(0.4, 800, 7000), sub(100, 50, 0.25, 0.08) * 0.6), 0.8, 0.25, 0.2)), 0.8)
+    write("sfx_boost_loop", loopable(mix(bandpass(noise(2.5), 300, 2500) * 0.5, lowpass(noise(2.5), 200) * 0.7,
+                                         np.sin(2 * np.pi * 110 * t_axis(2.5)) * 0.15 * (1 + 0.3 * np.sin(2 * np.pi * 9 * t_axis(2.5)))), 0.3), 0.6)
+
+    # Ring : bright bell chord with long shimmering tail.
+    bell = mix(chime([1318.5, 1975.5, 2637, 3951], 1.2, 0.35), at(chime([2637, 3520], 0.9, 0.25) * 0.6, 0.05), sparkle(0.5, 12) * 0.4)
+    write("sfx_ring", fade(reverb(bell, 1.8, 0.6, 0.35, 9000)), 0.8)
+
+    # Perfect landing / start : impact + major chord stab + choir-like pad + sparkle.
+    t = t_axis(1.4)
+    choir = sum(np.sin(2 * np.pi * f * t + 0.5 * np.sin(2 * np.pi * 5.5 * t)) for f in (523, 659, 784, 1047)) * env_adsr(1.4, 0.05, 0.3, 0.5, 0.8) * 0.12
+    perfect = mix(drive(sub(160, 40, 0.5, 0.12), 3) * 1.1, highpass(noise(0.08), 3000) * env_exp(0.08, 0.015) * 0.7,
+                  at(choir, 0.02), at(sparkle(0.8, 24) * 0.5, 0.03), whoosh(0.6, 6000, 400) * 0.6)
+    write("sfx_land_perfect", fade(reverb(perfect, 1.8, 0.5, 0.35)), 0.95)
+    write("sfx_perfect_start", fade(reverb(mix(perfect, at(boost * 0.8, 0.05)), 1.8, 0.5, 0.3)), 0.95)
+    write("sfx_land_good", fade(reverb(mix(sub(150, 45, 0.35, 0.08), at(chime([880, 1320, 1760], 0.6, 0.18) * 0.5, 0.01), whoosh(0.3, 3000, 600) * 0.3), 1.2, 0.35, 0.25)), 0.85)
+    write("sfx_stall", fade(mix(lowpass(square(70, 0.6, 0.4), 600) * env_adsr(0.6, 0.01, 0.1, 0.7, 0.2), sine_sweep(300, 120, 0.4) * env_exp(0.4, 0.15) * 0.4)), 0.7)
+
+    # Dash : swirl whoosh with doppler shimmer.
+    swirl = whoosh(0.45, 7000, 600) * (1 + 0.4 * np.sin(2 * np.pi * 14 * t_axis(0.45)))
+    write("sfx_dash", fade(reverb(mix(swirl * 1.1, drive(sub(110, 45, 0.25, 0.06), 2) * 0.8, sparkle(0.3, 8, 5000, 11000) * 0.4), 0.9, 0.25, 0.2)), 0.9)
+
+    # Hits.
+    crack = highpass(noise(0.06), 2500) * env_exp(0.06, 0.012)
+    punch = drive(mix(sub(110, 35, 0.5, 0.12) * 1.4, crack * 1.4, lowpass(noise(0.35), 1800) * env_exp(0.35, 0.05)), 3)
+    write("sfx_punch_hit", fade(reverb(punch, 1.2, 0.3, 0.3)), 0.97)
+    write("sfx_crash", fade(reverb(drive(mix(sub(130, 35, 0.45, 0.1) * 1.2, lowpass(noise(0.4), 1500) * env_exp(0.4, 0.07), crack * 0.8), 2.2), 1.0, 0.3, 0.2)), 0.95)
+
+    # Hyper : big riser into a boom with stereo-ish shimmer.
+    hyper = mix(riser(0.8, 200, 12000) * 0.8, at(drive(sub(70, 25, 1.2, 0.4), 3) * 1.3, 0.75), at(sparkle(0.9, 30, 3000, 12000), 0.75),
+                at(choir * 2, 0.75), at(whoosh(0.8, 9000, 300), 0.75))
+    write("sfx_hyper", fade(reverb(hyper, 2.0, 0.6, 0.35)), 0.97)
+
+    # Zip line.
+    zt = t_axis(2.2)
+    write("sfx_zip_loop", loopable(bandpass(noise(2.2), 1800, 5000) * (0.6 + 0.4 * np.sin(2 * np.pi * 31 * zt)) + np.sin(2 * np.pi * 820 * zt) * 0.06, 0.2), 0.6)
+    write("sfx_zip_start", fade(reverb(mix(highpass(noise(0.08), 2000) * env_exp(0.08, 0.02), sine_sweep(2400, 900, 0.3) * env_exp(0.3, 0.1) * 0.4, sub(150, 80, 0.15, 0.05) * 0.5), 0.8, 0.25, 0.2)), 0.8)
+
+    # Rival engines (looping, played in 3D with doppler).
+    write("sfx_engine_car", engine_loop(85, (1, 2, 3, 4, 6), 2.0, 6, 0.35), 0.7)
+    write("sfx_engine_heavy", engine_loop(45, (1, 2, 3, 5), 2.0, 2, 0.5), 0.7)
+    write("sfx_engine_jet", loopable(mix(lowpass(noise(2.5), 900) * 0.8, bandpass(noise(2.5), 2000, 6000) * 0.4, np.sin(2 * np.pi * 1750 * t_axis(2.5)) * 0.08), 0.3), 0.7)
+    write("sfx_engine_hum", loopable(mix(np.sin(2 * np.pi * 220 * t_axis(2.0)) * 0.4, np.sin(2 * np.pi * 330 * t_axis(2.0)) * 0.2, bandpass(noise(2.0), 4000, 9000) * 0.3), 0.2), 0.6)
+    tick = np.zeros(int(SR * 2.0))
+    for i in range(4):
+        c = mix(highpass(noise(0.02), 3000) * env_exp(0.02, 0.004), np.sin(2 * np.pi * 2400 * t_axis(0.04)) * env_exp(0.04, 0.01) * 0.5)
+        o = int(SR * i * 0.5)
+        tick[o:o + len(c)] += c
+    write("sfx_engine_tick", mix(tick, np.sin(2 * np.pi * 55 * t_axis(2.0)) * 0.15), 0.7)
+    dt = t_axis(3.0)
+    dread = sum(np.sin(2 * np.pi * f * dt + 0.3 * np.sin(2 * np.pi * 0.4 * dt)) for f in (55, 58.3, 82.4, 110)) * 0.25 + lowpass(noise(3.0), 300) * 0.5
+    write("sfx_engine_dread", loopable(dread, 0.4), 0.75)
+
+    # VS stinger & transitions.
+    vs = mix(drive(sub(100, 30, 1.0, 0.25), 3) * 1.2, at(supersaw([note_freq(n) for n in (45, 52, 57, 64)], 1.2, 2500, 0.5) * 0.9, 0.0), highpass(noise(1.5), 5000) * env_exp(1.5, 0.4) * 0.5)
+    write("sfx_vs", fade(reverb(vs, 2.0, 0.6, 0.35)), 0.95)
+    write("ui_transition_in", fade(reverb(mix(whoosh(0.55, 300, 9000) * 1.1, sub(120, 50, 0.3, 0.1) * 0.5), 1.0, 0.3, 0.2)), 0.8)
+    write("ui_transition_out", fade(reverb(whoosh(0.5, 8000, 400), 0.8, 0.25, 0.2)), 0.75)
+    write("ui_select", fade(reverb(mix(arp([76, 83, 88], 0.045, 0.2, "square", 0.07) * 0.4, drive(sub(220, 90, 0.15, 0.04), 2) * 0.6, whoosh(0.2, 2500, 7000) * 0.3), 0.7, 0.2, 0.2)), 0.75)
+    write("ui_move", fade(mix(highpass(noise(0.025), 4000) * env_exp(0.025, 0.004) * 0.6, np.sin(2 * np.pi * 2200 * t_axis(0.04)) * env_exp(0.04, 0.008) * 0.6)), 0.5)
+
+
+class Track2(Track):
+    """Track with a drum bus that ducks the music bus (sidechain) and a reverb send."""
+
+    def __init__(self, bpm, bars):
+        super().__init__(bpm, bars)
+        self.mL = np.zeros_like(self.left)
+        self.mR = np.zeros_like(self.right)
+        self.kicks = []
+
+    def music(self, x, time, gain=1.0, pan=0.0):
+        s = int(SR * time)
+        e = min(s + len(x), len(self.mL))
+        self.mL[s:e] += x[:e - s] * gain * (1 - max(pan, 0))
+        self.mR[s:e] += x[:e - s] * gain * (1 + min(pan, 0))
+
+    def kick(self, time, gain=0.9):
+        self.add(kick(), time, gain)
+        self.kicks.append(time)
+
+    def render(self):
+        n = len(self.mL)
+        duck = np.ones(n)
+        env = 1 - 0.65 * np.exp(-t_axis(0.25) / 0.07)
+        for k in self.kicks:
+            s = int(SR * k)
+            e = min(s + len(env), n)
+            duck[s:e] = np.minimum(duck[s:e], env[:e - s])
+        ir = reverb_ir(2.0, 0.55, 7000)
+        wetL = signal.fftconvolve(self.mL, ir)[:n]
+        wetR = signal.fftconvolve(self.mR, ir[::-1] * 0 + np.roll(ir, 37))[:n]
+        self.left += (self.mL + normalize(wetL, np.max(np.abs(self.mL)) + 1e-9) * 0.3) * duck
+        self.right += (self.mR + normalize(wetR, np.max(np.abs(self.mR)) + 1e-9) * 0.3) * duck
+        return super().render()
+
+
+def music_race_v2(name, bpm, progression, seed_lead, dark=False):
+    bars = 32
+    tr = Track2(bpm, bars)
+    b = tr.beat
+    for bar in range(bars):
+        t0 = bar * 4 * b
+        root, kind = progression[bar % len(progression)]
+        intro = bar < 4
+        build = 4 <= bar < 8
+        brk = 24 <= bar < 28
+        drop = not intro and not build and not brk
+        cutoff = 900 if intro else (900 + (bar - 4) * 600 if build else (3200 if not dark else 2400))
+        # Drums
+        if drop:
+            for k in (0, 2.5):
+                tr.kick(t0 + k * b)
+            if bar % 4 == 3:
+                tr.kick(t0 + 3.5 * b, 0.6)
+            for s_ in (1, 3):
+                tr.add(snare(), t0 + s_ * b, 0.6)
+                tr.add(clap(), t0 + s_ * b, 0.3)
+        if not brk:
+            for i in range(16):
+                if intro and i % 2:
+                    continue
+                tr.add(hat(open_=(i % 8 == 6)), t0 + i * b / 4, 0.14 if i % 2 else 0.22, 0.35 if i % 2 else -0.35)
+        if build:
+            # Snare roll accelerating into the drop + riser.
+            hits = 4 * (1 + (bar - 4))
+            for i in range(hits):
+                tr.add(snare(), t0 + i * 4 * b / hits, 0.25 + 0.1 * (bar - 4))
+            if bar == 7:
+                tr.music(riser(4 * b, 200, 12000) * 0.5, t0, 1.0)
+        if bar == 8 or bar == 28:
+            tr.add(highpass(noise(2.0), 4000) * env_exp(2.0, 0.6) * 0.8, t0, 0.5)
+            tr.kick(t0, 1.0)
+        # Bass
+        if drop or build:
+            for step, length in ((0, 0.75), (0.75, 0.5), (1.5, 1.0), (2.5, 0.5), (3.0, 0.5), (3.5, 0.5)):
+                octave = 12 if step == 3.0 else 0
+                tr.music(bass_note(note_freq(root - 24 + octave), length * b, 500 if dark else 700), t0 + step * b, 0.5)
+        # Chords
+        for step in (0.5, 1.75, 3.25):
+            tr.music(supersaw(chord(root, kind), 0.8 * b, cutoff, 0.18), t0 + step * b, 0.32 if not intro else 0.2, -0.25)
+        tr.music(pad_chord(chord(root, kind), 4 * b, 1200), t0, 0.3)
+        # Arp + lead
+        if not intro:
+            notes = chord(root + 12, kind)
+            for i in range(8):
+                f = notes[(i * 2 + (bar % 3)) % len(notes)] * (2 if i % 4 == 3 else 1)
+                tr.music(pluck(f, b * 0.45, min(cutoff * 1.5, 6000), 0.09), t0 + i * b / 2, 0.2, 0.4 * np.sin(i))
+        if drop and bar >= 12:
+            local = np.random.default_rng(seed_lead + bar)
+            notes = chord(root + 24, kind)
+            for i in range(4 if bar % 2 == 0 else 2):
+                f = notes[local.integers(0, len(notes))]
+                d = b * (0.9 if bar % 2 == 0 else 1.9)
+                tr.music(lowpass(saw(f, d) + saw(f, d, 0.005) + square(f, d, 0.5) * 0.3, 4000) * env_adsr(d, 0.01, 0.1, 0.7, 0.08), t0 + i * b * (1 if bar % 2 == 0 else 2), 0.14, 0.15)
+    left, right = tr.render()
+    write(name, None, 0.88, (left, right))
+
+
 if __name__ == "__main__":
     make_sfx()
+    make_sfx_v2()
     music_title()
     music_intro()
-    music_race("music_race", 174, [(57, "m"), (53, "M"), (48, "M"), (55, "M")], 57, 3)
-    music_race("music_race2", 180, [(52, "m"), (53, "M"), (52, "m"), (50, "m7")], 52, 9, dark=True)
+    music_race_v2("music_race", 174, [(57, "m"), (53, "M"), (48, "M"), (55, "M")], 3)
+    music_race_v2("music_race2", 180, [(52, "m"), (53, "M"), (52, "m"), (50, "m7")], 9, dark=True)
     music_win()
     music_lose()
