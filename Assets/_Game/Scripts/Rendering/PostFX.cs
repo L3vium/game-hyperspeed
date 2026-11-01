@@ -108,17 +108,17 @@ namespace Com.IsartDigital.Hyperspeed
             _vignetteBoost = Mathf.MoveTowards(_vignetteBoost, 0f, lDt * 1.5f);
 
             float lSpeed = speed01;
-            _chromatic.intensity.Override(Mathf.Clamp01(0.08f + lSpeed * 0.45f + _pulse * 0.6f + hyper01 * 0.3f));
+            _chromatic.intensity.Override(Mathf.Clamp01(0.15f + lSpeed * 0.6f + _pulse * 0.8f + hyper01 * 0.4f));
             _vignette.intensity.Override(0.22f + lSpeed * 0.18f + _vignetteBoost * 0.25f);
             _vignette.color.Override(Color.Lerp(Color.black, _vignetteColor, Mathf.Clamp01(_vignetteBoost * 1.5f)));
             _lens.intensity.Override(-(lSpeed * 0.28f + _pulse * 0.2f + hyper01 * 0.15f));
             _lens.scale.Override(1f + lSpeed * 0.04f);
             _motionBlur.intensity.Override(lSpeed * 0.18f);
-            _bloom.intensity.Override(1.0f + hyper01 * 1.2f + _pulse * 0.8f);
+            _bloom.intensity.Override(1.3f + lSpeed * 0.6f + hyper01 * 1.6f + _pulse * 1.4f);
             _color.postExposure.Override(_pulse * 0.25f + hyper01 * 0.15f);
 
-            Shader.SetGlobalFloat(ABERRATION, lSpeed * 0.8f + _pulse * 1.6f + hyper01 * 1.2f);
-            Shader.SetGlobalFloat(RADIAL_BLUR, Mathf.Clamp01(lSpeed - 0.35f) * 0.9f + _pulse * 0.6f + hyper01 * 0.8f);
+            Shader.SetGlobalFloat(ABERRATION, 0.2f + lSpeed * 1.4f + _pulse * 2.4f + hyper01 * 1.8f);
+            Shader.SetGlobalFloat(RADIAL_BLUR, Mathf.Clamp01(lSpeed - 0.3f) * 1.1f + _pulse * 0.9f + hyper01 * 1.1f);
             Shader.SetGlobalFloat(DITHER, 0.55f);
             Shader.SetGlobalFloat(FLASH, _flash);
             Shader.SetGlobalColor(FLASH_COLOR, _flashColor);

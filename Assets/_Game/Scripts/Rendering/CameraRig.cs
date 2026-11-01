@@ -76,6 +76,20 @@ namespace Com.IsartDigital.Hyperspeed
             _introTimer = pDuration;
         }
 
+        private bool _override;
+        private Vector3 _overridePosition;
+        private Vector3 _overrideLook;
+
+        // Free camera for cinematics (rival fly-by).
+        public void SetOverride(Vector3 pPosition, Vector3 pLook)
+        {
+            _override = true;
+            _overridePosition = pPosition;
+            _overrideLook = pLook;
+        }
+
+        public void ClearOverride() => _override = false;
+
         public void SetFinishMode(bool pValue)
         {
             _finishMode = pValue;
@@ -84,16 +98,16 @@ namespace Com.IsartDigital.Hyperspeed
 
         public void AddTrauma(float pAmount) => _trauma = Mathf.Clamp01(_trauma + pAmount);
 
-        public void FovKick(float pAmount) => _fovKick = Mathf.Max(_fovKick, pAmount);
+        public void FovKick(float pAmount) => _fovKick = Mathf.Min(45f, Mathf.Max(_fovKick, pAmount) + pAmount * 0.25f);
 
         public void FovPunch(float pAmount) => _fovKick = pAmount;
 
-        public void Rollback(float pAmount) => _lag = Mathf.Max(_lag, pAmount);
+        public void Rollback(float pAmount) => _lag = Mathf.Min(24f, Mathf.Max(_lag, pAmount) + pAmount * 0.35f);
 
         private Vector3 DesiredPosition(float pSpeed)
         {
-            float lDistance = Mathf.Lerp(4.6f, 7.8f, pSpeed) + _lag + _hyperBlend * 6f;
-            float lHeight = Mathf.Lerp(1.8f, 2.4f, pSpeed) + _hyperBlend * 1.2f;
+            float lDistance = Mathf.Lerp(4.4f, 10.5f, pSpeed * pSpeed) + _lag + _hyperBlend * 14f;
+            float lHeight = Mathf.Lerp(1.8f, 3f, pSpeed) + _hyperBlend * 2.2f + _lag * 0.06f;
             return target.FocusPosition + _up * lHeight - _forward * lDistance;
         }
 
@@ -105,6 +119,13 @@ namespace Com.IsartDigital.Hyperspeed
         private void LateUpdate()
         {
             if (target == null) return;
+            if (_override)
+            {
+                transform.position = Vector3.Lerp(transform.position, _overridePosition, 1f - Mathf.Exp(-10f * Time.unscaledDeltaTime));
+                transform.rotation = Quaternion.LookRotation(_overrideLook - transform.position, Vector3.up);
+                Cam.fieldOfView = Mathf.Lerp(Cam.fieldOfView, 85f, 0.2f);
+                return;
+            }
             float lDt = Time.deltaTime;
             float lUnscaled = Time.unscaledDeltaTime;
             float lSpeed = target.Speed01;
@@ -116,8 +137,8 @@ namespace Com.IsartDigital.Hyperspeed
             _forward = Vector3.ProjectOnPlane(_forward, _up).normalized;
 
             _hyperBlend = Mathf.MoveTowards(_hyperBlend, target.HyperMode ? 1f : 0f, lDt * 2.5f);
-            _lag = Mathf.Lerp(_lag, 0f, 1f - Mathf.Exp(-2.2f * lDt));
-            _fovKick = Mathf.Lerp(_fovKick, 0f, 1f - Mathf.Exp(-5f * lUnscaled));
+            _lag = Mathf.Lerp(_lag, 0f, 1f - Mathf.Exp(-1.3f * lDt));
+            _fovKick = Mathf.Lerp(_fovKick, 0f, 1f - Mathf.Exp(-3.5f * lUnscaled));
             _trauma = Mathf.MoveTowards(_trauma, 0f, lUnscaled * 1.4f);
             _roll = Mathf.Lerp(_roll, target.CameraRoll, 1f - Mathf.Exp(-6f * lDt));
 
@@ -153,8 +174,8 @@ namespace Com.IsartDigital.Hyperspeed
             transform.position = lPosition + lRotation * lShakeOffset;
             transform.rotation = lRotation * lShakeRot;
 
-            float lFov = Mathf.Lerp(74f, 112f, lSpeed) + _fovKick + _hyperBlend * 14f;
-            Cam.fieldOfView = Mathf.Clamp(lFov, 40f, 150f);
+            float lFov = Mathf.Lerp(72f, 128f, lSpeed) + _fovKick + _hyperBlend * 20f;
+            Cam.fieldOfView = Mathf.Clamp(lFov, 40f, 155f);
         }
     }
 }

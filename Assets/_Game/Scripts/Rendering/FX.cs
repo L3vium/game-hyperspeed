@@ -163,12 +163,92 @@ namespace Com.IsartDigital.Hyperspeed
             lRing.AddComponent<ShockwaveAnim>().Init(pSize, pDuration);
         }
 
+        // Persistent stretched-spark system fed with Emit() (drift sparks, wind spikes).
+        public static ParticleSystem CreateSpikeSystem(string pName, int pMax)
+        {
+            ParticleSystem lSystem = CreateSystem(pName, Vector3.zero, Mats.Glow(Color.white * 2.5f, true, 1f), false);
+            ParticleSystem.MainModule lMain = lSystem.main;
+            lMain.maxParticles = pMax;
+            lMain.startLifetime = 0.25f;
+            lMain.gravityModifier = 0.6f;
+            ParticleSystemRenderer lRenderer = lSystem.GetComponent<ParticleSystemRenderer>();
+            lRenderer.renderMode = ParticleSystemRenderMode.Stretch;
+            lRenderer.velocityScale = 0.045f;
+            lRenderer.lengthScale = 2.5f;
+            ParticleSystem.SizeOverLifetimeModule lSize = lSystem.sizeOverLifetime;
+            lSize.enabled = true;
+            lSize.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 1f, 1f, 0f));
+            return lSystem;
+        }
+
+        // Ring flash + radial spikes : boost pads, rings, big events.
+        public static void Burst(Vector3 pPosition, Vector3 pDirection, Color pColor, float pSize)
+        {
+            GameObject lRing = new GameObject("BurstRing");
+            lRing.transform.position = pPosition;
+            lRing.transform.rotation = Quaternion.LookRotation(pDirection.sqrMagnitude > 0.01f ? pDirection : Vector3.forward);
+            lRing.AddComponent<MeshFilter>().sharedMesh = RingMesh;
+            Color lColor = pColor * 2.5f;
+            lColor.a = 0.9f;
+            lRing.AddComponent<MeshRenderer>().sharedMaterial = new Material(Mats.Glow(lColor, true));
+            lRing.AddComponent<BurstAnim>().Init(pSize, 0.35f);
+
+            ParticleSystem lSystem = CreateSpikeSystem("BurstSpikes", 80);
+            lSystem.transform.position = pPosition;
+            ParticleSystem.MainModule lMain = lSystem.main;
+            lMain.startSpeed = new ParticleSystem.MinMaxCurve(pSize * 1.5f, pSize * 3.5f);
+            lMain.startSize = new ParticleSystem.MinMaxCurve(0.1f, 0.25f);
+            lMain.startLifetime = new ParticleSystem.MinMaxCurve(0.15f, 0.35f);
+            lMain.startColor = new ParticleSystem.MinMaxGradient(pColor * 2.5f, Color.white * 2f);
+            ParticleSystem.ShapeModule lShape = lSystem.shape;
+            lShape.shapeType = ParticleSystemShapeType.Sphere;
+            lShape.radius = 0.5f;
+            lSystem.Emit(60);
+            Object.Destroy(lSystem.gameObject, 1f);
+        }
+
+        private static Mesh _ringMesh;
+        private static Mesh RingMesh => _ringMesh != null ? _ringMesh : (_ringMesh = MeshUtil.Ring(0.85f, 1f, 48));
+
         public static void Explosion(Vector3 pPosition, Color pColor, float pScale)
         {
             Sparks(pPosition, pColor, 40, 30f * pScale, 0.8f * pScale, 0.6f);
             Sparks(pPosition, Color.white, 20, 20f * pScale, 0.5f * pScale, 0.4f);
             Puff(pPosition, new Color(0.3f, 0.25f, 0.3f), 14, 6f * pScale, 10f * pScale);
             Shockwave(pPosition, Vector3.up, pColor, 16f * pScale, 0.45f);
+        }
+    }
+
+    public class BurstAnim : MonoBehaviour
+    {
+        private float _size;
+        private float _duration;
+        private float _time;
+        private Material _material;
+        private Color _color;
+
+        public void Init(float pSize, float pDuration)
+        {
+            _size = pSize;
+            _duration = pDuration;
+            _material = GetComponent<MeshRenderer>().sharedMaterial;
+            _color = _material.GetColor(Mats.COLOR);
+            transform.localScale = Vector3.one * 0.2f;
+        }
+
+        private void Update()
+        {
+            _time += Time.unscaledDeltaTime;
+            float lT = Mathf.Clamp01(_time / _duration);
+            transform.localScale = Vector3.one * Mathf.Lerp(0.2f, _size, 1f - Mathf.Pow(1f - lT, 3f));
+            Color lColor = _color;
+            lColor.a = _color.a * (1f - lT);
+            _material.SetColor(Mats.COLOR, lColor);
+            if (lT >= 1f)
+            {
+                Destroy(_material);
+                Destroy(gameObject);
+            }
         }
     }
 
