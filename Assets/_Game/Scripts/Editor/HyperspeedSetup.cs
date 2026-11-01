@@ -305,19 +305,30 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
             return null;
         }
 
-        [MenuItem("Hyperspeed/Build Windows")]
-        public static string BuildWindows()
+        public const string DEV_BUILD_PATH = "Builds/Windows-Dev/HyperSpeed-Dev.exe";
+
+        [MenuItem("Hyperspeed/Build Windows (Release)")]
+        public static string BuildWindows() => Build(BUILD_PATH, false);
+
+        // Same game with HS_CHEATS : every stage unlocked, F1-F5 cheats, F9 autopilot.
+        [MenuItem("Hyperspeed/Build Windows (Dev + Cheats)")]
+        public static string BuildDev() => Build(DEV_BUILD_PATH, true);
+
+        public static string BuildBoth() => BuildWindows() + " || " + BuildDev();
+
+        private static string Build(string pPath, bool pCheats)
         {
-            Directory.CreateDirectory(Path.GetDirectoryName(BUILD_PATH));
+            Directory.CreateDirectory(Path.GetDirectoryName(pPath));
             BuildPlayerOptions lOptions = new BuildPlayerOptions
             {
                 scenes = new[] { TITLE_SCENE, CORE_SCENE },
-                locationPathName = BUILD_PATH,
+                locationPathName = pPath,
                 target = BuildTarget.StandaloneWindows64,
-                options = BuildOptions.None
+                options = BuildOptions.None,
+                extraScriptingDefines = pCheats ? new[] { "HS_CHEATS" } : new string[0]
             };
             BuildReport lReport = BuildPipeline.BuildPlayer(lOptions);
-            string lSummary = lReport.summary.result + " | " + lReport.summary.totalSize / (1024 * 1024) + " MB | errors " + lReport.summary.totalErrors + " | " + lReport.summary.totalTime;
+            string lSummary = (pCheats ? "DEV " : "RELEASE ") + lReport.summary.result + " | " + lReport.summary.totalSize / (1024 * 1024) + " MB | errors " + lReport.summary.totalErrors + " | " + lReport.summary.totalTime;
             Debug.Log("[Hyperspeed] Build : " + lSummary);
             return lSummary;
         }

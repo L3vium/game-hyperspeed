@@ -82,7 +82,7 @@ namespace Com.IsartDigital.Hyperspeed
             UIKit.Tile(_root, "TimerBack", new Color(0f, 0f, 0f, 0.55f), new Vector2(1f, 1f), new Vector2(-230f, -62f), new Vector2(380f, 74f), 0.45f);
             UIKit.Tile(_root, "TimerAccent", UIKit.RED, new Vector2(1f, 1f), new Vector2(-418f, -62f), new Vector2(18f, 74f), 0.45f);
             _timerText = UIKit.Text(_root, "00:00.00", 58f, UIKit.WHITE, new Vector2(1f, 1f), new Vector2(-226f, -60f), new Vector2(360f, 74f), UIKit.Font.Heavy);
-            _feedRoot = UIFactory.CreateRect(_root, "Feed", new Vector2(1f, 1f), new Vector2(-230f, -130f), new Vector2(380f, 400f));
+            _feedRoot = UIFactory.CreateRect(_root, "Feed", new Vector2(1f, 1f), new Vector2(-230f, -340f), new Vector2(380f, 400f));
 
             _bigText = UIKit.OutlineText(_root, "", 150f, UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(0f, 250f), new Vector2(1900f, 200f), -4f, 0.12f);
             _bigText.gameObject.SetActive(false);

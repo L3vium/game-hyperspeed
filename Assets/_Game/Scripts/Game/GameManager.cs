@@ -75,7 +75,7 @@ namespace Com.IsartDigital.Hyperspeed
             float lStart = _level.chaser ? _level.chaserStart : 4f;
             _rival = Rival.Create(_level.rival, _level.rivalSpeed, _level.rivalDelay, _level.chaser, lStart, lRoot);
 
-            if (_level.chaser) _player.OnRespawned += () => _rival.distance = Mathf.Min(_rival.distance, _player.Progress - 90f);
+            if (_level.chaser) _player.OnRespawned += () => StartCoroutine(PushChaserBack());
             _hud = HUD.Create(_player, _rival, _path, _level);
             if (GameSession.CheatsEnabled) gameObject.AddComponent<Autopilot>().Init(_player);
         }
@@ -113,6 +113,13 @@ namespace Com.IsartDigital.Hyperspeed
             yield return _hud.Countdown(BeginRace);
         }
 
+        // Respawning sends you back : give the chaser the same handicap once the new progress is known.
+        private IEnumerator PushChaserBack()
+        {
+            yield return null;
+            _rival.distance = Mathf.Min(_rival.distance, _player.Progress - 90f);
+        }
+
         private void BeginRace()
         {
             _phase = Phase.Racing;
@@ -148,7 +155,7 @@ namespace Com.IsartDigital.Hyperspeed
                 StartCoroutine(EndRoutine(true, "FINISH!!"));
             else if (!_level.chaser && _rival.Finished)
                 StartCoroutine(EndRoutine(false, "TOO SLOW"));
-            else if (_level.chaser && _rival.distance >= _player.Progress - 2f && _rival.distance > 0f)
+            else if (_level.chaser && !_player.Invulnerable && _rival.distance >= _player.Progress - 2f && _rival.distance > 0f)
                 StartCoroutine(EndRoutine(false, _level.rival == RivalKind.Death ? "REAPED" : "VAPORIZED"));
         }
 
