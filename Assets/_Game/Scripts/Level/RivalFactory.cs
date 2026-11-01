@@ -16,7 +16,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         public static Placement GetPlacement(RivalKind pKind, float pTrackWidth)
         {
-            float lSide = pTrackWidth * 0.5f + 6f;
+            float lSide = pTrackWidth * 0.5f + 12f;
             switch (pKind)
             {
                 case RivalKind.Moto: return new Placement { lateral = -pTrackWidth * 0.3f, height = 0f };
@@ -24,17 +24,49 @@ namespace Com.IsartDigital.Hyperspeed
                 case RivalKind.SportsCar: return new Placement { lateral = lSide, height = 0f };
                 case RivalKind.RaceCar: return new Placement { lateral = lSide, height = 0f };
                 case RivalKind.Train: return new Placement { lateral = lSide + 3f, height = -1f };
-                case RivalKind.Plane: return new Placement { lateral = 10f, height = 22f, bob = 2f };
-                case RivalKind.FighterJet: return new Placement { lateral = -8f, height = 16f, bob = 1.5f };
-                case RivalKind.Bullet: return new Placement { lateral = 5f, height = 6f, bob = 0.2f };
-                case RivalKind.Rockets: return new Placement { lateral = 0f, height = 14f, bob = 1.5f };
-                case RivalKind.Spaceship: return new Placement { lateral = -9f, height = 12f, bob = 2f };
-                case RivalKind.Light: return new Placement { lateral = 0f, height = 4f, bob = 0.5f };
-                case RivalKind.Time: return new Placement { lateral = 0f, height = 26f, bob = 1f };
-                case RivalKind.Death: return new Placement { lateral = 0f, height = 6f, bob = 1.5f };
+                case RivalKind.Plane: return new Placement { lateral = 16f, height = 26f, bob = 2f };
+                case RivalKind.FighterJet: return new Placement { lateral = -12f, height = 20f, bob = 1.5f };
+                case RivalKind.Bullet: return new Placement { lateral = 7f, height = 8f, bob = 0.2f };
+                case RivalKind.Rockets: return new Placement { lateral = 0f, height = 18f, bob = 1.5f };
+                case RivalKind.Spaceship: return new Placement { lateral = -12f, height = 16f, bob = 2f };
+                case RivalKind.Light: return new Placement { lateral = 0f, height = 7f, bob = 0.5f };
+                case RivalKind.Time: return new Placement { lateral = 0f, height = 32f, bob = 1f };
+                case RivalKind.Death: return new Placement { lateral = 0f, height = 9f, bob = 1.5f };
                 case RivalKind.Supernova: return new Placement { lateral = 0f, height = 0f };
             }
             return new Placement();
+        }
+
+        public static float Scale(RivalKind pKind)
+        {
+            switch (pKind)
+            {
+                case RivalKind.Bullet: return 4f;
+                case RivalKind.Light: return 3f;
+                case RivalKind.Moto: return 2.6f;
+                case RivalKind.Time: return 1.8f;
+                default: return 2.4f;
+            }
+        }
+
+        public static string EngineSound(RivalKind pKind)
+        {
+            switch (pKind)
+            {
+                case RivalKind.Moto:
+                case RivalKind.SportsCar:
+                case RivalKind.RaceCar: return "sfx_engine_car";
+                case RivalKind.Bus:
+                case RivalKind.Train: return "sfx_engine_heavy";
+                case RivalKind.Plane:
+                case RivalKind.FighterJet:
+                case RivalKind.Rockets:
+                case RivalKind.Spaceship: return "sfx_engine_jet";
+                case RivalKind.Time: return "sfx_engine_tick";
+                case RivalKind.Death:
+                case RivalKind.Supernova: return "sfx_engine_dread";
+                default: return "sfx_engine_hum";
+            }
         }
 
         public static string DisplayName(RivalKind pKind)

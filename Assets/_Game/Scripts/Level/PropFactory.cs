@@ -98,6 +98,80 @@ namespace Com.IsartDigital.Hyperspeed
             return lBreakable;
         }
 
+        // Gives every primitive part of a prop a matching collider so the scenery is walkable.
+        public static void MakeSolid(Transform pRoot)
+        {
+            foreach (MeshFilter lFilter in pRoot.GetComponentsInChildren<MeshFilter>())
+            {
+                if (lFilter.GetComponent<Collider>() != null || lFilter.sharedMesh == null) continue;
+                string lName = lFilter.sharedMesh.name;
+                if (lName.StartsWith("Cube")) lFilter.gameObject.AddComponent<BoxCollider>();
+                else if (lName.StartsWith("Sphere")) lFilter.gameObject.AddComponent<SphereCollider>();
+                else if (lName.StartsWith("Capsule")) lFilter.gameObject.AddComponent<CapsuleCollider>();
+                else
+                {
+                    MeshCollider lCollider = lFilter.gameObject.AddComponent<MeshCollider>();
+                    lCollider.sharedMesh = lFilter.sharedMesh;
+                    lCollider.convex = lFilter.sharedMesh.vertexCount < 2000;
+                }
+            }
+        }
+
+        // Flat-topped stepping platform beside the track (walkable, lets you come back on the road).
+        public static Transform Platform(Transform pParent, Vector3 pPosition, Quaternion pRotation, Theme pTheme, float pSize)
+        {
+            Transform lRoot = Root("Platform", pParent, pPosition, pRotation);
+            Part(PrimitiveType.Cube, lRoot, new Vector3(0f, -1.5f, 0f), new Vector3(pSize, 3f, pSize * 1.6f), pTheme.roadA, default(Vector3), 0.03f);
+            Part(PrimitiveType.Cube, lRoot, new Vector3(0f, -6f, 0f), new Vector3(pSize * 0.85f, 6f, pSize * 1.4f), pTheme.decorB, default(Vector3), 0.03f);
+            Part(PrimitiveType.Cube, lRoot, new Vector3(0f, -11f, 0f), new Vector3(pSize * 0.6f, 5f, pSize * 1.1f), pTheme.decorC, default(Vector3), 0.03f);
+            GlowPart(PrimitiveType.Cube, lRoot, new Vector3(0f, 0.02f, 0f), new Vector3(pSize * 1.01f, 0.06f, 0.5f), pTheme.accent * 2f);
+            MakeSolid(lRoot);
+            GameObject[] lProps = GameAssets.Instance.islandProps;
+            if (pTheme.decor == DecorKind.Islands && lProps != null && lProps.Length > 1 && Random.value < 0.7f)
+            {
+                GameObject lPrefab = lProps[Random.Range(1, lProps.Length)];
+                if (lPrefab != null)
+                {
+                    GameObject lPlant = Object.Instantiate(lPrefab, lRoot);
+                    lPlant.transform.localPosition = new Vector3(Random.Range(-pSize, pSize) * 0.3f, 0f, Random.Range(-pSize, pSize) * 0.4f);
+                    lPlant.transform.localRotation = Quaternion.Euler(0f, Random.Range(0f, 360f), 0f);
+                    lPlant.transform.localScale = Vector3.one * Random.Range(0.5f, 0.9f);
+                    Toonify(lPlant, new Color(0.35f, 0.75f, 0.3f), new Color(0.55f, 0.36f, 0.22f));
+                    foreach (Collider lCollider in lPlant.GetComponentsInChildren<Collider>()) Object.Destroy(lCollider);
+                }
+            }
+            return lRoot;
+        }
+
+        public static void FloatingRock(Transform pParent, Vector3 pPosition, float pScale)
+        {
+            GameObject[] lProps = GameAssets.Instance.islandProps;
+            if (lProps == null || lProps.Length == 0 || lProps[0] == null) return;
+            GameObject lRock = Object.Instantiate(lProps[0], pParent);
+            lRock.transform.position = pPosition;
+            lRock.transform.rotation = Quaternion.Euler(Random.Range(-15f, 15f), Random.Range(0f, 360f), Random.Range(-15f, 15f));
+            lRock.transform.localScale = Vector3.one * pScale;
+            Toonify(lRock, RaceContext.Theme != null ? RaceContext.Theme.decorB : new Color(0.8f, 0.7f, 0.55f), new Color(0.4f, 0.75f, 0.35f));
+            foreach (Collider lCollider in lRock.GetComponentsInChildren<Collider>()) Object.Destroy(lCollider);
+        }
+
+        // Plugin props use shaders we do not ship : swap every slot for our toon material.
+        public static void Toonify(GameObject pObject, Color pMain, Color pSecondary)
+        {
+            foreach (Renderer lRenderer in pObject.GetComponentsInChildren<Renderer>())
+            {
+                Material[] lSlots = new Material[lRenderer.sharedMaterials.Length];
+                for (int i = 0; i < lSlots.Length; i++)
+                {
+                    Material lSource = lRenderer.sharedMaterials[i];
+                    string lName = lSource != null ? lSource.name.ToLower() : "";
+                    bool lSecondary = lName.Contains("trunk") || lName.Contains("bark") || lName.Contains("wood") || lName.Contains("grass") || lName.Contains("moss") || i % 2 == 1;
+                    lSlots[i] = Mats.Toon(lSecondary ? pSecondary : pMain, null, 0.02f);
+                }
+                lRenderer.sharedMaterials = lSlots;
+            }
+        }
+
         // ---------- Scenery ----------
 
         public static void Decor(DecorKind pKind, Theme pTheme, Transform pParent, Vector3 pPosition, Quaternion pRotation, float pScale)

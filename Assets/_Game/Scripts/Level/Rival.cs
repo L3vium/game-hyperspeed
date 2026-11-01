@@ -35,6 +35,8 @@ namespace Com.IsartDigital.Hyperspeed
             lRival.chaser = pChaser;
             lRival.distance = pStartDistance;
             lRival._model = RivalFactory.Build(pKind, lRival.transform);
+            if (pKind != RivalKind.Supernova) lRival._model.localScale = Vector3.one * RivalFactory.Scale(pKind);
+            AudioManager.CreateLoop3D(RivalFactory.EngineSound(pKind), lRival.transform, 1f);
             lRival._placement = RivalFactory.GetPlacement(pKind, TrackBuilder.DEFAULT_WIDTH);
             lRival._hourHand = lRival._model.Find("HourHand");
             lRival._minuteHand = lRival._model.Find("MinuteHand");
@@ -62,9 +64,11 @@ namespace Com.IsartDigital.Hyperspeed
                 bool lPlayerAhead = RaceContext.PlayerProgress > distance;
                 if (!chaser && lPlayerAhead && !_playerWasAhead && _elapsed > startDelay + 0.5f)
                 {
-                    AudioManager.Play("sfx_pass", 0.9f);
-                    Juice.Popup("OVERTAKE!", UIFactory.YELLOW, 1.2f);
-                    Juice.Rollback(2f);
+                    AudioManager.Play("sfx_pass", 1f);
+                    Juice.Popup("OVERTAKE!", UIFactory.YELLOW, 1.4f);
+                    Juice.Rollback(10f);
+                    Juice.ImpactFrame(1f);
+                    Juice.SlowMo(0.3f, 0.5f);
                 }
                 _playerWasAhead = lPlayerAhead;
             }
@@ -75,6 +79,13 @@ namespace Com.IsartDigital.Hyperspeed
 
             Place(Time.deltaTime);
             Animate();
+        }
+
+        // Intro fly-by : the rival storms past the start line, then gets parked back at its start distance.
+        public void IntroOffset(float pDistance)
+        {
+            distance = pDistance;
+            Place(0f);
         }
 
         private void Place(float pDt)

@@ -34,6 +34,7 @@ namespace Com.IsartDigital.Hyperspeed
             public readonly List<Vector3> vertices = new List<Vector3>();
             public readonly List<Vector3> normals = new List<Vector3>();
             public readonly List<Color> colors = new List<Color>();
+            public readonly List<Vector2> uvs = new List<Vector2>();
             public readonly List<int> triangles = new List<int>();
 
             public void Quad(Vector3 pA, Vector3 pB, Vector3 pC, Vector3 pD, Vector3 pNA, Vector3 pNB, Vector3 pNC, Vector3 pND, Color pColor)
@@ -42,6 +43,8 @@ namespace Com.IsartDigital.Hyperspeed
                 vertices.Add(pA); vertices.Add(pB); vertices.Add(pC); vertices.Add(pD);
                 normals.Add(pNA); normals.Add(pNB); normals.Add(pNC); normals.Add(pND);
                 colors.Add(pColor); colors.Add(pColor); colors.Add(pColor); colors.Add(pColor);
+                Vector2 lNoUv = new Vector2(-1f, 0f);
+                uvs.Add(lNoUv); uvs.Add(lNoUv); uvs.Add(lNoUv); uvs.Add(lNoUv);
                 Vector3 lFace = Vector3.Cross(pB - pA, pC - pA);
                 if (Vector3.Dot(lFace, pNA + pNC) >= 0f)
                 {
@@ -60,11 +63,20 @@ namespace Com.IsartDigital.Hyperspeed
                 Quad(pA, pB, pC, pD, pNormal, pNormal, pNormal, pNormal, pColor);
             }
 
+            // Same as Quad but with explicit UVs (road top : u lateral 0..1, v distance).
+            public void QuadUv(Vector3 pA, Vector3 pB, Vector3 pC, Vector3 pD, Vector3 pNA, Vector3 pNB, Vector3 pNC, Vector3 pND, Color pColor, Vector2 pUA, Vector2 pUB, Vector2 pUC, Vector2 pUD)
+            {
+                int lIndex = uvs.Count;
+                Quad(pA, pB, pC, pD, pNA, pNB, pNC, pND, pColor);
+                uvs[lIndex] = pUA; uvs[lIndex + 1] = pUB; uvs[lIndex + 2] = pUC; uvs[lIndex + 3] = pUD;
+            }
+
             public void Clear()
             {
                 vertices.Clear();
                 normals.Clear();
                 colors.Clear();
+                uvs.Clear();
                 triangles.Clear();
             }
         }
@@ -86,6 +98,9 @@ namespace Com.IsartDigital.Hyperspeed
         private float _lastPillar;
         private int _chunkIndex;
         private bool _launchPending;
+        private bool _guards = true;
+        private int _guardMask;
+        private const float GUARD_HEIGHT = 1.6f;
 
         public float Distance => _distance;
         public Theme Theme => _theme;
@@ -94,7 +109,8 @@ namespace Com.IsartDigital.Hyperspeed
         {
             root = pRoot;
             _theme = pTheme;
-            _material = Mats.Toon(Color.white, pTheme.shade, 0f, 0.15f, true);
+            _material = new Material(Mats.Toon(Color.white, pTheme.shade, 0f, 0.15f, true));
+            _material.SetFloat("_RoadStreaks", 1f);
             _pillars = pTheme.decor != DecorKind.Space && pTheme.decor != DecorKind.Void;
             AddSample(true);
         }
@@ -194,8 +210,12 @@ namespace Com.IsartDigital.Hyperspeed
                 Vector3 lA1 = Point(pA, lFractions[i + 1] * lHalfA, 0f);
                 Vector3 lB0 = Point(pB, lFractions[i] * lHalfB, 0f);
                 Vector3 lB1 = Point(pB, lFractions[i + 1] * lHalfB, 0f);
-                _mesh.Quad(Local(lA0), Local(lB0), Local(lB1), Local(lA1), Dir(pA.Up), Dir(pB.Up), Dir(pB.Up), Dir(pA.Up), lColors[i]);
+                float lU0 = (lFractions[i] + 1f) * 0.5f;
+                float lU1 = (lFractions[i + 1] + 1f) * 0.5f;
+                _mesh.QuadUv(Local(lA0), Local(lB0), Local(lB1), Local(lA1), Dir(pA.Up), Dir(pB.Up), Dir(pB.Up), Dir(pA.Up), lColors[i],
+                    new Vector2(lU0, pA.distance), new Vector2(lU0, pB.distance), new Vector2(lU1, pB.distance), new Vector2(lU1, pA.distance));
             }
+            EmitGuards(pA, pB);
 
             Color lSide = lBand ? _theme.roadSide : _theme.roadSide * 0.88f;
             for (int lSign = -1; lSign <= 1; lSign += 2)
@@ -219,6 +239,28 @@ namespace Com.IsartDigital.Hyperspeed
         }
 
         private Vector3 Dir(Vector3 pWorld) => root.InverseTransformDirection(pWorld);
+
+        // Low barriers along the road edges : stop accidental falls, still jumpable, good for wall slides.
+        private void EmitGuards(Frame pA, Frame pB)
+        {
+            if (!_guards && _guardMask == 0) return;
+            bool lBand = Mathf.FloorToInt(pA.distance / BAND) % 2 == 0;
+            for (int lSign = -1; lSign <= 1; lSign += 2)
+            {
+                if (!_guards && lSign != _guardMask) continue;
+                float lInnerA = lSign * pA.width * 0.5f;
+                float lInnerB = lSign * pB.width * 0.5f;
+                float lOuterA = lInnerA + lSign * 0.6f;
+                float lOuterB = lInnerB + lSign * 0.6f;
+                Color lFace = lBand ? _theme.roadEdge : Color.white;
+                _mesh.Quad(Local(Point(pA, lInnerA, GUARD_HEIGHT)), Local(Point(pB, lInnerB, GUARD_HEIGHT)), Local(Point(pB, lInnerB, -0.1f)), Local(Point(pA, lInnerA, -0.1f)),
+                    Dir(-pA.Right * lSign), Dir(-pB.Right * lSign), Dir(-pB.Right * lSign), Dir(-pA.Right * lSign), lFace);
+                _mesh.Quad(Local(Point(pA, lOuterA, GUARD_HEIGHT)), Local(Point(pB, lOuterB, GUARD_HEIGHT)), Local(Point(pB, lOuterB, -THICKNESS)), Local(Point(pA, lOuterA, -THICKNESS)),
+                    Dir(pA.Right * lSign), Dir(pB.Right * lSign), Dir(pB.Right * lSign), Dir(pA.Right * lSign), _theme.roadSide);
+                _mesh.Quad(Local(Point(pA, lInnerA, GUARD_HEIGHT)), Local(Point(pB, lInnerB, GUARD_HEIGHT)), Local(Point(pB, lOuterB, GUARD_HEIGHT)), Local(Point(pA, lOuterA, GUARD_HEIGHT)),
+                    Dir(pA.Up), Dir(pB.Up), Dir(pB.Up), Dir(pA.Up), _theme.accent);
+            }
+        }
 
         private void EmitWalls(Frame pA, Frame pB, WallMode pMode, float pLocalDistance)
         {
@@ -282,6 +324,7 @@ namespace Com.IsartDigital.Hyperspeed
             lMesh.SetVertices(_mesh.vertices);
             lMesh.SetNormals(_mesh.normals);
             lMesh.SetColors(_mesh.colors);
+            lMesh.SetUVs(0, _mesh.uvs);
             lMesh.SetTriangles(_mesh.triangles, 0);
             lMesh.RecalculateBounds();
 
@@ -307,7 +350,9 @@ namespace Com.IsartDigital.Hyperspeed
             MaybeCheckpoint();
             float lLength = Mathf.Abs(pAngle) * Mathf.Deg2Rad * pRadius;
             float lSign = Mathf.Sign(pAngle);
+            _guardMask = pAngle > 0f ? -1 : 1;
             Run(lLength, pT => new Vector3(pAngle * Smooth(pT), 0f, -lSign * pBank * Mathf.Sin(pT * Mathf.PI)), 0f, true, WallMode.None);
+            _guardMask = 0;
             return this;
         }
 
@@ -577,6 +622,142 @@ namespace Com.IsartDigital.Hyperspeed
             lZone.startDistance = lStart;
             lZone.endDistance = lStart + pLength;
             lZone.interval = pInterval;
+            return this;
+        }
+
+        public TrackBuilder Guards(bool pOn)
+        {
+            _guards = pOn;
+            return this;
+        }
+
+        // Tight S-bends made for drifting.
+        public TrackBuilder Chicane(float pAngle = 40f, float pRadius = 55f)
+        {
+            return Turn(pAngle, pRadius, 22f).Turn(-pAngle * 2f, pRadius, 28f).Turn(pAngle, pRadius, 22f);
+        }
+
+        public TrackBuilder Hairpin(float pAngle = 150f, float pRadius = 48f)
+        {
+            return Turn(pAngle, pRadius, 34f);
+        }
+
+        // Road twists upside down for a while, then back : run on the ceiling.
+        public TrackBuilder FlipOver(float pLength = 240f)
+        {
+            return WallRide(pLength, 180f);
+        }
+
+        public enum Lane { None, High, Low, Wall, Ceiling }
+
+        // The road splits into parallel lanes (elevated, sunken, wall, ceiling over the main road), then merges back.
+        public TrackBuilder Split(float pLength, Lane pLeft, Lane pRight)
+        {
+            MaybeCheckpoint();
+            bool lGuards = _guards;
+            _guards = false;
+            int lSteps = Mathf.Max(2, Mathf.CeilToInt(pLength / STEP));
+            List<Frame> lMain = new List<Frame> { Current };
+            float lDs = pLength / lSteps;
+            Frame lPrev = Current;
+            for (int i = 1; i <= lSteps; i++)
+            {
+                Step(lDs, 0f, 0f, 0f, 0f, true);
+                Frame lCur = Current;
+                EmitRoad(lPrev, lCur);
+                lMain.Add(lCur);
+                lPrev = lCur;
+            }
+            Flush();
+            BuildLane(lMain, -1, pLeft);
+            BuildLane(lMain, 1, pRight);
+            _guards = lGuards;
+
+            // Merge : the road is wide enough to catch every lane, then funnels back.
+            float lSpan = 3.4f * _width;
+            _width = lSpan;
+            _targetWidth = DEFAULT_WIDTH;
+            Straight(90f);
+            return this;
+        }
+
+        private void BuildLane(List<Frame> pMain, int pSide, Lane pLane)
+        {
+            if (pLane == Lane.None) return;
+            int lCount = pMain.Count;
+            Vector3[] lPositions = new Vector3[lCount];
+            Vector3[] lUps = new Vector3[lCount];
+            for (int i = 0; i < lCount; i++)
+            {
+                float lT = i / (lCount - 1f);
+                Frame lFrame = pMain[i];
+                float lOffset = pSide * lFrame.width;
+                float lHeight = 0f;
+                float lRoll = 0f;
+                switch (pLane)
+                {
+                    case Lane.High: lOffset = pSide * (lFrame.width + 6f * Bump(lT, 0.2f)); lHeight = 9f * Bump(lT, 0.3f); break;
+                    case Lane.Low: lOffset = pSide * (lFrame.width + 6f * Bump(lT, 0.2f)); lHeight = -9f * Bump(lT, 0.3f); break;
+                    case Lane.Wall: lOffset = pSide * (lFrame.width + 4f * Bump(lT, 0.25f)); lHeight = 6f * Bump(lT, 0.3f); lRoll = pSide * 80f * Bump(lT, 0.3f); break;
+                    case Lane.Ceiling: lOffset = pSide * lFrame.width * (1f - Bump(lT, 0.35f)); lHeight = 14f * Bump(lT, 0.35f); lRoll = pSide * 180f * Bump(lT, 0.35f); break;
+                }
+                Quaternion lRolled = lFrame.rotation * Quaternion.Euler(0f, 0f, lRoll);
+                lPositions[i] = lFrame.position + lFrame.Right * lOffset + Vector3.up * lHeight;
+                lUps[i] = lRolled * Vector3.up;
+            }
+            Frame lPrev = default(Frame);
+            for (int i = 0; i < lCount; i++)
+            {
+                Vector3 lForward = (lPositions[Mathf.Min(i + 1, lCount - 1)] - lPositions[Mathf.Max(i - 1, 0)]).normalized;
+                Vector3 lUp = Vector3.ProjectOnPlane(lUps[i], lForward).normalized;
+                Frame lFrame = new Frame { position = lPositions[i], rotation = Quaternion.LookRotation(lForward, lUp), width = pMain[i].width, distance = pMain[i].distance };
+                if (i > 0) EmitLane(lPrev, lFrame, pLane == Lane.High || pLane == Lane.Low ? -pSide : 0);
+                lPrev = lFrame;
+                // Lane rewards
+                float lT = i / (lCount - 1f);
+                if (i % Mathf.Max(1, lCount / 5) == 0 && lT > 0.2f && lT < 0.85f)
+                {
+                    if (pLane == Lane.Ceiling || pLane == Lane.Wall) BoostRing.Create(root, lFrame.position + lFrame.Up * 3f, lFrame.rotation, _theme.accent, 4f);
+                    else BoostPad.Create(root, lFrame.position, lFrame.rotation, _theme.accent);
+                }
+            }
+            Flush();
+        }
+
+        // Lane slab : same road, guard only on its outer edge (pInnerSide marks the side facing the main road).
+        private void EmitLane(Frame pA, Frame pB, int pInnerSide)
+        {
+            bool lGuards = _guards;
+            int lMask = _guardMask;
+            _guards = false;
+            _guardMask = pInnerSide == 0 ? 0 : -pInnerSide;
+            EmitRoad(pA, pB);
+            _guards = lGuards;
+            _guardMask = lMask;
+        }
+
+        // Zip line across a gap : hang under the rope and slide down.
+        public TrackBuilder ZipLine(float pLength, float pDrop = 12f)
+        {
+            Flatten();
+            Vector3 lUp = Vector3.up;
+            GrindRail lRope = new GameObject("ZipLine").AddComponent<GrindRail>();
+            lRope.transform.SetParent(root, false);
+            lRope.zip = true;
+            Vector3 lForward = _rotation * Vector3.forward;
+            lRope.AddPoint(_position + lUp * 4.4f - lForward * 10f, lUp);
+            int lSteps = Mathf.Max(1, Mathf.CeilToInt(pLength / STEP));
+            float lDs = pLength / lSteps;
+            for (int i = 0; i < lSteps; i++)
+            {
+                float lT = (i + 1f) / lSteps;
+                _position += lForward * lDs - lUp * (pDrop / lSteps);
+                _distance += lDs;
+                AddSample(false);
+                if (i % 3 == 2 || i == lSteps - 1) lRope.AddPoint(_position + lUp * (4.4f + Mathf.Sin(lT * Mathf.PI) * -1.2f), lUp);
+            }
+            lRope.AddPoint(_position + lUp * 4.4f + lForward * 8f, lUp);
+            lRope.FinishZip(_theme.roadSide, _theme.accent);
             return this;
         }
 

@@ -17,6 +17,7 @@ namespace Com.IsartDigital.Hyperspeed
         private Bounds _bounds;
 
         public float Length { get; private set; }
+        public bool zip;
 
         private void OnEnable() => All.Add(this);
 
@@ -46,7 +47,38 @@ namespace Com.IsartDigital.Hyperspeed
             }
         }
 
+        // Zip line : thin cable between two towers, glowing handle markers along it.
+        public void FinishZip(Color pTowerColor, Color pAccent)
+        {
+            _bounds = new Bounds(_points[0], Vector3.zero);
+            foreach (Vector3 lPoint in _points) _bounds.Encapsulate(lPoint);
+            _bounds.Expand(8f);
+            BuildTube(pAccent, 0.09f, Mats.Toon(new Color(0.12f, 0.1f, 0.14f), null, 0f));
+            Material lTower = Mats.Toon(pTowerColor, null, 0.03f);
+            Material lGlow = Mats.Glow(pAccent * 2.5f, false, 0f, 0f, true);
+            for (int i = 0; i < 2; i++)
+            {
+                Vector3 lTop = i == 0 ? _points[0] : _points[_points.Count - 1];
+                GameObject lPole = Mats.Primitive(PrimitiveType.Cube, transform, lTop - Vector3.up * 7f, new Vector3(0.9f, 14f, 0.9f), lTower);
+                lPole.transform.rotation = Quaternion.LookRotation(Vector3.ProjectOnPlane(_points[_points.Count - 1] - _points[0], Vector3.up), Vector3.up);
+                Mats.Primitive(PrimitiveType.Cube, transform, lTop + Vector3.up * 0.4f, new Vector3(2.4f, 0.5f, 0.5f), lGlow).transform.rotation = lPole.transform.rotation;
+            }
+            for (float lDist = 6f; lDist < Length; lDist += 9f)
+            {
+                Vector3 lPos, lTangent, lUp;
+                Evaluate(lDist, out lPos, out lTangent, out lUp);
+                Mats.Primitive(PrimitiveType.Sphere, transform, lPos, Vector3.one * 0.45f, lGlow);
+            }
+        }
+
         private void BuildTube(Color pColor)
+        {
+            Material lMaterial = Mats.GlowStripes(pColor * 2.2f, 1f, 3f);
+            lMaterial.SetFloat("_Cull", 2f);
+            BuildTube(pColor, TUBE_RADIUS, lMaterial);
+        }
+
+        private void BuildTube(Color pColor, float pRadius, Material pMaterial)
         {
             List<Vector3> lVertices = new List<Vector3>();
             List<Vector3> lNormals = new List<Vector3>();
@@ -61,7 +93,7 @@ namespace Com.IsartDigital.Hyperspeed
                 {
                     float lAngle = j * Mathf.PI * 2f / TUBE_SIDES;
                     Vector3 lNormal = lRight * Mathf.Cos(lAngle) + lUp * Mathf.Sin(lAngle);
-                    lVertices.Add(transform.InverseTransformPoint(_points[i] + lNormal * TUBE_RADIUS));
+                    lVertices.Add(transform.InverseTransformPoint(_points[i] + lNormal * pRadius));
                     lNormals.Add(transform.InverseTransformDirection(lNormal));
                     lUvs.Add(new Vector2(_distances[i] * 0.25f, j / (float)TUBE_SIDES));
                 }
@@ -84,9 +116,7 @@ namespace Com.IsartDigital.Hyperspeed
             GameObject lTube = new GameObject("Tube");
             lTube.transform.SetParent(transform, false);
             lTube.AddComponent<MeshFilter>().sharedMesh = lMesh;
-            Material lMaterial = Mats.GlowStripes(pColor * 2.2f, 1f, 3f);
-            lMaterial.SetFloat("_Cull", 2f);
-            lTube.AddComponent<MeshRenderer>().sharedMaterial = lMaterial;
+            lTube.AddComponent<MeshRenderer>().sharedMaterial = pMaterial;
         }
 
         public void Evaluate(float pDistance, out Vector3 pPosition, out Vector3 pTangent, out Vector3 pUp)
