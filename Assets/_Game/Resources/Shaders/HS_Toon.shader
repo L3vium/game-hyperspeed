@@ -5,6 +5,7 @@ Shader "Hyperspeed/Toon"
     Properties
     {
         _BaseColor ("Base Color", Color) = (1,1,1,1)
+        _BaseMap ("Base Map", 2D) = "white" {}
         _ShadeColor ("Shade Color", Color) = (0.55,0.5,0.75,1)
         _ShadeStep ("Shade Step", Range(0,1)) = 0.45
         _ShadeSoft ("Shade Softness", Range(0.001,0.5)) = 0.04
@@ -22,6 +23,7 @@ Shader "Hyperspeed/Toon"
         _WobbleSpeed ("Wobble Speed", Float) = 8
         _Flash ("Flash", Range(0,1)) = 0
         _UseVertexColor ("Use Vertex Color", Range(0,1)) = 1
+        _RoadStreaks ("Road Speed Streaks", Range(0,1)) = 0
     }
 
     SubShader
@@ -31,7 +33,11 @@ Shader "Hyperspeed/Toon"
         HLSLINCLUDE
         #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Core.hlsl"
 
+        TEXTURE2D(_BaseMap);
+        SAMPLER(sampler_BaseMap);
+
         CBUFFER_START(UnityPerMaterial)
+            float4 _BaseMap_ST;
             half4 _BaseColor;
             half4 _ShadeColor;
             half _ShadeStep;
@@ -50,7 +56,11 @@ Shader "Hyperspeed/Toon"
             float _WobbleSpeed;
             half _Flash;
             half _UseVertexColor;
+            half _RoadStreaks;
         CBUFFER_END
+
+        float _HS_RoadScroll;
+        float _HS_RoadSpeed;
 
         float3 ApplyWobble(float3 positionOS, float3 normalOS)
         {
@@ -79,6 +89,7 @@ Shader "Hyperspeed/Toon"
                 float4 positionOS : POSITION;
                 float3 normalOS : NORMAL;
                 half4 color : COLOR;
+                float2 uv : TEXCOORD0;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -90,6 +101,7 @@ Shader "Hyperspeed/Toon"
                 half4 color : TEXCOORD2;
                 float4 screenPos : TEXCOORD3;
                 half fogFactor : TEXCOORD4;
+                float2 uv : TEXCOORD5;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -106,6 +118,7 @@ Shader "Hyperspeed/Toon"
                 output.color = lerp(half4(1,1,1,1), input.color, _UseVertexColor);
                 output.screenPos = ComputeScreenPos(lPosInputs.positionCS);
                 output.fogFactor = ComputeFogFactor(lPosInputs.positionCS.z);
+                output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
                 return output;
             }
 
@@ -129,7 +142,7 @@ Shader "Hyperspeed/Toon"
                 half lHalftone = step(lDot, lTone * 0.55) * _HalftoneAmount * (1.0 - lBand);
                 lBand = saturate(lBand + lHalftone);
 
-                half3 lAlbedo = _BaseColor.rgb * input.color.rgb;
+                half3 lAlbedo = _BaseColor.rgb * input.color.rgb * SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv).rgb;
                 half3 lShade = lAlbedo * _ShadeColor.rgb;
                 half3 lColor = lerp(lShade, lAlbedo, lBand) * lerp(half3(1,1,1), lLight.color, 0.35);
                 lColor += SampleSH(lNormal) * lAlbedo * 0.25;
@@ -140,6 +153,18 @@ Shader "Hyperspeed/Toon"
                 float3 lHalf = normalize(lLight.direction + lView);
                 half lSpec = step(1.0 - _SpecSize * 0.08, dot(lNormal, lHalf)) * step(0.001, _SpecSize);
                 lColor += _SpecColor.rgb * lSpec * lLight.shadowAttenuation;
+
+                // Anime ground speed lines : dashes along the track that run faster than the player.
+                if (_RoadStreaks > 0 && input.uv.x >= 0.0 && _HS_RoadSpeed > 0.01)
+                {
+                    float lColumn = floor(input.uv.x * 26.0);
+                    float lRnd = frac(sin(lColumn * 91.17) * 4375.85);
+                    float lLane = frac(input.uv.x * 26.0);
+                    float lThin = smoothstep(0.5, 0.2, abs(lLane - 0.5)) ;
+                    float lDash = frac(input.uv.y * (0.03 + lRnd * 0.03) + _HS_RoadScroll * (0.02 + lRnd * 0.02) + lRnd * 7.0);
+                    float lStreak = step(0.62 - _HS_RoadSpeed * 0.25, lDash) * lThin * step(0.35, lRnd);
+                    lColor = lerp(lColor, half3(1, 1, 1), lStreak * _HS_RoadSpeed * 0.55);
+                }
 
                 lColor += _EmissionColor.rgb;
                 lColor = lerp(lColor, half3(1,1,1) * 1.5, _Flash);

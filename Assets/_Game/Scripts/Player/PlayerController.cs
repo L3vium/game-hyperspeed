@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    public enum PlayerState { Frozen, Ground, Air, WallRun, Grind, Crash, Finished }
+    public enum PlayerState { Frozen, Ground, Air, WallRun, Grind, Zip, Crash, Finished }
 
     // Kinematic runner : surface-aligned gravity (loops, walls, ceilings), parkour moves, speed economy.
     public class PlayerController : MonoBehaviour, ICameraTarget
@@ -14,7 +14,7 @@ namespace Com.IsartDigital.Hyperspeed
         public const float HYPER_ENTER = 95f;
         private const float HYPER_EXIT = 84f;
         public const float SMASH_SPEED = 60f;
-        private const float GRAVITY = 58f;
+        private const float GRAVITY = 50f;
         private const float SLOPE_ACCEL = 34f;
         private const float JUMP_VELOCITY = 17f;
         private const float DOUBLE_JUMP_VELOCITY = 16f;
@@ -29,7 +29,10 @@ namespace Com.IsartDigital.Hyperspeed
         private const float GROUND_MIN_DOT = 0.55f;
         private const float STICK_MIN_SPEED = 16f;
         private const float RAIL_RADIUS = 4.5f;
-        private const float KILL_DISTANCE = 55f;
+        private const float KILL_DISTANCE = 180f;
+        private const float DRIFT_SLIP = 35f;
+        private const float START_WINDOW_BEFORE = 0.25f;
+        private const float START_WINDOW_AFTER = 0.12f;
 
         // ---------------- state
         public PlayerState State { get; private set; } = PlayerState.Frozen;
@@ -37,8 +40,12 @@ namespace Com.IsartDigital.Hyperspeed
         public Vector3 Up => _up;
         public Vector3 GravityUp => _gravityUp;
         public Vector3 Heading => _heading;
-        public float Speed => State == PlayerState.Ground || State == PlayerState.Grind ? _speed : Vector3.ProjectOnPlane(_velocity, _gravityUp).magnitude;
-        public float TotalSpeed => State == PlayerState.Ground || State == PlayerState.Grind ? _speed : _velocity.magnitude;
+        public float Speed => OnSurface ? _speed : Vector3.ProjectOnPlane(_velocity, _gravityUp).magnitude;
+        public float TotalSpeed => OnSurface ? _speed : _velocity.magnitude;
+        private bool OnSurface => State == PlayerState.Ground || State == PlayerState.Grind || State == PlayerState.Zip;
+        public Vector3 FacingDirection => _heading;
+        public float BoostAmount => Mathf.Clamp01(_boostTimer / 0.6f);
+        public bool CheatInvincible;
         public bool Hyper { get; private set; }
         public bool Drifting { get; private set; }
         public int DriftDirection { get; private set; }
@@ -100,6 +107,13 @@ namespace Com.IsartDigital.Hyperspeed
         private Vector3 _smoothCameraUp = Vector3.up;
         private bool _autoRun;
         private bool _punchHit;
+        private Vector3 _moveDir = Vector3.forward;
+        private float _hangTimer;
+        private float _boostTimer;
+        private float _minTrackY;
+        private float _goTime = -1f;
+        private float _startPressTime = -1f;
+        private float _stallTimer;
 
         private TrackPath _path;
         private PlayerVisual _visual;
@@ -107,18 +121,19 @@ namespace Com.IsartDigital.Hyperspeed
         // ---------------- camera target
         public Vector3 FocusPosition => (_visual != null ? _visual.Root.position : transform.position) + CameraUpRaw * 0.9f;
         public Vector3 CameraUp => _smoothCameraUp;
-        private Vector3 CameraUpRaw => State == PlayerState.Ground || State == PlayerState.Grind ? _up : _gravityUp;
+        private Vector3 CameraUpRaw => State == PlayerState.Ground || State == PlayerState.Grind || State == PlayerState.Finished ? _up : _gravityUp;
         public Vector3 CameraForward
         {
             get
             {
                 Vector3 lFlat = Vector3.ProjectOnPlane(_velocity, CameraUpRaw);
-                if (State == PlayerState.Ground || State == PlayerState.Grind || lFlat.magnitude < 6f) return _heading;
+                if (State == PlayerState.Ground || State == PlayerState.Finished) return _moveDir;
+                if (OnSurface || lFlat.magnitude < 6f) return _heading;
                 return lFlat.normalized;
             }
         }
         public float Speed01 => Mathf.Clamp01((Speed - 28f) / 95f);
-        public float CameraRoll => -Steer * 3.5f - (Drifting ? DriftDirection * 4f : 0f) + (State == PlayerState.WallRun ? WallSide * 9f : 0f);
+        public float CameraRoll => -Steer * 5f - (Drifting ? DriftDirection * 9f : 0f) + (State == PlayerState.WallRun ? WallSide * 12f : 0f);
         public bool HyperMode => Hyper;
 
         public void Init(TrackPath pPath, PlayerVisual pVisual)
@@ -126,6 +141,8 @@ namespace Com.IsartDigital.Hyperspeed
             _path = pPath;
             _visual = pVisual;
             TrackSample lStart = pPath.Evaluate(8f);
+            _minTrackY = float.MaxValue;
+            foreach (TrackSample lSample in pPath.samples) _minTrackY = Mathf.Min(_minTrackY, lSample.position.y);
             Place(lStart);
             State = PlayerState.Frozen;
         }
@@ -137,17 +154,50 @@ namespace Com.IsartDigital.Hyperspeed
             _gravityUp = pSample.Up;
             _smoothCameraUp = _up;
             _heading = pSample.Forward;
+            _moveDir = _heading;
             _velocity = Vector3.zero;
             _speed = 0f;
             _pathIndex = _path.FindNearestGlobal(transform.position);
             transform.rotation = Quaternion.LookRotation(_heading, _up);
         }
 
+        // Rocket start : press jump / dash / forward right on GO.
+        public void ArmStart(float pGoTime)
+        {
+            _goTime = pGoTime;
+            _startPressTime = -1f;
+        }
+
         public void StartRunning()
         {
             State = PlayerState.Ground;
             _speed = RUN_SPEED * 0.6f;
+            float lDelta = _startPressTime - _goTime;
+            if (_startPressTime > 0f && lDelta >= -START_WINDOW_BEFORE && lDelta <= START_WINDOW_AFTER) PerfectStart();
+            else if (_startPressTime > 0f && lDelta < -START_WINDOW_BEFORE)
+            {
+                _stallTimer = 0.6f;
+                _speed = 0f;
+                Juice.Popup("TOO EARLY!", UIFactory.RED, 1.1f);
+                AudioManager.Play("sfx_stall", 0.9f);
+            }
         }
+
+        private void PerfectStart()
+        {
+            _speed = RUN_SPEED + 35f;
+            _boostTimer = 1.5f;
+            Juice.Popup("PERFECT START!!", UIFactory.YELLOW, 1.5f);
+            Juice.ImpactFrame(1f);
+            Juice.Freeze(0.08f);
+            Juice.Flash(Color.white, 0.6f);
+            Juice.Rollback(10f);
+            Juice.FovKick(20f);
+            AudioManager.Play("sfx_perfect_start", 1f);
+            AddCombo();
+        }
+
+        private bool StartInputPressed => HSInput.JumpPressed || HSInput.DashPressed || HSInput.ForwardPressed;
 
         public void Finish()
         {
@@ -164,8 +214,19 @@ namespace Com.IsartDigital.Hyperspeed
 
             if (State == PlayerState.Frozen)
             {
+                if (_goTime > 0f && _startPressTime < 0f && Time.time > _goTime - 1.6f && StartInputPressed) _startPressTime = Time.time;
                 _visual?.Tick(lDt);
                 return;
+            }
+            if (_startPressTime < 0f && _goTime > 0f && Time.time - _goTime <= START_WINDOW_AFTER && StartInputPressed)
+            {
+                _startPressTime = Time.time;
+                PerfectStart();
+            }
+            if (_stallTimer > 0f)
+            {
+                _stallTimer -= lDt;
+                _speed = 0f;
             }
 
             ReadInput(lDt);
@@ -183,14 +244,16 @@ namespace Com.IsartDigital.Hyperspeed
                     case PlayerState.Air:
                     case PlayerState.Crash: AirStep(lSubDt); break;
                     case PlayerState.WallRun: WallStep(lSubDt); break;
-                    case PlayerState.Grind: GrindStep(lSubDt); break;
+                    case PlayerState.Grind:
+                    case PlayerState.Zip: GrindStep(lSubDt); break;
                 }
                 TouchStuff();
             }
 
             UpdateHyper();
             TrackProgress();
-            transform.rotation = Quaternion.LookRotation(_heading, State == PlayerState.Ground || State == PlayerState.Grind ? _up : _gravityUp);
+            transform.rotation = Quaternion.LookRotation(_heading, OnSurface || State == PlayerState.Finished ? _up : _gravityUp);
+            AudioManager.SetLoop("sfx_boost_loop", BoostAmount * 0.6f, 0.9f + BoostAmount * 0.3f);
             _smoothCameraUp = Vector3.Slerp(_smoothCameraUp, CameraUpRaw, 1f - Mathf.Exp(-10f * lDt)).normalized;
             TopSpeed = Mathf.Max(TopSpeed, Speed);
             _visual?.Tick(lDt);
@@ -226,6 +289,8 @@ namespace Com.IsartDigital.Hyperspeed
             _wallCooldown -= pDt;
             _railCooldown -= pDt;
             _ringComboTimer -= pDt;
+            _boostTimer -= pDt;
+            _hangTimer -= pDt;
             if (_ringComboTimer <= 0f) _ringCombo = 0;
             _comboTimer -= pDt;
             if (_comboTimer <= 0f) Combo = 0;
@@ -241,6 +306,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             if (State == pState) return;
             if (State == PlayerState.Grind) AudioManager.SetLoop("sfx_grind_loop", 0f);
+            if (State == PlayerState.Zip) AudioManager.SetLoop("sfx_zip_loop", 0f);
             if (State == PlayerState.WallRun) AudioManager.SetLoop("sfx_wallrun_loop", 0f);
             State = pState;
             StateTime = 0f;
@@ -302,14 +368,31 @@ namespace Com.IsartDigital.Hyperspeed
             if (State == PlayerState.Finished) _speed = Mathf.MoveTowards(_speed, lTargetRun, 30f * pDt);
             _speed = Mathf.Min(_speed, MAX_SPEED);
 
-            _velocity = _heading * _speed;
+            // Drift slip : the velocity direction lags behind the heading.
+            _moveDir = Vector3.ProjectOnPlane(_moveDir, _up).normalized;
+            if (Drifting)
+            {
+                _moveDir = Vector3.RotateTowards(_moveDir, _heading, 1.6f * pDt, 0f);
+                if (Vector3.Angle(_moveDir, _heading) > DRIFT_SLIP) _moveDir = Vector3.RotateTowards(_heading, _moveDir, DRIFT_SLIP * Mathf.Deg2Rad, 0f);
+            }
+            else _moveDir = Vector3.RotateTowards(_moveDir, _heading, 9f * pDt, 0f);
+            _velocity = _moveDir * _speed;
             Move(_velocity * pDt);
             if (State != PlayerState.Ground && State != PlayerState.Finished) return;
 
-            if (!Snap(0.6f + _speed * 0.006f))
+            // Crests of climbing roads launch you instead of gluing you down.
+            float lRise = Vector3.Dot(_moveDir, Vector3.up);
+            float lSnap = lRise > 0.12f ? 0.15f : 0.6f + _speed * 0.006f;
+            if (!Snap(lSnap))
             {
-                // Ran off an edge.
+                // Ran off an edge : keep the upward momentum of the road (ramp pop + hang time).
                 _gravityUp = _up;
+                if (lRise > 0.08f)
+                {
+                    _velocity += Vector3.up * Mathf.Min(_speed * lRise * 0.35f, 14f);
+                    _hangTimer = 0.4f;
+                    if (_speed > 50f) Juice.Popup("AIR!", Color.white, 0.8f);
+                }
                 SetState(PlayerState.Air);
                 return;
             }
@@ -395,7 +478,8 @@ namespace Com.IsartDigital.Hyperspeed
 
             float lUpVelocity = Vector3.Dot(_velocity, _gravityUp);
             float lGravity = GRAVITY;
-            if (lUpVelocity < 0f) lGravity *= 1.2f;
+            if (lUpVelocity < 0f) lGravity *= 1.15f;
+            if (_hangTimer > 0f) lGravity *= 0.55f;
             else if (HSInput.JumpHeld && State == PlayerState.Air) lGravity *= 0.72f;
             if (Diving) lGravity *= 2.2f;
             if (Dashing) lGravity *= 0.15f;
@@ -464,12 +548,19 @@ namespace Com.IsartDigital.Hyperspeed
                 if (lSlope > 0.12f) lBonus *= 1.4f;
                 _speed = Mathf.Min(MAX_SPEED, _speed + lBonus);
                 Diving = false;
-                Juice.Popup(lLabel, lColor, lTiming < 0.28f ? 1.4f : 1.1f);
-                Juice.FovKick(lTiming < 0.28f ? 16f : 9f);
-                Juice.Pulse(lTiming < 0.28f ? 0.8f : 0.4f);
-                Juice.Rollback(lTiming < 0.28f ? 3.5f : 2f);
-                Juice.Shake(0.3f);
-                if (lTiming < 0.28f) Juice.Flash(Color.white, 0.25f);
+                bool lPerfect = lTiming < 0.28f;
+                _boostTimer = Mathf.Max(_boostTimer, lPerfect ? 1f : 0.5f);
+                Juice.Popup(lLabel, lColor, lPerfect ? 1.4f : 1.1f);
+                Juice.FovKick(lPerfect ? 22f : 12f);
+                Juice.Pulse(lPerfect ? 1f : 0.5f);
+                Juice.Rollback(lPerfect ? 12f : 6f);
+                Juice.Shake(lPerfect ? 0.45f : 0.3f);
+                if (lPerfect)
+                {
+                    Juice.Flash(Color.white, 0.4f);
+                    Juice.ImpactFrame(1f);
+                    Juice.Freeze(0.06f);
+                }
                 FX.Shockwave(pPoint + pNormal * 0.1f, pNormal, lColor, 14f);
                 FX.Sparks(pPoint, lColor, 30, 22f);
                 AudioManager.Play(lTiming < 0.28f ? "sfx_land_perfect" : "sfx_land_good", 0.9f);
@@ -586,16 +677,22 @@ namespace Com.IsartDigital.Hyperspeed
         private void TryGrind()
         {
             if (_railCooldown > 0f) return;
-            Vector3 lProbe = transform.position + _gravityUp * 0.3f;
             foreach (GrindRail lRail in GrindRail.All)
             {
+                // Rails are caught from above, zip lines from below (hands reach up to the rope).
+                Vector3 lProbe = transform.position + _gravityUp * (lRail.zip ? 2.2f : 0.3f);
                 float lDistance, lRailDistance;
                 if (!lRail.FindNearest(lProbe, RAIL_RADIUS, out lDistance, out lRailDistance)) continue;
                 Vector3 lPos, lTangent, lUp;
                 lRail.Evaluate(lRailDistance, out lPos, out lTangent, out lUp);
                 float lAlong = Vector3.Dot(_velocity, lTangent);
                 if (Mathf.Abs(lAlong) < 8f) continue;
-                if (Vector3.Dot(transform.position - lPos, lUp) < -0.8f) continue;
+                if (!lRail.zip && Vector3.Dot(transform.position - lPos, lUp) < -0.8f) continue;
+                if (lRail.zip)
+                {
+                    AttachZip(lRail, lRailDistance, lAlong > 0f ? 1 : -1);
+                    return;
+                }
 
                 _rail = lRail;
                 _railDistance = lRailDistance;
@@ -614,18 +711,39 @@ namespace Com.IsartDigital.Hyperspeed
             }
         }
 
+        private void AttachZip(GrindRail pRail, float pDistance, int pDirection)
+        {
+            _rail = pRail;
+            _railDistance = pDistance;
+            _railDirection = pDirection;
+            _speed = Mathf.Max(Speed, 30f);
+            SetState(PlayerState.Zip);
+            Diving = false;
+            HasDoubleJump = true;
+            HasAirDash = true;
+            AudioManager.Play("sfx_zip_start", 0.9f);
+            Juice.Shake(0.2f);
+            Juice.Popup("ZIP LINE!", UIFactory.CYAN, 1f);
+            AddCombo();
+        }
+
         private void GrindStep(float pDt)
         {
-            _speed = Mathf.Min(MAX_SPEED, _speed + 6f * pDt);
-            _railDistance += _railDirection * _speed * pDt;
+            bool lZip = State == PlayerState.Zip;
             Vector3 lPos, lTangent, lUp;
             _rail.Evaluate(_railDistance, out lPos, out lTangent, out lUp);
-            _up = lUp;
-            _gravityUp = lUp;
+            float lDownhill = Vector3.Dot(lTangent * _railDirection, Vector3.down);
+            _speed = Mathf.Min(MAX_SPEED, _speed + (lZip ? 5f + lDownhill * 45f : 6f) * pDt);
+            if (lZip) _speed = Mathf.Max(_speed, 28f);
+            _railDistance += _railDirection * _speed * pDt;
+            _rail.Evaluate(_railDistance, out lPos, out lTangent, out lUp);
+            _up = lZip ? Vector3.up : lUp;
+            _gravityUp = _up;
             _heading = lTangent * _railDirection;
             _velocity = _heading * _speed;
-            transform.position = lPos + lUp * 0.25f;
-            AudioManager.SetLoop("sfx_grind_loop", 0.55f, 0.9f + _speed * 0.004f);
+            transform.position = lZip ? lPos - Vector3.up * 2.15f : lPos + lUp * 0.25f;
+            if (lZip) AudioManager.SetLoop("sfx_zip_loop", 0.6f, 0.8f + _speed * 0.005f);
+            else AudioManager.SetLoop("sfx_grind_loop", 0.55f, 0.9f + _speed * 0.004f);
             if (Random.value < 0.6f) FX.Sparks(lPos, Color.Lerp(UIFactory.YELLOW, Color.white, Random.value), 2, 12f, 0.3f, 0.25f);
 
             if (_railDistance <= 0f || _railDistance >= _rail.Length)
@@ -670,7 +788,7 @@ namespace Com.IsartDigital.Hyperspeed
                 if (lGood) { Juice.FovKick(7f); AddCombo(); }
                 OnJumped?.Invoke();
             }
-            else if (State == PlayerState.Grind)
+            else if (State == PlayerState.Grind || State == PlayerState.Zip)
             {
                 _velocity = _heading * (_speed + 4f) + _up * JUMP_VELOCITY;
                 _railCooldown = 0.35f;
@@ -701,19 +819,23 @@ namespace Com.IsartDigital.Hyperspeed
             _dashTimer = DASH_TIME;
             _dashCooldown = 0.55f;
 
-            if (State == PlayerState.Ground || State == PlayerState.Grind) _speed = Mathf.Min(MAX_SPEED, _speed + DASH_BOOST);
-            else if (State == PlayerState.WallRun) _wallSpeed += DASH_BOOST;
+            // Dashing helps but never pushes you into hyper speed on its own.
+            float lCap = HYPER_ENTER - 8f;
+            if (State == PlayerState.Ground || State == PlayerState.Grind) _speed = Mathf.Max(_speed, Mathf.Min(lCap, _speed + DASH_BOOST));
+            else if (State == PlayerState.WallRun) _wallSpeed = Mathf.Max(_wallSpeed, Mathf.Min(lCap, _wallSpeed + DASH_BOOST));
             else
             {
                 Vector3 lFlat = Vector3.ProjectOnPlane(_velocity, _gravityUp);
                 Vector3 lDir = lFlat.sqrMagnitude > 1f ? lFlat.normalized : _heading;
-                _velocity = lDir * (lFlat.magnitude + DASH_BOOST) + _gravityUp * Mathf.Max(2f, Vector3.Dot(_velocity, _gravityUp) * 0.2f);
+                float lNew = Mathf.Max(lFlat.magnitude, Mathf.Min(lCap, lFlat.magnitude + DASH_BOOST));
+                _velocity = lDir * lNew + _gravityUp * Mathf.Max(2f, Vector3.Dot(_velocity, _gravityUp) * 0.2f);
                 Diving = false;
             }
             AudioManager.Play("sfx_dash", 0.85f);
-            Juice.FovKick(11f);
-            Juice.Rollback(3f);
-            Juice.Pulse(0.5f);
+            Juice.FovKick(14f);
+            Juice.Rollback(7f);
+            Juice.Pulse(0.6f);
+            Juice.Shake(0.15f);
             FX.Sparks(transform.position + CameraUpRaw, Color.white, 14, 16f);
             OnDashed?.Invoke();
         }
@@ -760,17 +882,23 @@ namespace Com.IsartDigital.Hyperspeed
                 if (pAlign > 0f && lDir.sqrMagnitude > 0.1f) _heading = Vector3.Slerp(_heading, lDir, pAlign).normalized;
                 _speed = Mathf.Min(MAX_SPEED, _speed + pBoost);
             }
-            else if (State == PlayerState.Grind) _speed = Mathf.Min(MAX_SPEED, _speed + pBoost);
+            else if (State == PlayerState.Grind || State == PlayerState.Zip) _speed = Mathf.Min(MAX_SPEED, _speed + pBoost);
             else if (State == PlayerState.WallRun) _wallSpeed += pBoost;
             else _velocity += pDirection.normalized * pBoost;
 
-            AudioManager.Play("sfx_boost", 0.85f);
-            Juice.FovKick(12f);
-            Juice.Rollback(3.5f);
-            Juice.Pulse(0.7f);
-            Juice.Vignette(UIFactory.CYAN, 0.6f);
-            if (!string.IsNullOrEmpty(pLabel)) Juice.Popup(pLabel, UIFactory.CYAN, 1f);
-            FX.Sparks(transform.position + CameraUpRaw * 0.5f, UIFactory.CYAN, 20, 18f);
+            _boostTimer = Mathf.Max(_boostTimer, 1.2f);
+            AudioManager.Play("sfx_boost", 0.95f);
+            Juice.FovKick(20f);
+            Juice.Rollback(11f);
+            Juice.Pulse(1f);
+            Juice.Shake(0.3f);
+            Juice.Flash(new Color(0.6f, 1f, 1f), 0.25f);
+            Juice.Vignette(UIFactory.CYAN, 0.8f);
+            Juice.Freeze(0.035f);
+            Juice.ImpactFrame(0.6f);
+            if (!string.IsNullOrEmpty(pLabel)) Juice.Popup(pLabel, UIFactory.CYAN, 1.1f);
+            FX.Sparks(transform.position + CameraUpRaw * 0.5f, UIFactory.CYAN, 40, 28f, 0.5f, 0.4f);
+            FX.Burst(transform.position + CameraUpRaw, _heading, UIFactory.CYAN, 18f);
             AddCombo();
         }
 
@@ -784,16 +912,23 @@ namespace Com.IsartDigital.Hyperspeed
             Diving = false;
             _ringCombo++;
             _ringComboTimer = 2.5f;
-            AudioManager.Play("sfx_ring", 0.85f, 1f + Mathf.Min(_ringCombo - 1, 6) * 0.1f, 0f);
-            Juice.Popup(_ringCombo > 1 ? "RING x" + _ringCombo : "RING!", UIFactory.YELLOW, 1f);
-            Juice.FovKick(7f);
-            Juice.Pulse(0.4f);
+            _boostTimer = Mathf.Max(_boostTimer, 0.7f);
+            float[] lScale = { 1f, 1.122f, 1.26f, 1.335f, 1.498f, 1.682f, 1.888f, 2f };
+            AudioManager.Play("sfx_ring", 0.95f, lScale[Mathf.Min(_ringCombo - 1, lScale.Length - 1)], 0f);
+            Juice.Popup(_ringCombo > 1 ? "RING x" + _ringCombo : "RING!", UIFactory.YELLOW, 1f + Mathf.Min(_ringCombo, 5) * 0.08f);
+            Juice.FovKick(12f);
+            Juice.Rollback(6f);
+            Juice.Pulse(0.7f);
+            Juice.Flash(new Color(1f, 0.95f, 0.6f), 0.2f);
+            Juice.Freeze(0.03f);
+            if (_ringCombo % 3 == 0) Juice.ImpactFrame(0.8f);
+            FX.Burst(transform.position + _gravityUp, pDirection, UIFactory.YELLOW, 16f);
             AddCombo();
         }
 
         public void Crash(Vector3 pPoint, string pLabel = "OUCH!")
         {
-            if (Invulnerable || State == PlayerState.Crash || State == PlayerState.Frozen || State == PlayerState.Finished) return;
+            if (Invulnerable || CheatInvincible || State == PlayerState.Crash || State == PlayerState.Frozen || State == PlayerState.Finished) return;
             Vector3 lAway = transform.position - pPoint;
             lAway = Vector3.ProjectOnPlane(lAway, _gravityUp).normalized;
             float lSpeed = Mathf.Max(Speed * 0.5f, 18f);
@@ -805,9 +940,10 @@ namespace Com.IsartDigital.Hyperspeed
             SetState(PlayerState.Crash);
             Combo = 0;
             AudioManager.Play("sfx_crash", 1f);
-            Juice.Shake(0.7f);
-            Juice.Flash(UIFactory.RED, 0.35f);
-            Juice.Hitstop(0.08f);
+            Juice.Shake(0.8f);
+            Juice.Flash(UIFactory.RED, 0.45f);
+            Juice.Hitstop(0.1f);
+            Juice.ImpactFrame(0.7f);
             Juice.Popup(pLabel, UIFactory.RED, 1.3f);
             FX.Sparks(pPoint, Color.white, 20, 15f);
             OnCrashed?.Invoke();
@@ -840,6 +976,7 @@ namespace Com.IsartDigital.Hyperspeed
                 {
                     lBreakable.Smash(_heading, Speed);
                     Juice.Hitstop(0.018f, 0.1f);
+                    if (Combo % 8 == 7) Juice.ImpactFrame(0.5f);
                     Juice.Shake(0.18f);
                     AddCombo();
                     if (State == PlayerState.Ground) _speed = Mathf.Min(MAX_SPEED, _speed + 1.5f);
@@ -960,10 +1097,12 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 Hyper = true;
                 AudioManager.Play("sfx_hyper", 1f);
-                Juice.Flash(Color.white, 0.6f);
-                Juice.Popup("HYPERSPEED!!", Color.white, 1.6f);
-                Juice.Shake(0.4f);
-                Juice.Rollback(6f);
+                Juice.Flash(Color.white, 0.9f);
+                Juice.Popup("HYPERSPEED!!", Color.white, 1.7f);
+                Juice.Shake(0.6f);
+                Juice.Rollback(22f);
+                Juice.ImpactFrame(1f);
+                Juice.SlowMo(0.25f, 0.25f);
             }
             else if (Hyper && lSpeed < HYPER_EXIT)
             {
@@ -981,7 +1120,22 @@ namespace Com.IsartDigital.Hyperspeed
             Progress = _path.ProjectDistance(transform.position, _pathIndex);
             DistanceFromPath = Vector3.Distance(transform.position, lSample.position);
             if (State == PlayerState.Finished) return;
-            if (DistanceFromPath > KILL_DISTANCE || _airTime > 7f) Respawn();
+            bool lFreeFall = _airTime > 3.5f && Vector3.Dot(_velocity, Vector3.up) < -25f;
+            if (DistanceFromPath > KILL_DISTANCE || lFreeFall || transform.position.y < _minTrackY - 80f || _airTime > 9f) Respawn();
+        }
+
+        public void SkipToNextCheckpoint()
+        {
+            foreach (float lCheckpoint in _path.checkpoints)
+            {
+                if (lCheckpoint <= Progress + 20f) continue;
+                Place(_path.Evaluate(lCheckpoint + 4f));
+                _speed = RUN_SPEED;
+                _velocity = _heading * _speed;
+                SetState(PlayerState.Ground);
+                CameraRig.Instance?.Snap();
+                return;
+            }
         }
 
         public void Respawn()
@@ -999,6 +1153,7 @@ namespace Com.IsartDigital.Hyperspeed
             HasAirDash = true;
             Combo = 0;
             Respawns++;
+            _moveDir = _heading;
             SetState(_autoRun ? PlayerState.Finished : PlayerState.Ground);
             Juice.Flash(Color.white, 0.8f);
             Juice.Popup("RESPAWN", Color.white, 1f);

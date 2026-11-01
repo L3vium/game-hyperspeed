@@ -2,53 +2,52 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // Procedural jelly humanoid : spring squash & stretch, wobbly shader, procedural run cycle,
-    // pose blending per state and the "light form" at hyper speed.
+    // Rigged runner (Ellen, humanoid) animated procedurally in muscle space :
+    // run / sprint cycles, lean, anticipation before landing, follow-through on head and spine,
+    // dash swirl with afterimages, energy cone while boosting, spiky drift sparks and the light form.
     public class PlayerVisual : MonoBehaviour
     {
-        public static readonly Color SLIME_COLOR = new Color(0.25f, 0.92f, 0.85f);
-        private static readonly Color SLIME_SHADE = new Color(0.45f, 0.55f, 0.95f);
-        private static readonly Color OUTLINE = new Color(0.05f, 0.08f, 0.2f);
-        private static readonly int WOBBLE = Shader.PropertyToID("_Wobble");
-        private static readonly int WOBBLE_SPEED = Shader.PropertyToID("_WobbleSpeed");
+        private static readonly int FLASH = Shader.PropertyToID("_Flash");
 
         public Transform Root { get; private set; }
 
         private PlayerController _player;
         private Transform _pivot;
-        private Transform _body;
-        private Transform _head;
-        private Transform _drop;
-        private Transform _armL, _armR, _legL, _legR, _handR, _handL;
+        private Transform _model;
+        private Animator _animator;
+        private HumanoidAnimator _anim;
+        private SkinnedMeshRenderer _skin;
+        private Renderer[] _bodyRenderers;
+        private MaterialPropertyBlock _block;
         private Transform _light;
         private Transform _shadow;
-        private Material _slime;
-        private Renderer[] _bodyRenderers;
+        private Transform _cone;
+        private Material _coneMaterial;
         private TrailRenderer _scarf;
         private TrailRenderer _handTrailL, _handTrailR;
+        private TrailRenderer _footTrailL, _footTrailR;
         private TrailRenderer _lightTrail;
         private ParticleSystem _dust;
         private ParticleSystem _sparks;
+        private ParticleSystem _wind;
 
         private Quaternion _facing = Quaternion.identity;
+        private float _phase;
+        private float _lean;
+        private float _pitch;
+        private float _yawOffset;
         private float _squash = 1f;
         private float _squashVelocity;
-        private Vector3 _headLag;
-        private Vector3 _headLagVelocity;
-        private Vector3 _dropLag;
-        private Vector3 _dropLagVelocity;
-        private Vector3 _lastVelocity;
-        private float _phase;
         private float _flip;
+        private float _dashSpin;
         private float _punch;
-        private float _dash;
-        private float _lean;
         private float _crashSpin;
         private float _flash;
-        private bool _lightForm;
-        private Vector3 _poseEuler;
-        private float _crouch;
         private float _victory;
+        private float _turnRate;
+        private float _spineLag;
+        private bool _lightForm;
+        private Vector3 _lastForward = Vector3.forward;
 
         public static PlayerVisual Create(PlayerController pPlayer)
         {
@@ -57,7 +56,6 @@ namespace Com.IsartDigital.Hyperspeed
             return lVisual;
         }
 
-        // Used by the title screen : same model without a controller.
         public static PlayerVisual CreateDisplay(Transform pParent)
         {
             PlayerVisual lVisual = new GameObject("PlayerDisplay").AddComponent<PlayerVisual>();
@@ -66,16 +64,11 @@ namespace Com.IsartDigital.Hyperspeed
             return lVisual;
         }
 
-        private GameObject Part(PrimitiveType pType, Transform pParent, Vector3 pPos, Vector3 pScale, Material pMaterial)
-        {
-            return Mats.Primitive(pType, pParent, pPos, pScale, pMaterial);
-        }
-
-        private Transform Pivot(string pName, Transform pParent, Vector3 pPos)
+        private Transform Pivot(string pName, Transform pParent, Vector3 pPosition)
         {
             Transform lPivot = new GameObject(pName).transform;
             lPivot.SetParent(pParent, false);
-            lPivot.localPosition = pPos;
+            lPivot.localPosition = pPosition;
             return lPivot;
         }
 
@@ -83,65 +76,54 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _player = pPlayer;
             Root = transform;
-            _slime = Mats.ToonUnique(SLIME_COLOR);
-            _slime.SetColor("_ShadeColor", SLIME_SHADE);
-            _slime.SetColor("_OutlineColor", OUTLINE);
-            _slime.SetFloat("_OutlineWidth", 0.028f);
-            _slime.SetFloat("_RimAmount", 0.9f);
-            _slime.SetColor("_RimColor", new Color(0.8f, 1f, 1f));
-            _slime.SetFloat("_SpecSize", 0.7f);
-            _slime.SetFloat("_HalftoneAmount", 0.8f);
-            _slime.SetFloat(WOBBLE, 0.025f);
-            _slime.SetFloat(WOBBLE_SPEED, 9f);
-            Material lWhite = Mats.Toon(Color.white, null, 0.02f);
-            Material lBlack = Mats.Toon(new Color(0.05f, 0.05f, 0.08f), null, 0f);
-            Material lRed = Mats.Toon(UIFactory.RED, new Color(0.6f, 0.4f, 0.6f), 0.025f);
-
+            _block = new MaterialPropertyBlock();
             _pivot = Pivot("Pivot", transform, Vector3.zero);
-            _body = Pivot("Body", _pivot, new Vector3(0f, 0.95f, 0f));
-            Part(PrimitiveType.Sphere, _body, new Vector3(0f, 0.3f, 0f), new Vector3(0.95f, 1.0f, 0.8f), _slime);
-            Part(PrimitiveType.Sphere, _body, new Vector3(0f, 0.02f, 0f), new Vector3(0.8f, 0.55f, 0.7f), _slime);
-            // Scarf around the neck
-            Part(PrimitiveType.Cylinder, _body, new Vector3(0f, 0.72f, 0f), new Vector3(0.78f, 0.09f, 0.7f), lRed);
 
-            _head = Pivot("Head", _body, new Vector3(0f, 1.15f, 0f));
-            Part(PrimitiveType.Sphere, _head, Vector3.zero, new Vector3(0.95f, 0.88f, 0.9f), _slime);
-            for (int lSide = -1; lSide <= 1; lSide += 2)
+            GameObject lPrefab = GameAssets.Instance.characterPrefab;
+            GameObject lModel = Instantiate(lPrefab, _pivot, false);
+            lModel.name = "Runner";
+            _model = lModel.transform;
+            _model.localPosition = Vector3.zero;
+            _model.localRotation = Quaternion.identity;
+            _animator = lModel.GetComponent<Animator>();
+            _animator.runtimeAnimatorController = null;
+            _animator.applyRootMotion = false;
+            _animator.enabled = false;
+            _anim = new HumanoidAnimator(_animator);
+
+            _skin = lModel.GetComponentInChildren<SkinnedMeshRenderer>();
+            _skin.updateWhenOffscreen = true;
+            Material[] lMaterials = GameAssets.Instance.characterMaterials;
+            if (lMaterials != null && lMaterials.Length > 0)
             {
-                Part(PrimitiveType.Sphere, _head, new Vector3(lSide * 0.19f, 0.05f, 0.36f), new Vector3(0.24f, 0.34f, 0.12f), lWhite);
-                Part(PrimitiveType.Sphere, _head, new Vector3(lSide * 0.17f, 0.04f, 0.42f), new Vector3(0.12f, 0.2f, 0.06f), lBlack);
+                Material[] lSlots = new Material[_skin.sharedMaterials.Length];
+                for (int i = 0; i < lSlots.Length; i++) lSlots[i] = lMaterials[Mathf.Min(i, lMaterials.Length - 1)];
+                _skin.sharedMaterials = lSlots;
             }
-            // Goggles band
-            Part(PrimitiveType.Cylinder, _head, new Vector3(0f, 0.22f, 0f), new Vector3(0.98f, 0.06f, 0.93f), lRed);
-            _drop = Pivot("Drop", _head, new Vector3(0f, 0.42f, -0.05f));
-            Part(PrimitiveType.Sphere, _drop, new Vector3(0f, 0.16f, 0f), new Vector3(0.22f, 0.36f, 0.22f), _slime);
+            _bodyRenderers = _model.GetComponentsInChildren<Renderer>();
 
-            _armL = Pivot("ArmL", _body, new Vector3(-0.46f, 0.55f, 0f));
-            _armR = Pivot("ArmR", _body, new Vector3(0.46f, 0.55f, 0f));
-            Part(PrimitiveType.Capsule, _armL, new Vector3(0f, -0.3f, 0f), new Vector3(0.24f, 0.3f, 0.24f), _slime);
-            Part(PrimitiveType.Capsule, _armR, new Vector3(0f, -0.3f, 0f), new Vector3(0.24f, 0.3f, 0.24f), _slime);
-            _handL = Part(PrimitiveType.Sphere, _armL, new Vector3(0f, -0.62f, 0f), Vector3.one * 0.3f, lWhite).transform;
-            _handR = Part(PrimitiveType.Sphere, _armR, new Vector3(0f, -0.62f, 0f), Vector3.one * 0.3f, lWhite).transform;
-
-            _legL = Pivot("LegL", _pivot, new Vector3(-0.22f, 0.85f, 0f));
-            _legR = Pivot("LegR", _pivot, new Vector3(0.22f, 0.85f, 0f));
-            Part(PrimitiveType.Capsule, _legL, new Vector3(0f, -0.38f, 0f), new Vector3(0.28f, 0.36f, 0.28f), _slime);
-            Part(PrimitiveType.Capsule, _legR, new Vector3(0f, -0.38f, 0f), new Vector3(0.28f, 0.36f, 0.28f), _slime);
-            Part(PrimitiveType.Sphere, _legL, new Vector3(0f, -0.8f, 0.1f), new Vector3(0.34f, 0.2f, 0.48f), lRed);
-            Part(PrimitiveType.Sphere, _legR, new Vector3(0f, -0.8f, 0.1f), new Vector3(0.34f, 0.2f, 0.48f), lRed);
-
-            _bodyRenderers = _pivot.GetComponentsInChildren<Renderer>();
-
-            _scarf = CreateTrail(_body, new Vector3(0f, 0.72f, -0.35f), 0.1f, 0.26f, UIFactory.RED, false);
-            _handTrailL = CreateTrail(_handL, Vector3.zero, 0.12f, 0.12f, new Color(1f, 1f, 1f, 0.7f), true);
-            _handTrailR = CreateTrail(_handR, Vector3.zero, 0.12f, 0.12f, new Color(1f, 1f, 1f, 0.7f), true);
+            Transform lNeck = _animator.GetBoneTransform(HumanBodyBones.Neck) ?? _animator.GetBoneTransform(HumanBodyBones.Head);
+            _scarf = CreateTrail(lNeck, new Vector3(0f, 0f, -0.08f), 0.1f, 0.22f, UIFactory.RED, false);
+            _handTrailL = CreateTrail(_animator.GetBoneTransform(HumanBodyBones.LeftHand), Vector3.zero, 0.12f, 0.1f, new Color(0.6f, 1f, 1f, 0.8f), true);
+            _handTrailR = CreateTrail(_animator.GetBoneTransform(HumanBodyBones.RightHand), Vector3.zero, 0.12f, 0.1f, new Color(1f, 0.5f, 0.9f, 0.8f), true);
+            _footTrailL = CreateTrail(_animator.GetBoneTransform(HumanBodyBones.LeftFoot), Vector3.zero, 0.1f, 0.12f, new Color(1f, 0.6f, 0.2f, 0.8f), true);
+            _footTrailR = CreateTrail(_animator.GetBoneTransform(HumanBodyBones.RightFoot), Vector3.zero, 0.1f, 0.12f, new Color(1f, 0.6f, 0.2f, 0.8f), true);
 
             // Light form
             _light = Pivot("LightForm", transform, new Vector3(0f, 1f, 0f));
-            Mats.Primitive(PrimitiveType.Sphere, _light, Vector3.zero, Vector3.one * 1.4f, Mats.Glow(new Color(5f, 6f, 6f), true, 0f, 1.5f));
-            Mats.Primitive(PrimitiveType.Sphere, _light, new Vector3(0f, 0f, -1.2f), new Vector3(0.9f, 0.9f, 3.5f), Mats.Glow(new Color(1f, 3f, 3.2f, 0.7f), true));
-            _lightTrail = CreateTrail(_light, Vector3.zero, 0.5f, 1.6f, new Color(2f, 4f, 4f), true);
+            Mats.Primitive(PrimitiveType.Sphere, _light, Vector3.zero, Vector3.one * 1.3f, Mats.Glow(new Color(5f, 6f, 6f), true, 0f, 1.5f));
+            Mats.Primitive(PrimitiveType.Sphere, _light, new Vector3(0f, 0f, -1.6f), new Vector3(0.8f, 0.8f, 4.5f), Mats.Glow(new Color(1.5f, 2.5f, 4f, 0.7f), true));
+            _lightTrail = CreateTrail(_light, Vector3.zero, 0.6f, 1.8f, new Color(2f, 4f, 5f), true);
             _light.gameObject.SetActive(false);
+
+            // Energy cone while boosting (points backward around the runner)
+            _cone = Pivot("EnergyCone", transform, new Vector3(0f, 1f, 0f));
+            _coneMaterial = new Material(Shader.Find("Hyperspeed/EnergyCone"));
+            GameObject lCone = new GameObject("Cone");
+            lCone.transform.SetParent(_cone, false);
+            lCone.AddComponent<MeshFilter>().sharedMesh = MeshUtil.Cone(1.7f, 0.2f, 6.5f, 24);
+            lCone.AddComponent<MeshRenderer>().sharedMaterial = _coneMaterial;
+            _cone.gameObject.SetActive(false);
 
             // Blob shadow
             _shadow = Mats.Primitive(PrimitiveType.Cylinder, null, Vector3.zero, new Vector3(1.4f, 0.01f, 1.4f), Mats.Glow(new Color(0.05f, 0f, 0.15f, 0.45f), false, 1f)).transform;
@@ -153,31 +135,24 @@ namespace Com.IsartDigital.Hyperspeed
             ParticleSystem.MainModule lMain = _dust.main;
             lMain.startLifetime = new ParticleSystem.MinMaxCurve(0.25f, 0.45f);
             lMain.startSpeed = new ParticleSystem.MinMaxCurve(1f, 3f);
-            lMain.startSize = new ParticleSystem.MinMaxCurve(0.4f, 0.9f);
+            lMain.startSize = new ParticleSystem.MinMaxCurve(0.3f, 0.7f);
             lMain.maxParticles = 300;
             ParticleSystem.SizeOverLifetimeModule lSize = _dust.sizeOverLifetime;
             lSize.enabled = true;
             lSize.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 1f, 1f, 0f));
 
-            _sparks = FX.CreateSystem("DriftSparks", transform.position, Mats.Glow(Color.white * 3f, true, 1f), false);
+            _sparks = FX.CreateSpikeSystem("Sparks", 600);
             _sparks.transform.SetParent(transform, false);
-            ParticleSystem.MainModule lSparkMain = _sparks.main;
-            lSparkMain.startLifetime = new ParticleSystem.MinMaxCurve(0.15f, 0.35f);
-            lSparkMain.startSpeed = new ParticleSystem.MinMaxCurve(4f, 12f);
-            lSparkMain.startSize = new ParticleSystem.MinMaxCurve(0.15f, 0.35f);
-            lSparkMain.gravityModifier = 1.5f;
-            lSparkMain.maxParticles = 400;
-            ParticleSystemRenderer lSparkRenderer = _sparks.GetComponent<ParticleSystemRenderer>();
-            lSparkRenderer.renderMode = ParticleSystemRenderMode.Stretch;
-            lSparkRenderer.velocityScale = 0.05f;
+            _wind = FX.CreateSpikeSystem("WindSpikes", 300);
+            _wind.transform.SetParent(transform, false);
 
             if (_player != null)
             {
-                _player.OnJumped += () => { _squashVelocity += 6f; };
-                _player.OnDoubleJumped += () => { _flip = 1f; _squashVelocity += 5f; };
-                _player.OnLanded += pImpact => { _squashVelocity -= Mathf.Clamp(pImpact * 0.3f, 2f, 9f); };
+                _player.OnJumped += () => { _squashVelocity += 1.2f; };
+                _player.OnDoubleJumped += () => { _flip = 1f; };
+                _player.OnLanded += pImpact => { _squashVelocity -= Mathf.Clamp(pImpact * 0.05f, 0.4f, 1.6f); EmitLandingSparks(pImpact); };
                 _player.OnPunched += () => { _punch = 1f; };
-                _player.OnDashed += () => { _dash = 1f; _flash = 0.6f; };
+                _player.OnDashed += () => { _dashSpin = 1f; _flash = 0.5f; SpawnAfterimages(); };
                 _player.OnCrashed += () => { _crashSpin = 1f; _flash = 1f; };
                 _player.OnRespawned += () => { _facing = _player.transform.rotation; transform.position = _player.transform.position; };
                 transform.position = _player.transform.position;
@@ -191,8 +166,8 @@ namespace Com.IsartDigital.Hyperspeed
             TrailRenderer lTrail = lAnchor.gameObject.AddComponent<TrailRenderer>();
             lTrail.time = pTime;
             lTrail.startWidth = pWidth;
-            lTrail.endWidth = pWidth * 0.2f;
-            lTrail.minVertexDistance = 0.1f;
+            lTrail.endWidth = pWidth * 0.1f;
+            lTrail.minVertexDistance = 0.08f;
             lTrail.sharedMaterial = Mats.Glow(pColor, pAdditive);
             lTrail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             lTrail.numCornerVertices = 2;
@@ -201,136 +176,383 @@ namespace Com.IsartDigital.Hyperspeed
 
         public void SetVictory() => _victory = 1f;
 
-        // Title screen / display mode : run in place.
+        private void OnDestroy()
+        {
+            if (_shadow != null) Destroy(_shadow.gameObject);
+            _anim?.Dispose();
+        }
+
+        // ================================================================ display (title screen)
+
         public void TickDisplay(float pDt, float pSpeed)
         {
-            AnimateRun(pDt, pSpeed, true, 0);
-            UpdateSprings(pDt, Vector3.zero);
-            _pivot.localRotation = Quaternion.Euler(Mathf.Lerp(8f, 20f, pSpeed / 80f), 0f, Mathf.Sin(Time.time * 1.3f) * 6f);
-            _slime.SetFloat(WOBBLE, 0.03f);
+            _anim.ResetTargets();
+            RunCycle(pDt, pSpeed, 0f);
+            _anim.Apply(pDt, 16f);
+            _pivot.localRotation = Quaternion.Euler(Mathf.Lerp(6f, 16f, pSpeed / 90f), 0f, Mathf.Sin(Time.time * 1.1f) * 5f);
+            _scarf.time = 0.06f;
         }
+
+        // ================================================================ gameplay
 
         public void Tick(float pDt)
         {
             if (_player == null) return;
             PlayerState lState = _player.State;
-            Vector3 lUp = lState == PlayerState.Ground || lState == PlayerState.Grind || lState == PlayerState.Finished ? _player.Up : _player.GravityUp;
-            Vector3 lForward = _player.Heading;
-            if (lState == PlayerState.WallRun) lUp = Vector3.Slerp(_player.GravityUp, -Vector3.Cross(_player.Heading, _player.GravityUp) * _player.WallSide, 0.28f);
+            bool lGrounded = lState == PlayerState.Ground || lState == PlayerState.Finished;
+            Vector3 lUp = lGrounded || lState == PlayerState.Grind || lState == PlayerState.Zip ? _player.Up : _player.GravityUp;
+            if (lState == PlayerState.Zip) lUp = _player.GravityUp;
+            Vector3 lForward = _player.FacingDirection;
 
             Quaternion lTarget = Quaternion.LookRotation(Vector3.ProjectOnPlane(lForward, lUp).normalized, lUp);
-            _facing = Quaternion.Slerp(_facing, lTarget, 1f - Mathf.Exp(-18f * pDt));
+            _facing = Quaternion.Slerp(_facing, lTarget, 1f - Mathf.Exp(-16f * pDt));
             transform.SetPositionAndRotation(_player.transform.position, _facing);
 
+            // Angular velocity drives lean and spine lag (follow-through).
+            Vector3 lFlatForward = Vector3.ProjectOnPlane(lForward, lUp).normalized;
+            float lYawSpeed = pDt > 0f ? Vector3.SignedAngle(_lastForward, lFlatForward, lUp) / pDt : 0f;
+            _lastForward = lFlatForward;
+            _turnRate = Mathf.Lerp(_turnRate, Mathf.Clamp(lYawSpeed, -240f, 240f), 1f - Mathf.Exp(-8f * pDt));
+
             float lSpeed = _player.Speed;
-            Vector3 lAcceleration = (_player.Velocity - _lastVelocity) / Mathf.Max(pDt, 0.0001f);
-            _lastVelocity = _player.Velocity;
+            UpdateLightForm();
+            UpdateCone(pDt);
+            UpdateShadow();
+            if (_lightForm) return;
 
-            UpdateLightForm(pDt);
-            if (_lightForm)
-            {
-                UpdateShadow();
-                return;
-            }
-
-            bool lGrounded = lState == PlayerState.Ground || lState == PlayerState.Finished;
-            _lean = Mathf.Lerp(_lean, -_player.Steer * 18f - (_player.Drifting ? _player.DriftDirection * 22f : 0f), 1f - Mathf.Exp(-8f * pDt));
-            _flip = Mathf.MoveTowards(_flip, 0f, pDt * 2.6f);
+            _flip = Mathf.MoveTowards(_flip, 0f, pDt * 2.8f);
+            _dashSpin = Mathf.MoveTowards(_dashSpin, 0f, pDt * 3.2f);
             _punch = Mathf.MoveTowards(_punch, 0f, pDt * 4f);
-            _dash = Mathf.MoveTowards(_dash, 0f, pDt * 4f);
             _crashSpin = Mathf.MoveTowards(_crashSpin, 0f, pDt * 1.8f);
             _flash = Mathf.MoveTowards(_flash, 0f, pDt * 4f);
-            _victory = Mathf.MoveTowards(_victory, 0f, pDt * 0.5f);
+            _victory = Mathf.MoveTowards(_victory, 0f, pDt * 0.4f);
 
-            Vector3 lPose;
-            float lCrouchTarget = 0f;
-            float lYaw = 0f;
-            if (lState == PlayerState.Frozen)
+            _anim.ResetTargets();
+            float lTargetLean = -_turnRate * 0.12f - _player.Steer * 8f;
+            float lTargetPitch = 0f;
+            float lTargetYaw = 0f;
+            float lSharpness = 14f;
+
+            switch (lState)
             {
-                // Sprinter "ready" stance.
-                AnimateStatic(new Vector3(-50f, 20f, 0f), new Vector3(40f, -30f, 0f), new Vector3(-60f, 0f, 0f), new Vector3(40f, 0f, 0f), pDt);
-                lPose = new Vector3(35f, 0f, 0f);
-                lCrouchTarget = 0.35f;
-            }
-            else if (lState == PlayerState.Grind)
-            {
-                AnimateStatic(new Vector3(0f, 0f, 70f), new Vector3(0f, 0f, -70f), new Vector3(-10f, 0f, 20f), new Vector3(-10f, 0f, -20f), pDt);
-                lPose = new Vector3(10f, 0f, Mathf.Sin(Time.time * 30f) * 2f);
-                lYaw = 75f;
-                lCrouchTarget = 0.25f;
-            }
-            else if (lState == PlayerState.Crash)
-            {
-                AnimateStatic(new Vector3(-150f, 0f, 30f), new Vector3(-150f, 0f, -30f), new Vector3(-40f, 0f, 20f), new Vector3(30f, 0f, -20f), pDt);
-                lPose = new Vector3(_crashSpin * 720f, 0f, 0f);
-            }
-            else if (_player.Diving)
-            {
-                AnimateStatic(new Vector3(-170f, 0f, 10f), new Vector3(-170f, 0f, -10f), new Vector3(15f, 0f, 5f), new Vector3(15f, 0f, -5f), pDt);
-                lPose = new Vector3(70f, 0f, 0f);
-            }
-            else if (lState == PlayerState.Air)
-            {
-                float lUpSpeed = Vector3.Dot(_player.Velocity, _player.GravityUp);
-                float lRise = Mathf.Clamp01(lUpSpeed / 15f);
-                AnimateStatic(new Vector3(-30f - lRise * 120f, 0f, 35f), new Vector3(-30f - lRise * 120f, 0f, -35f), new Vector3(-50f, 0f, 0f), new Vector3(25f, 0f, 0f), pDt);
-                lPose = new Vector3(15f - lRise * 10f, 0f, 0f);
-            }
-            else
-            {
-                float lRunSpeed = lState == PlayerState.WallRun ? lSpeed * 1.2f : lSpeed;
-                AnimateRun(pDt, lRunSpeed, lGrounded || lState == PlayerState.WallRun, _player.Drifting ? _player.DriftDirection : 0);
-                lPose = new Vector3(Mathf.Lerp(8f, 26f, lSpeed / 90f), 0f, 0f);
-                if (_player.Drifting)
-                {
-                    lYaw = _player.DriftDirection * -35f;
-                    lCrouchTarget = 0.35f;
-                    EmitDriftSparks();
-                }
-                if (_player.Sliding) lCrouchTarget = 0.45f;
+                case PlayerState.Frozen:
+                    PoseReady();
+                    lTargetPitch = 22f;
+                    break;
+                case PlayerState.Grind:
+                    PoseSurf();
+                    lTargetYaw = 75f;
+                    lTargetLean = Mathf.Sin(Time.time * 7f) * 4f;
+                    EmitFootSparks(UIFactory.YELLOW, 2);
+                    break;
+                case PlayerState.Zip:
+                    PoseHang();
+                    lTargetLean = Mathf.Sin(Time.time * 3f) * 8f;
+                    lTargetPitch = -10f;
+                    break;
+                case PlayerState.Crash:
+                    PoseCrash();
+                    break;
+                case PlayerState.WallRun:
+                    RunCycle(pDt, lSpeed * 1.15f, 0f);
+                    lTargetLean = _player.WallSide * -28f;
+                    lTargetPitch = 12f;
+                    EmitFootSparks(Color.white, 1);
+                    break;
+                case PlayerState.Air:
+                    if (_player.Diving) { PoseDive(); lTargetPitch = 65f; }
+                    else PoseAir();
+                    break;
+                default:
+                    if (_player.Drifting)
+                    {
+                        PoseDrift();
+                        lTargetYaw = -_player.DriftDirection * 50f;
+                        lTargetLean = _player.DriftDirection * 18f - _turnRate * 0.05f;
+                        lTargetPitch = 8f;
+                        EmitDriftSparks();
+                    }
+                    else
+                    {
+                        RunCycle(pDt, lSpeed, _player.Sliding ? 1f : 0f);
+                        lTargetPitch = Mathf.Lerp(4f, 20f, Mathf.Clamp01(lSpeed / 90f));
+                    }
+                    break;
             }
 
-            if (_victory > 0f && lState == PlayerState.Finished)
-            {
-                _armL.localRotation = Quaternion.Euler(0f, 0f, -160f);
-                _armR.localRotation = Quaternion.Euler(0f, 0f, 160f);
-            }
+            if (_punch > 0f) PosePunch(Mathf.Sin(_punch * Mathf.PI));
+            if (_victory > 0f && lState == PlayerState.Finished) PoseVictory();
+            if (_dashSpin > 0f) { PoseDash(); lSharpness = 24f; }
 
-            if (_punch > 0f)
-            {
-                float lPunch = Mathf.Sin(_punch * Mathf.PI);
-                _armR.localRotation = Quaternion.Euler(-90f * lPunch - 10f, 0f, 0f);
-                _handR.localScale = Vector3.one * (0.3f + lPunch * 0.45f);
-                lYaw += 25f * lPunch;
-            }
-            else _handR.localScale = Vector3.one * 0.3f;
+            // Follow-through : spine and head lag behind turns, head stays level-ish.
+            _spineLag = Mathf.Lerp(_spineLag, Mathf.Clamp(_turnRate / 240f, -1f, 1f), 1f - Mathf.Exp(-6f * pDt));
+            _anim.Add(HumanoidAnimator.M.SpineLR, -_spineLag * 0.35f);
+            _anim.Add(HumanoidAnimator.M.ChestTwist, _spineLag * 0.3f);
+            _anim.Add(HumanoidAnimator.M.NeckTilt, (_lean / 30f) * 0.5f);
+            _anim.Add(HumanoidAnimator.M.HeadTurn, _spineLag * 0.4f);
+            _anim.Apply(pDt, lSharpness);
 
-            _crouch = Mathf.Lerp(_crouch, lCrouchTarget, 1f - Mathf.Exp(-12f * pDt));
-            float lFlipAngle = _flip > 0f ? (1f - _flip) * 360f : 0f;
-            _poseEuler = Vector3.Lerp(_poseEuler, lPose, 1f - Mathf.Exp(-12f * pDt));
-            _pivot.localRotation = Quaternion.Euler(0f, lYaw, 0f) * Quaternion.Euler(_poseEuler.x + lFlipAngle, 0f, _lean + _poseEuler.z);
-            _pivot.localPosition = new Vector3(0f, -_crouch * 0.4f + (lFlipAngle > 0f ? 0.6f : 0f), 0f);
+            _lean = Mathf.Lerp(_lean, Mathf.Clamp(lTargetLean, -40f, 40f), 1f - Mathf.Exp(-9f * pDt));
+            _pitch = Mathf.Lerp(_pitch, lTargetPitch, 1f - Mathf.Exp(-9f * pDt));
+            _yawOffset = Mathf.LerpAngle(_yawOffset, lTargetYaw, 1f - Mathf.Exp(-7f * pDt));
+            float lFlip = _flip > 0f ? Mathf.SmoothStep(0f, 1f, 1f - _flip) * 360f : 0f;
+            float lSpin = _dashSpin > 0f ? Mathf.SmoothStep(0f, 1f, 1f - _dashSpin) * 360f : 0f;
+            float lTumble = lState == PlayerState.Crash ? _crashSpin * 540f : 0f;
+            _pivot.localRotation = Quaternion.Euler(0f, _yawOffset, 0f) * Quaternion.Euler(_pitch + lFlip + lTumble, 0f, _lean + lSpin);
+            _pivot.localPosition = new Vector3(0f, (lFlip > 0f || lSpin > 0f) ? 0.5f : 0f, 0f);
 
-            Vector3 lLocalAccel = Quaternion.Inverse(_facing) * lAcceleration;
-            UpdateSprings(pDt, lLocalAccel);
+            // Subtle squash only (max 6 %).
+            float lForce = (1f - _squash) * 260f - _squashVelocity * 14f;
+            _squashVelocity += lForce * pDt;
+            _squash = Mathf.Clamp(_squash + _squashVelocity * pDt, 0.94f, 1.06f);
+            _pivot.localScale = new Vector3(1f / Mathf.Sqrt(_squash), _squash, 1f / Mathf.Sqrt(_squash));
 
-            float lDashStretch = _dash * 0.6f;
-            Vector3 lScale = new Vector3(1f / Mathf.Sqrt(_squash), _squash, 1f / Mathf.Sqrt(_squash));
-            lScale = Vector3.Scale(lScale, new Vector3(1f - lDashStretch * 0.3f, 1f - lDashStretch * 0.3f, 1f + lDashStretch));
-            lScale.y *= 1f - _crouch * 0.25f;
-            _pivot.localScale = lScale;
-
-            _slime.SetFloat(WOBBLE, 0.02f + Mathf.Clamp01(lSpeed / 120f) * 0.03f + Mathf.Abs(_squash - 1f) * 0.12f);
-            _slime.SetFloat(Mats.FLASH, _flash > 0.3f || (_player.Invulnerable && Mathf.Repeat(Time.time * 12f, 1f) > 0.5f) ? 0.8f : 0f);
+            bool lInvulnerableBlink = _player.Invulnerable && Mathf.Repeat(Time.time * 12f, 1f) > 0.5f;
+            _block.SetFloat(FLASH, _flash > 0.3f || lInvulnerableBlink ? 0.85f : 0f);
+            foreach (Renderer lRenderer in _bodyRenderers) lRenderer.SetPropertyBlock(_block);
 
             bool lFast = lSpeed > 55f;
             _handTrailL.emitting = lFast;
             _handTrailR.emitting = lFast;
-            _scarf.time = Mathf.Clamp(1.6f / Mathf.Max(lSpeed, 1f), 0.02f, 0.15f);
-            UpdateShadow();
+            _footTrailL.emitting = lSpeed > 75f && lGrounded;
+            _footTrailR.emitting = lSpeed > 75f && lGrounded;
+            _scarf.time = Mathf.Clamp(1.4f / Mathf.Max(lSpeed, 1f), 0.02f, 0.12f);
+            EmitWindSpikes(lSpeed);
         }
 
-        private void UpdateLightForm(float pDt)
+        // ================================================================ poses
+
+        private void RunCycle(float pDt, float pSpeed, float pSlide)
+        {
+            float lS = Mathf.Clamp01(pSpeed / 80f);
+            float lPrev = _phase;
+            _phase += pDt * Mathf.Lerp(8.5f, 19f, lS);
+            float lSin = Mathf.Sin(_phase);
+            float lCos = Mathf.Cos(_phase);
+            float lStride = Mathf.Lerp(32f, 62f, lS);
+
+            // Legs : the forward-swinging leg folds its knee (arc), the planted one stays extended.
+            float lLeftAngle = 10f + lSin * lStride;
+            float lRightAngle = 10f - lSin * lStride;
+            float lLeftKnee = 18f + Mathf.Max(0f, lCos) * Mathf.Lerp(45f, 110f, lS);
+            float lRightKnee = 18f + Mathf.Max(0f, -lCos) * Mathf.Lerp(45f, 110f, lS);
+            _anim.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(lLeftAngle));
+            _anim.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(lRightAngle));
+            _anim.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(lLeftKnee));
+            _anim.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(lRightKnee));
+            _anim.Set(HumanoidAnimator.M.LFoot, -0.2f * lCos);
+            _anim.Set(HumanoidAnimator.M.RFoot, 0.2f * lCos);
+
+            if (pSpeed > 62f)
+            {
+                // Anime sprint : arms swept back, chest forward.
+                _anim.Set(HumanoidAnimator.M.LArmFB, 0.85f + lSin * 0.05f);
+                _anim.Set(HumanoidAnimator.M.RArmFB, 0.85f - lSin * 0.05f);
+                _anim.Set(HumanoidAnimator.M.LArmDU, -0.35f);
+                _anim.Set(HumanoidAnimator.M.RArmDU, -0.35f);
+                _anim.Set(HumanoidAnimator.M.LForearm, 0.85f);
+                _anim.Set(HumanoidAnimator.M.RForearm, 0.85f);
+                _anim.Set(HumanoidAnimator.M.SpineFB, -0.6f);
+                _anim.Set(HumanoidAnimator.M.ChestFB, -0.5f);
+                _anim.SetFist(0.2f);
+            }
+            else
+            {
+                float lArm = Mathf.Lerp(0.35f, 0.75f, lS);
+                _anim.Set(HumanoidAnimator.M.LArmFB, lSin * lArm);
+                _anim.Set(HumanoidAnimator.M.RArmFB, -lSin * lArm);
+                _anim.Set(HumanoidAnimator.M.LArmDU, -0.6f + Mathf.Abs(lSin) * 0.1f);
+                _anim.Set(HumanoidAnimator.M.RArmDU, -0.6f + Mathf.Abs(lSin) * 0.1f);
+                _anim.Set(HumanoidAnimator.M.LForearm, HumanoidAnimator.Elbow(70f + lSin * 20f));
+                _anim.Set(HumanoidAnimator.M.RForearm, HumanoidAnimator.Elbow(70f - lSin * 20f));
+                _anim.Set(HumanoidAnimator.M.SpineFB, -0.3f * lS);
+                _anim.SetFist(0.7f);
+            }
+            _anim.Set(HumanoidAnimator.M.SpineTwist, -lSin * 0.18f);
+            _anim.Set(HumanoidAnimator.M.ChestTwist, -lSin * 0.15f);
+            _anim.Set(HumanoidAnimator.M.NeckNod, 0.1f);
+            _anim.BodyOffsetY = -0.04f - Mathf.Abs(lCos) * 0.03f * (1f + lS) - pSlide * 0.25f;
+
+            if (Mathf.Floor(lPrev / Mathf.PI) != Mathf.Floor(_phase / Mathf.PI) && _player != null && _player.State == PlayerState.Ground)
+            {
+                EmitDust(2);
+                AudioManager.Play("sfx_step", 0.22f, 1f + lS * 0.3f, 0.12f);
+            }
+        }
+
+        private void PoseReady()
+        {
+            _anim.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(70f));
+            _anim.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(100f));
+            _anim.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(-15f));
+            _anim.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(60f));
+            _anim.Set(HumanoidAnimator.M.LArmFB, 0.6f);
+            _anim.Set(HumanoidAnimator.M.RArmFB, -0.6f);
+            _anim.Set(HumanoidAnimator.M.LForearm, HumanoidAnimator.Elbow(80f));
+            _anim.Set(HumanoidAnimator.M.RForearm, HumanoidAnimator.Elbow(80f));
+            _anim.Set(HumanoidAnimator.M.SpineFB, -0.7f);
+            _anim.Set(HumanoidAnimator.M.NeckNod, 0.4f);
+            _anim.SetFist(0.8f);
+            _anim.BodyOffsetY = -0.3f;
+        }
+
+        private void PoseAir()
+        {
+            float lUp = Vector3.Dot(_player.Velocity, _player.GravityUp);
+            float lRise = Mathf.Clamp01(lUp / 14f);
+            // Anticipation : legs come forward when the ground gets close.
+            float lLand = LandingAnticipation();
+            float lTuck = Mathf.Lerp(30f, 85f, lRise);
+            _anim.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(Mathf.Lerp(lTuck, 45f, lLand)));
+            _anim.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(Mathf.Lerp(100f, 55f, lLand)));
+            _anim.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(Mathf.Lerp(-10f, 30f, lLand)));
+            _anim.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(Mathf.Lerp(70f, 50f, lLand)));
+            _anim.Set(HumanoidAnimator.M.LArmDU, Mathf.Lerp(0.2f, 0.55f, lRise));
+            _anim.Set(HumanoidAnimator.M.RArmDU, Mathf.Lerp(0.2f, 0.55f, lRise));
+            _anim.Set(HumanoidAnimator.M.LArmFB, -0.2f);
+            _anim.Set(HumanoidAnimator.M.RArmFB, 0.3f);
+            _anim.Set(HumanoidAnimator.M.LForearm, HumanoidAnimator.Elbow(35f));
+            _anim.Set(HumanoidAnimator.M.RForearm, HumanoidAnimator.Elbow(35f));
+            _anim.Set(HumanoidAnimator.M.SpineFB, Mathf.Lerp(-0.2f, 0.2f, lRise));
+            _anim.SetFist(0.3f);
+            _anim.BodyOffsetY = -lLand * 0.12f;
+        }
+
+        private float LandingAnticipation()
+        {
+            if (Vector3.Dot(_player.Velocity, _player.GravityUp) > 0f) return 0f;
+            RaycastHit lHit;
+            if (Physics.Raycast(transform.position + _player.GravityUp * 0.5f, -_player.GravityUp, out lHit, 4f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+                return 1f - Mathf.Clamp01((lHit.distance - 0.5f) / 3.5f);
+            return 0f;
+        }
+
+        private void PoseDive()
+        {
+            _anim.Set(HumanoidAnimator.M.LArmDU, 1f);
+            _anim.Set(HumanoidAnimator.M.RArmDU, 1f);
+            _anim.Set(HumanoidAnimator.M.LArmFB, -0.7f);
+            _anim.Set(HumanoidAnimator.M.RArmFB, -0.7f);
+            _anim.Set(HumanoidAnimator.M.LForearm, 1f);
+            _anim.Set(HumanoidAnimator.M.RForearm, 1f);
+            _anim.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(-12f));
+            _anim.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(-8f));
+            _anim.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(10f));
+            _anim.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(25f));
+            _anim.Set(HumanoidAnimator.M.NeckNod, 0.6f);
+            _anim.SetFist(0f);
+        }
+
+        private void PoseDrift()
+        {
+            int lDir = _player.DriftDirection;
+            _anim.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(55f));
+            _anim.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(20f));
+            _anim.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(95f));
+            _anim.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(60f));
+            _anim.Set(HumanoidAnimator.M.LUpLegIO, 0.4f);
+            _anim.Set(HumanoidAnimator.M.RUpLegIO, 0.4f);
+            // Inner hand reaches the ground, outer arm balances.
+            HumanoidAnimator.M lInnerDU = lDir > 0 ? HumanoidAnimator.M.RArmDU : HumanoidAnimator.M.LArmDU;
+            HumanoidAnimator.M lOuterDU = lDir > 0 ? HumanoidAnimator.M.LArmDU : HumanoidAnimator.M.RArmDU;
+            HumanoidAnimator.M lOuterFB = lDir > 0 ? HumanoidAnimator.M.LArmFB : HumanoidAnimator.M.RArmFB;
+            _anim.Set(lInnerDU, -0.2f);
+            _anim.Set(lOuterDU, 0.6f);
+            _anim.Set(lOuterFB, 0.5f);
+            _anim.Set(lDir > 0 ? HumanoidAnimator.M.RForearm : HumanoidAnimator.M.LForearm, 1f);
+            _anim.Set(HumanoidAnimator.M.SpineLR, lDir * 0.6f);
+            _anim.Set(HumanoidAnimator.M.SpineFB, -0.5f);
+            _anim.Set(HumanoidAnimator.M.HeadTurn, -lDir * 0.6f);
+            _anim.SetFist(0.2f);
+            _anim.BodyOffsetY = -0.35f;
+        }
+
+        private void PoseSurf()
+        {
+            _anim.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(35f));
+            _anim.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(35f));
+            _anim.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(70f));
+            _anim.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(70f));
+            _anim.Set(HumanoidAnimator.M.LUpLegIO, 0.7f);
+            _anim.Set(HumanoidAnimator.M.RUpLegIO, 0.7f);
+            _anim.Set(HumanoidAnimator.M.LArmDU, 0.35f + Mathf.Sin(Time.time * 6f) * 0.08f);
+            _anim.Set(HumanoidAnimator.M.RArmDU, 0.35f - Mathf.Sin(Time.time * 6f) * 0.08f);
+            _anim.Set(HumanoidAnimator.M.LForearm, 0.9f);
+            _anim.Set(HumanoidAnimator.M.RForearm, 0.9f);
+            _anim.Set(HumanoidAnimator.M.HeadTurn, -0.8f);
+            _anim.Set(HumanoidAnimator.M.SpineFB, -0.3f);
+            _anim.SetFist(0f);
+            _anim.BodyOffsetY = -0.2f;
+        }
+
+        private void PoseHang()
+        {
+            float lSwing = Mathf.Sin(Time.time * 4f);
+            _anim.Set(HumanoidAnimator.M.LArmDU, 1.05f);
+            _anim.Set(HumanoidAnimator.M.RArmDU, 1.05f);
+            _anim.Set(HumanoidAnimator.M.LArmFB, -0.25f);
+            _anim.Set(HumanoidAnimator.M.RArmFB, -0.25f);
+            _anim.Set(HumanoidAnimator.M.LForearm, 0.9f);
+            _anim.Set(HumanoidAnimator.M.RForearm, 0.9f);
+            _anim.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(35f + lSwing * 15f));
+            _anim.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(25f + lSwing * 15f));
+            _anim.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(40f));
+            _anim.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(30f));
+            _anim.SetFist(1f);
+        }
+
+        private void PoseCrash()
+        {
+            float lT = Time.time * 14f;
+            _anim.Set(HumanoidAnimator.M.LArmDU, 0.8f + Mathf.Sin(lT) * 0.3f);
+            _anim.Set(HumanoidAnimator.M.RArmDU, 0.6f + Mathf.Cos(lT) * 0.3f);
+            _anim.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(50f + Mathf.Sin(lT * 1.3f) * 30f));
+            _anim.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(10f + Mathf.Cos(lT * 1.1f) * 30f));
+            _anim.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(80f));
+            _anim.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(40f));
+            _anim.SetFist(0f);
+        }
+
+        private void PoseDash()
+        {
+            _anim.Set(HumanoidAnimator.M.LArmFB, 0.95f);
+            _anim.Set(HumanoidAnimator.M.RArmFB, 0.95f);
+            _anim.Set(HumanoidAnimator.M.LArmDU, -0.2f);
+            _anim.Set(HumanoidAnimator.M.RArmDU, -0.2f);
+            _anim.Set(HumanoidAnimator.M.LForearm, 1f);
+            _anim.Set(HumanoidAnimator.M.RForearm, 1f);
+            _anim.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(60f));
+            _anim.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(-20f));
+            _anim.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(90f));
+            _anim.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(30f));
+            _anim.Set(HumanoidAnimator.M.SpineFB, -0.8f);
+        }
+
+        private void PosePunch(float pAmount)
+        {
+            _anim.Set(HumanoidAnimator.M.RArmDU, Mathf.Lerp(-0.4f, 0.35f, pAmount));
+            _anim.Set(HumanoidAnimator.M.RArmFB, Mathf.Lerp(0.3f, -1f, pAmount));
+            _anim.Set(HumanoidAnimator.M.RForearm, Mathf.Lerp(0f, 1f, pAmount));
+            _anim.Set(HumanoidAnimator.M.LArmFB, Mathf.Lerp(0f, 0.7f, pAmount));
+            _anim.Set(HumanoidAnimator.M.SpineTwist, -0.6f * pAmount);
+            _anim.Set(HumanoidAnimator.M.ChestTwist, -0.6f * pAmount);
+            _anim.SetFist(1f);
+        }
+
+        private void PoseVictory()
+        {
+            _anim.Set(HumanoidAnimator.M.LArmDU, 1f);
+            _anim.Set(HumanoidAnimator.M.RArmDU, 0.9f);
+            _anim.Set(HumanoidAnimator.M.LArmFB, -0.3f);
+            _anim.Set(HumanoidAnimator.M.RArmFB, -0.2f);
+            _anim.Set(HumanoidAnimator.M.LForearm, 1f);
+            _anim.Set(HumanoidAnimator.M.RForearm, 0.6f);
+            _anim.SetFist(1f);
+        }
+
+        // ================================================================ effects
+
+        private void UpdateLightForm()
         {
             bool lWant = _player.Hyper && _player.State != PlayerState.Crash;
             if (lWant != _lightForm)
@@ -342,83 +564,45 @@ namespace Com.IsartDigital.Hyperspeed
                 _handTrailL.emitting = false;
                 _handTrailR.emitting = false;
                 _lightTrail.Clear();
-                FX.Sparks(transform.position + transform.up, Color.white, 40, 25f, 0.6f, 0.5f);
-                FX.Shockwave(transform.position + transform.up, transform.forward, new Color(0.6f, 1f, 1f), 12f, 0.3f);
+                FX.Sparks(transform.position + transform.up, Color.white, 60, 35f, 0.7f, 0.5f);
+                FX.Shockwave(transform.position + transform.up, transform.forward, new Color(0.6f, 1f, 1f), 18f, 0.35f);
             }
             if (_lightForm)
             {
                 float lPulse = 1f + Mathf.Sin(Time.time * 40f) * 0.1f;
                 _light.localScale = new Vector3(lPulse, lPulse, lPulse * (1f + _player.Speed / 120f));
-                _lightTrail.time = Mathf.Lerp(0.3f, 0.8f, (_player.Speed - 90f) / 80f);
+                _lightTrail.time = Mathf.Lerp(0.4f, 1f, (_player.Speed - 90f) / 80f);
             }
         }
 
-        private void AnimateRun(float pDt, float pSpeed, bool pGrounded, int pDrift)
+        private void UpdateCone(float pDt)
         {
-            float lSpeed01 = Mathf.Clamp01(pSpeed / 80f);
-            float lCadence = Mathf.Lerp(9f, 21f, lSpeed01);
-            float lPrevPhase = _phase;
-            _phase += pDt * lCadence;
-            float lSwing = Mathf.Sin(_phase);
-            float lAmplitude = Mathf.Lerp(35f, 75f, lSpeed01);
-
-            _legL.localRotation = Quaternion.Euler(lSwing * lAmplitude, 0f, 0f);
-            _legR.localRotation = Quaternion.Euler(-lSwing * lAmplitude, 0f, 0f);
-
-            if (pSpeed > 62f)
-            {
-                // Arms swept back : anime sprint.
-                _armL.localRotation = Quaternion.Euler(65f + lSwing * 6f, 0f, 18f);
-                _armR.localRotation = Quaternion.Euler(65f - lSwing * 6f, 0f, -18f);
-            }
-            else
-            {
-                _armL.localRotation = Quaternion.Euler(-lSwing * lAmplitude * 0.9f, 0f, 12f);
-                _armR.localRotation = Quaternion.Euler(lSwing * lAmplitude * 0.9f, 0f, -12f);
-            }
-            if (pDrift != 0)
-            {
-                Transform lInner = pDrift > 0 ? _armR : _armL;
-                lInner.localRotation = Quaternion.Euler(-20f, 0f, pDrift * -55f);
-            }
-
-            _body.localPosition = new Vector3(0f, 0.95f + Mathf.Abs(Mathf.Sin(_phase)) * 0.09f, 0f);
-
-            // Footsteps on each half cycle.
-            if (pGrounded && Mathf.Floor(lPrevPhase / Mathf.PI) != Mathf.Floor(_phase / Mathf.PI))
-            {
-                _squashVelocity -= 1.2f;
-                if (_player != null)
-                {
-                    EmitDust(2);
-                    AudioManager.Play("sfx_step", 0.25f, 1f + lSpeed01 * 0.3f, 0.12f);
-                }
-            }
+            float lBoost = _player.BoostAmount;
+            bool lShow = lBoost > 0.02f;
+            if (_cone.gameObject.activeSelf != lShow) _cone.gameObject.SetActive(lShow);
+            if (!lShow) return;
+            _cone.localRotation = Quaternion.identity;
+            _cone.localScale = new Vector3(1f, 1f, 0.6f + lBoost * 0.8f) * (0.9f + Mathf.Sin(Time.time * 30f) * 0.05f);
+            _coneMaterial.SetFloat("_Intensity", lBoost);
         }
 
-        private void AnimateStatic(Vector3 pArmL, Vector3 pArmR, Vector3 pLegL, Vector3 pLegR, float pDt)
+        private void SpawnAfterimages()
         {
-            float lT = 1f - Mathf.Exp(-14f * pDt);
-            _armL.localRotation = Quaternion.Slerp(_armL.localRotation, Quaternion.Euler(pArmL), lT);
-            _armR.localRotation = Quaternion.Slerp(_armR.localRotation, Quaternion.Euler(pArmR), lT);
-            _legL.localRotation = Quaternion.Slerp(_legL.localRotation, Quaternion.Euler(pLegL), lT);
-            _legR.localRotation = Quaternion.Slerp(_legR.localRotation, Quaternion.Euler(pLegR), lT);
-            _body.localPosition = Vector3.Lerp(_body.localPosition, new Vector3(0f, 0.95f, 0f), lT);
-        }
-
-        private void UpdateSprings(float pDt, Vector3 pLocalAccel)
-        {
-            // Volume-preserving squash spring.
-            float lForce = (1f - _squash) * 220f - _squashVelocity * 11f;
-            _squashVelocity += lForce * pDt;
-            _squash = Mathf.Clamp(_squash + _squashVelocity * pDt, 0.55f, 1.6f);
-
-            // Head and droplet lag behind accelerations (jelly secondary motion).
-            Vector3 lTarget = Vector3.ClampMagnitude(-pLocalAccel * 0.0025f, 0.25f);
-            _headLag = Vector3.SmoothDamp(_headLag, lTarget, ref _headLagVelocity, 0.08f);
-            _head.localPosition = new Vector3(0f, 1.15f, 0f) + _headLag;
-            _dropLag = Vector3.SmoothDamp(_dropLag, lTarget * 3f + new Vector3(0f, 0f, -0.2f), ref _dropLagVelocity, 0.12f);
-            _drop.localRotation = Quaternion.Euler(Mathf.Clamp(_dropLag.z * -120f, -70f, 70f), 0f, Mathf.Clamp(_dropLag.x * 120f, -70f, 70f));
+            if (_skin == null) return;
+            for (int i = 0; i < 3; i++)
+            {
+                Mesh lMesh = new Mesh();
+                _skin.BakeMesh(lMesh);
+                GameObject lGhost = new GameObject("Afterimage");
+                lGhost.transform.SetPositionAndRotation(_skin.transform.position - _facing * Vector3.forward * (i * 0.9f), _skin.transform.rotation);
+                lGhost.transform.localScale = _skin.transform.lossyScale;
+                lGhost.AddComponent<MeshFilter>().sharedMesh = lMesh;
+                Color lColor = i % 2 == 0 ? new Color(0.3f, 1f, 1f, 0.5f) : new Color(1f, 0.3f, 0.9f, 0.5f);
+                Material[] lMaterials = new Material[lMesh.subMeshCount];
+                for (int j = 0; j < lMaterials.Length; j++) lMaterials[j] = Mats.Glow(lColor * 1.5f, true);
+                lGhost.AddComponent<MeshRenderer>().sharedMaterials = lMaterials;
+                lGhost.AddComponent<Fader>().Init(0.25f + i * 0.08f, lMesh);
+            }
         }
 
         private void EmitDust(int pCount)
@@ -434,11 +618,66 @@ namespace Com.IsartDigital.Hyperspeed
             Color[] lColors = { Color.white, new Color(0.3f, 0.8f, 3f), new Color(3f, 1.5f, 0.2f), new Color(3f, 0.4f, 2.5f) };
             ParticleSystem.EmitParams lParams = new ParticleSystem.EmitParams();
             lParams.startColor = lColors[_player.DriftTier];
-            for (int lSide = -1; lSide <= 1; lSide += 2)
+            int lCount = 3 + _player.DriftTier * 2;
+            for (int i = 0; i < lCount; i++)
             {
-                lParams.position = transform.position + transform.right * lSide * 0.3f - transform.forward * 0.3f + transform.up * 0.1f;
-                lParams.velocity = (-transform.forward * 6f + transform.up * 3f + transform.right * lSide * 2f) + Random.insideUnitSphere * 2f;
+                float lSide = (i % 2 == 0 ? -1f : 1f) * 0.25f;
+                lParams.position = transform.position + transform.right * lSide - transform.forward * 0.2f + transform.up * 0.05f;
+                lParams.velocity = -transform.forward * Random.Range(6f, 16f) + transform.up * Random.Range(1f, 6f) + transform.right * Random.Range(-5f, 5f);
+                lParams.startSize = Random.Range(0.08f, 0.2f);
+                lParams.startLifetime = Random.Range(0.15f, 0.35f);
                 _sparks.Emit(lParams, 1);
+            }
+        }
+
+        private void EmitFootSparks(Color pColor, int pCount)
+        {
+            ParticleSystem.EmitParams lParams = new ParticleSystem.EmitParams();
+            lParams.startColor = pColor * 2.5f;
+            for (int i = 0; i < pCount; i++)
+            {
+                lParams.position = transform.position + Random.insideUnitSphere * 0.2f;
+                lParams.velocity = -transform.forward * Random.Range(5f, 14f) + Random.insideUnitSphere * 4f + transform.up * 2f;
+                lParams.startSize = Random.Range(0.08f, 0.16f);
+                lParams.startLifetime = Random.Range(0.12f, 0.3f);
+                _sparks.Emit(lParams, 1);
+            }
+        }
+
+        private void EmitLandingSparks(float pImpact)
+        {
+            ParticleSystem.EmitParams lParams = new ParticleSystem.EmitParams();
+            int lCount = Mathf.Clamp((int)(pImpact * 0.8f), 6, 30);
+            for (int i = 0; i < lCount; i++)
+            {
+                Vector2 lCircle = Random.insideUnitCircle.normalized;
+                Vector3 lDir = transform.right * lCircle.x + transform.forward * lCircle.y;
+                lParams.position = transform.position + lDir * 0.3f;
+                lParams.velocity = lDir * Random.Range(6f, 16f) + transform.up * Random.Range(1f, 4f);
+                lParams.startColor = new Color(2f, 2f, 2.2f);
+                lParams.startSize = Random.Range(0.08f, 0.18f);
+                lParams.startLifetime = Random.Range(0.15f, 0.3f);
+                _sparks.Emit(lParams, 1);
+            }
+        }
+
+        // Spiky wind streaks around the runner at speed (they shoot backward past the camera).
+        private void EmitWindSpikes(float pSpeed)
+        {
+            float lRate = Mathf.Clamp01((pSpeed - 45f) / 60f);
+            if (lRate <= 0f) return;
+            int lCount = Random.value < lRate * 2.5f ? Mathf.CeilToInt(lRate * 3f) : 0;
+            ParticleSystem.EmitParams lParams = new ParticleSystem.EmitParams();
+            for (int i = 0; i < lCount; i++)
+            {
+                Vector2 lCircle = Random.insideUnitCircle.normalized * Random.Range(1.5f, 4.5f);
+                lParams.position = transform.position + transform.up * (1f + lCircle.y) + transform.right * lCircle.x + transform.forward * Random.Range(2f, 8f);
+                lParams.velocity = -transform.forward * Random.Range(40f, 90f);
+                float lHue = Random.value;
+                lParams.startColor = lHue < 0.33f ? new Color(0.4f, 1.6f, 2f) : lHue < 0.66f ? new Color(2f, 0.5f, 1.8f) : new Color(2f, 2f, 2f);
+                lParams.startSize = Random.Range(0.04f, 0.1f);
+                lParams.startLifetime = Random.Range(0.12f, 0.25f);
+                _wind.Emit(lParams, 1);
             }
         }
 
@@ -452,15 +691,42 @@ namespace Com.IsartDigital.Hyperspeed
                 _shadow.gameObject.SetActive(true);
                 _shadow.position = lHit.point + lHit.normal * 0.06f;
                 _shadow.up = lHit.normal;
-                float lSize = Mathf.Lerp(1.6f, 0.6f, lHit.distance / 30f);
+                float lSize = Mathf.Lerp(1.4f, 0.5f, lHit.distance / 30f);
                 _shadow.localScale = new Vector3(lSize, 0.01f, lSize);
             }
             else _shadow.gameObject.SetActive(false);
         }
+    }
 
-        private void OnDestroy()
+    // Fades out and destroys a temporary renderer (afterimages).
+    public class Fader : MonoBehaviour
+    {
+        private float _duration;
+        private float _time;
+        private Mesh _mesh;
+        private Renderer _renderer;
+        private MaterialPropertyBlock _block;
+
+        public void Init(float pDuration, Mesh pMesh)
         {
-            if (_shadow != null) Destroy(_shadow.gameObject);
+            _duration = pDuration;
+            _mesh = pMesh;
+            _renderer = GetComponent<Renderer>();
+            _block = new MaterialPropertyBlock();
+        }
+
+        private void Update()
+        {
+            _time += Time.deltaTime;
+            float lAlpha = 1f - _time / _duration;
+            _block.SetColor(Mats.COLOR, new Color(0.6f, 1.6f, 2f, Mathf.Max(0f, lAlpha) * 0.6f));
+            _renderer.SetPropertyBlock(_block);
+            transform.localScale *= 1f + Time.deltaTime * 0.6f;
+            if (_time >= _duration)
+            {
+                Destroy(_mesh);
+                Destroy(gameObject);
+            }
         }
     }
 }
