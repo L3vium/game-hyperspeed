@@ -10,11 +10,17 @@ namespace Com.IsartDigital.Hyperspeed
         private const string RANK_KEY = "hs_rank_";
 
         public static int SelectedLevel = 0;
+
+#if HS_CHEATS
+        public static bool CheatsEnabled = true;
+#else
+        public static bool CheatsEnabled = false;
+#endif
         public static bool SkipTitleIntro = false;
 
         public static int UnlockedCount => Mathf.Max(1, PlayerPrefs.GetInt(UNLOCKED_KEY, 1));
 
-        public static bool IsUnlocked(int pIndex) => pIndex < UnlockedCount;
+        public static bool IsUnlocked(int pIndex) => CheatsEnabled || pIndex < UnlockedCount;
 
         public static float GetBestTime(int pIndex) => PlayerPrefs.GetFloat(BEST_KEY + pIndex, -1f);
 

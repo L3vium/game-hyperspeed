@@ -7,7 +7,7 @@ namespace Com.IsartDigital.Hyperspeed
     [RequireComponent(typeof(CanvasRenderer))]
     public class UIShape : MaskableGraphic
     {
-        public enum ShapeKind { Parallelogram, Burst, Triangle }
+        public enum ShapeKind { Parallelogram, Burst, Triangle, Chevron }
 
         public ShapeKind kind = ShapeKind.Parallelogram;
         public float skew = 0.18f;
@@ -40,6 +40,21 @@ namespace Com.IsartDigital.Hyperspeed
                 pHelper.AddVert(new Vector3(lRect.xMax - lOffset, lRect.yMin), lColor, Vector2.right);
                 pHelper.AddTriangle(0, 1, 2);
                 pHelper.AddTriangle(2, 3, 0);
+            }
+            else if (kind == ShapeKind.Chevron)
+            {
+                // Arrow-shaped card pointing right : notch on the left, point on the right.
+                float lDepth = lRect.height * skew;
+                pHelper.AddVert(new Vector3(lRect.xMin, lRect.yMin), lColor, Vector2.zero);
+                pHelper.AddVert(new Vector3(lRect.xMin + lDepth, lRect.center.y), lColor, Vector2.zero);
+                pHelper.AddVert(new Vector3(lRect.xMin, lRect.yMax), lColor, Vector2.zero);
+                pHelper.AddVert(new Vector3(lRect.xMax - lDepth, lRect.yMax), lColor, Vector2.zero);
+                pHelper.AddVert(new Vector3(lRect.xMax, lRect.center.y), lColor, Vector2.zero);
+                pHelper.AddVert(new Vector3(lRect.xMax - lDepth, lRect.yMin), lColor, Vector2.zero);
+                pHelper.AddTriangle(0, 1, 5);
+                pHelper.AddTriangle(1, 4, 5);
+                pHelper.AddTriangle(1, 2, 3);
+                pHelper.AddTriangle(1, 3, 4);
             }
             else if (kind == ShapeKind.Triangle)
             {

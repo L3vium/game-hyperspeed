@@ -9,7 +9,14 @@ namespace Com.IsartDigital.Hyperspeed
     {
         public TMP_FontAsset titleFont;
         public TMP_FontAsset bodyFont;
+        public TMP_FontAsset thinFont;
         public GameObject impactFramePrefab;
+        public GameObject characterPrefab;
+        public Material[] characterMaterials;
+        public GameObject[] islandProps;
+        public GameObject[] ambientParticles;
+        public GameObject sparkBurstPrefab;
+        public Texture2D[] icons;
 
         private static GameAssets _instance;
 
@@ -24,6 +31,8 @@ namespace Com.IsartDigital.Hyperspeed
         }
 
         public static TMP_FontAsset TitleFont => Instance.titleFont != null ? Instance.titleFont : BodyFont;
+
+        public static TMP_FontAsset ThinFont => Instance.thinFont != null ? Instance.thinFont : BodyFont;
 
         public static TMP_FontAsset BodyFont => Instance.bodyFont != null ? Instance.bodyFont : TMP_Settings.defaultFontAsset;
     }

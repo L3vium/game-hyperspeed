@@ -20,10 +20,26 @@ namespace Com.IsartDigital.Hyperspeed
 
         private AudioSource _musicA;
         private AudioSource _musicB;
+        private AudioLowPassFilter _musicFilter;
+        private float _duckTimer;
         private float _musicVolume = 0.6f;
         private string _currentMusic;
 
         public static float MasterSfx = 0.9f;
+        public static float MusicMaster = 0.8f;
+
+        public static void LoadVolumes()
+        {
+            MasterSfx = PlayerPrefs.GetFloat("hs_sfx", 0.9f);
+            MusicMaster = PlayerPrefs.GetFloat("hs_music", 0.8f);
+        }
+
+        public static void SaveVolumes()
+        {
+            PlayerPrefs.SetFloat("hs_sfx", MasterSfx);
+            PlayerPrefs.SetFloat("hs_music", MusicMaster);
+            PlayerPrefs.Save();
+        }
 
         public static AudioManager Instance
         {
@@ -52,13 +68,17 @@ namespace Com.IsartDigital.Hyperspeed
                 _pool.Add(lSource);
             }
 
-            _musicA = CreateMusicSource();
-            _musicB = CreateMusicSource();
+            GameObject lMusic = new GameObject("Music");
+            lMusic.transform.SetParent(transform, false);
+            _musicA = CreateMusicSource(lMusic);
+            _musicB = CreateMusicSource(lMusic);
+            _musicFilter = lMusic.AddComponent<AudioLowPassFilter>();
+            _musicFilter.cutoffFrequency = 22000f;
         }
 
-        private AudioSource CreateMusicSource()
+        private AudioSource CreateMusicSource(GameObject pHost)
         {
-            AudioSource lSource = gameObject.AddComponent<AudioSource>();
+            AudioSource lSource = pHost.AddComponent<AudioSource>();
             lSource.loop = true;
             lSource.playOnAwake = false;
             lSource.volume = 0f;
@@ -128,6 +148,30 @@ namespace Com.IsartDigital.Hyperspeed
             lManager._musicA.Play();
         }
 
+        // Muffles the music during freeze frames and slow motion.
+        public static void Duck(float pDuration)
+        {
+            Instance._duckTimer = Mathf.Max(Instance._duckTimer, pDuration);
+        }
+
+        // Positional looping source (rival engines), doppler included.
+        public static AudioSource CreateLoop3D(string pId, Transform pParent, float pVolume)
+        {
+            AudioClip lClip;
+            if (!Instance._clips.TryGetValue(pId, out lClip)) return null;
+            AudioSource lSource = pParent.gameObject.AddComponent<AudioSource>();
+            lSource.clip = lClip;
+            lSource.loop = true;
+            lSource.volume = pVolume * MasterSfx;
+            lSource.spatialBlend = 1f;
+            lSource.dopplerLevel = 1.6f;
+            lSource.rolloffMode = AudioRolloffMode.Linear;
+            lSource.minDistance = 10f;
+            lSource.maxDistance = 220f;
+            lSource.Play();
+            return lSource;
+        }
+
         public static void SetMusicPitch(float pPitch)
         {
             if (_instance != null) _instance._musicA.pitch = pPitch;
@@ -142,7 +186,10 @@ namespace Com.IsartDigital.Hyperspeed
                 lPair.Value.volume = Mathf.MoveTowards(lPair.Value.volume, lTarget, LOOP_FADE_SPEED * lDt);
             }
 
-            _musicA.volume = Mathf.MoveTowards(_musicA.volume, _musicVolume, MUSIC_FADE_SPEED * lDt);
+            _duckTimer -= lDt;
+            float lDuck = _duckTimer > 0f ? 1f : 0f;
+            _musicFilter.cutoffFrequency = Mathf.Lerp(_musicFilter.cutoffFrequency, lDuck > 0f ? 900f : 22000f, 1f - Mathf.Exp(-(lDuck > 0f ? 30f : 6f) * lDt));
+            _musicA.volume = Mathf.MoveTowards(_musicA.volume, _musicVolume * MusicMaster * (lDuck > 0f ? 0.6f : 1f), MUSIC_FADE_SPEED * 2f * lDt);
             _musicB.volume = Mathf.MoveTowards(_musicB.volume, 0f, MUSIC_FADE_SPEED * lDt);
             if (_musicB.volume <= 0f && _musicB.isPlaying) _musicB.Stop();
         }

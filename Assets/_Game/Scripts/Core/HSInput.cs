@@ -71,6 +71,10 @@ namespace Com.IsartDigital.Hyperspeed
         public static bool JumpPressed => Bot(BotJumpFrame) ||
             (Kb != null && Kb.spaceKey.wasPressedThisFrame) || (Pad != null && Pad.buttonSouth.wasPressedThisFrame);
 
+        public static bool ForwardPressed =>
+            (Kb != null && (Kb.wKey.wasPressedThisFrame || Kb.zKey.wasPressedThisFrame || Kb.upArrowKey.wasPressedThisFrame)) ||
+            (Pad != null && (Pad.rightTrigger.wasPressedThisFrame || Pad.dpad.up.wasPressedThisFrame));
+
         public static bool JumpHeld =>
             (Kb != null && Kb.spaceKey.isPressed) || (Pad != null && Pad.buttonSouth.isPressed);
 
