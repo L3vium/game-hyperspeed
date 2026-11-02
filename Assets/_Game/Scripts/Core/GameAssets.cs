@@ -11,9 +11,6 @@ namespace Com.IsartDigital.Hyperspeed
         public TMP_FontAsset bodyFont;
         public TMP_FontAsset thinFont;
         public GameObject impactFramePrefab;
-        public GameObject characterPrefab;
-        public Material[] characterMaterials;
-        public GameObject[] islandProps;
         public GameObject[] ambientParticles;
         public GameObject sparkBurstPrefab;
         public Texture2D[] icons;

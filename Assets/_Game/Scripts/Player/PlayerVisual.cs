@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // Rigged runner (Ellen, humanoid) animated procedurally in muscle space :
+    // Runner visual animated procedurally in muscle space (humanoid rig) :
     // run / sprint cycles, lean, anticipation before landing, follow-through on head and spine,
     // dash swirl with afterimages, energy cone while boosting, spiky drift sparks and the light form.
     public class PlayerVisual : MonoBehaviour
@@ -14,7 +14,6 @@ namespace Com.IsartDigital.Hyperspeed
         private PlayerController _player;
         private Transform _pivot;
         private Transform _model;
-        private Animator _animator;
         private HumanoidAnimator _anim;
         private SkinnedMeshRenderer _skin;
         private Renderer[] _bodyRenderers;
@@ -79,35 +78,17 @@ namespace Com.IsartDigital.Hyperspeed
             _block = new MaterialPropertyBlock();
             _pivot = Pivot("Pivot", transform, Vector3.zero);
 
-            GameObject lPrefab = GameAssets.Instance.characterPrefab;
-            GameObject lModel = Instantiate(lPrefab, _pivot, false);
-            lModel.name = "Runner";
-            _model = lModel.transform;
-            _model.localPosition = Vector3.zero;
-            _model.localRotation = Quaternion.identity;
-            _animator = lModel.GetComponent<Animator>();
-            _animator.runtimeAnimatorController = null;
-            _animator.applyRootMotion = false;
-            _animator.enabled = false;
-            _anim = new HumanoidAnimator(_animator);
-
-            _skin = lModel.GetComponentInChildren<SkinnedMeshRenderer>();
-            _skin.updateWhenOffscreen = true;
-            Material[] lMaterials = GameAssets.Instance.characterMaterials;
-            if (lMaterials != null && lMaterials.Length > 0)
-            {
-                Material[] lSlots = new Material[_skin.sharedMaterials.Length];
-                for (int i = 0; i < lSlots.Length; i++) lSlots[i] = lMaterials[Mathf.Min(i, lMaterials.Length - 1)];
-                _skin.sharedMaterials = lSlots;
-            }
+            // The rigged runner is rebuilt from the Mixamo import ; until then a neutral capsule stands in (dev only).
+            _model = Pivot("Runner", _pivot, Vector3.zero);
+            GameObject lBody = PropFactory.Part(PrimitiveType.Capsule, _model, new Vector3(0f, 0.9f, 0f), new Vector3(0.8f, 0.9f, 0.8f), new Color(0.75f, 0.78f, 0.85f), default(Vector3), 0f);
+            lBody.name = "PlaceholderBody";
             _bodyRenderers = _model.GetComponentsInChildren<Renderer>();
 
-            Transform lNeck = _animator.GetBoneTransform(HumanBodyBones.Neck) ?? _animator.GetBoneTransform(HumanBodyBones.Head);
-            _scarf = CreateTrail(lNeck, new Vector3(0f, 0f, -0.08f), 0.1f, 0.22f, UIFactory.RED, false);
-            _handTrailL = CreateTrail(_animator.GetBoneTransform(HumanBodyBones.LeftHand), Vector3.zero, 0.12f, 0.1f, new Color(0.6f, 1f, 1f, 0.8f), true);
-            _handTrailR = CreateTrail(_animator.GetBoneTransform(HumanBodyBones.RightHand), Vector3.zero, 0.12f, 0.1f, new Color(1f, 0.5f, 0.9f, 0.8f), true);
-            _footTrailL = CreateTrail(_animator.GetBoneTransform(HumanBodyBones.LeftFoot), Vector3.zero, 0.1f, 0.12f, new Color(1f, 0.6f, 0.2f, 0.8f), true);
-            _footTrailR = CreateTrail(_animator.GetBoneTransform(HumanBodyBones.RightFoot), Vector3.zero, 0.1f, 0.12f, new Color(1f, 0.6f, 0.2f, 0.8f), true);
+            _scarf = CreateTrail(Pivot("Neck", _model, new Vector3(0f, 1.55f, -0.1f)), Vector3.zero, 0.1f, 0.22f, UIFactory.RED, false);
+            _handTrailL = CreateTrail(Pivot("HandL", _model, new Vector3(-0.4f, 1f, 0f)), Vector3.zero, 0.12f, 0.1f, new Color(0.6f, 1f, 1f, 0.8f), true);
+            _handTrailR = CreateTrail(Pivot("HandR", _model, new Vector3(0.4f, 1f, 0f)), Vector3.zero, 0.12f, 0.1f, new Color(1f, 0.5f, 0.9f, 0.8f), true);
+            _footTrailL = CreateTrail(Pivot("FootL", _model, new Vector3(-0.15f, 0.1f, 0f)), Vector3.zero, 0.1f, 0.12f, new Color(1f, 0.6f, 0.2f, 0.8f), true);
+            _footTrailR = CreateTrail(Pivot("FootR", _model, new Vector3(0.15f, 0.1f, 0f)), Vector3.zero, 0.1f, 0.12f, new Color(1f, 0.6f, 0.2f, 0.8f), true);
 
             // Light form
             _light = Pivot("LightForm", transform, new Vector3(0f, 1f, 0f));
@@ -186,9 +167,9 @@ namespace Com.IsartDigital.Hyperspeed
 
         public void TickDisplay(float pDt, float pSpeed)
         {
-            _anim.ResetTargets();
+            _anim?.ResetTargets();
             RunCycle(pDt, pSpeed, 0f);
-            _anim.Apply(pDt, 16f);
+            _anim?.Apply(pDt, 16f);
             _pivot.localRotation = Quaternion.Euler(Mathf.Lerp(6f, 16f, pSpeed / 90f), 0f, Mathf.Sin(Time.time * 1.1f) * 5f);
             _scarf.time = 0.06f;
         }
@@ -227,7 +208,7 @@ namespace Com.IsartDigital.Hyperspeed
             _flash = Mathf.MoveTowards(_flash, 0f, pDt * 4f);
             _victory = Mathf.MoveTowards(_victory, 0f, pDt * 0.4f);
 
-            _anim.ResetTargets();
+            _anim?.ResetTargets();
             float lTargetLean = -_turnRate * 0.12f - _player.Steer * 8f;
             float lTargetPitch = 0f;
             float lTargetYaw = 0f;
@@ -286,11 +267,11 @@ namespace Com.IsartDigital.Hyperspeed
 
             // Follow-through : spine and head lag behind turns, head stays level-ish.
             _spineLag = Mathf.Lerp(_spineLag, Mathf.Clamp(_turnRate / 240f, -1f, 1f), 1f - Mathf.Exp(-6f * pDt));
-            _anim.Add(HumanoidAnimator.M.SpineLR, -_spineLag * 0.35f);
-            _anim.Add(HumanoidAnimator.M.ChestTwist, _spineLag * 0.3f);
-            _anim.Add(HumanoidAnimator.M.NeckTilt, (_lean / 30f) * 0.5f);
-            _anim.Add(HumanoidAnimator.M.HeadTurn, _spineLag * 0.4f);
-            _anim.Apply(pDt, lSharpness);
+            _anim?.Add(HumanoidAnimator.M.SpineLR, -_spineLag * 0.35f);
+            _anim?.Add(HumanoidAnimator.M.ChestTwist, _spineLag * 0.3f);
+            _anim?.Add(HumanoidAnimator.M.NeckTilt, (_lean / 30f) * 0.5f);
+            _anim?.Add(HumanoidAnimator.M.HeadTurn, _spineLag * 0.4f);
+            _anim?.Apply(pDt, lSharpness);
 
             _lean = Mathf.Lerp(_lean, Mathf.Clamp(lTargetLean, -40f, 40f), 1f - Mathf.Exp(-9f * pDt));
             _pitch = Mathf.Lerp(_pitch, lTargetPitch, 1f - Mathf.Exp(-9f * pDt));
@@ -336,42 +317,42 @@ namespace Com.IsartDigital.Hyperspeed
             float lRightAngle = 10f - lSin * lStride;
             float lLeftKnee = 18f + Mathf.Max(0f, lCos) * Mathf.Lerp(45f, 110f, lS);
             float lRightKnee = 18f + Mathf.Max(0f, -lCos) * Mathf.Lerp(45f, 110f, lS);
-            _anim.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(lLeftAngle));
-            _anim.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(lRightAngle));
-            _anim.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(lLeftKnee));
-            _anim.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(lRightKnee));
-            _anim.Set(HumanoidAnimator.M.LFoot, -0.2f * lCos);
-            _anim.Set(HumanoidAnimator.M.RFoot, 0.2f * lCos);
+            _anim?.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(lLeftAngle));
+            _anim?.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(lRightAngle));
+            _anim?.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(lLeftKnee));
+            _anim?.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(lRightKnee));
+            _anim?.Set(HumanoidAnimator.M.LFoot, -0.2f * lCos);
+            _anim?.Set(HumanoidAnimator.M.RFoot, 0.2f * lCos);
 
             if (pSpeed > 62f)
             {
                 // Anime sprint : arms swept back, chest forward.
-                _anim.Set(HumanoidAnimator.M.LArmFB, 0.85f + lSin * 0.05f);
-                _anim.Set(HumanoidAnimator.M.RArmFB, 0.85f - lSin * 0.05f);
-                _anim.Set(HumanoidAnimator.M.LArmDU, -0.35f);
-                _anim.Set(HumanoidAnimator.M.RArmDU, -0.35f);
-                _anim.Set(HumanoidAnimator.M.LForearm, 0.85f);
-                _anim.Set(HumanoidAnimator.M.RForearm, 0.85f);
-                _anim.Set(HumanoidAnimator.M.SpineFB, -0.6f);
-                _anim.Set(HumanoidAnimator.M.ChestFB, -0.5f);
-                _anim.SetFist(0.2f);
+                _anim?.Set(HumanoidAnimator.M.LArmFB, 0.85f + lSin * 0.05f);
+                _anim?.Set(HumanoidAnimator.M.RArmFB, 0.85f - lSin * 0.05f);
+                _anim?.Set(HumanoidAnimator.M.LArmDU, -0.35f);
+                _anim?.Set(HumanoidAnimator.M.RArmDU, -0.35f);
+                _anim?.Set(HumanoidAnimator.M.LForearm, 0.85f);
+                _anim?.Set(HumanoidAnimator.M.RForearm, 0.85f);
+                _anim?.Set(HumanoidAnimator.M.SpineFB, -0.6f);
+                _anim?.Set(HumanoidAnimator.M.ChestFB, -0.5f);
+                _anim?.SetFist(0.2f);
             }
             else
             {
                 float lArm = Mathf.Lerp(0.35f, 0.75f, lS);
-                _anim.Set(HumanoidAnimator.M.LArmFB, lSin * lArm);
-                _anim.Set(HumanoidAnimator.M.RArmFB, -lSin * lArm);
-                _anim.Set(HumanoidAnimator.M.LArmDU, -0.6f + Mathf.Abs(lSin) * 0.1f);
-                _anim.Set(HumanoidAnimator.M.RArmDU, -0.6f + Mathf.Abs(lSin) * 0.1f);
-                _anim.Set(HumanoidAnimator.M.LForearm, HumanoidAnimator.Elbow(70f + lSin * 20f));
-                _anim.Set(HumanoidAnimator.M.RForearm, HumanoidAnimator.Elbow(70f - lSin * 20f));
-                _anim.Set(HumanoidAnimator.M.SpineFB, -0.3f * lS);
-                _anim.SetFist(0.7f);
+                _anim?.Set(HumanoidAnimator.M.LArmFB, lSin * lArm);
+                _anim?.Set(HumanoidAnimator.M.RArmFB, -lSin * lArm);
+                _anim?.Set(HumanoidAnimator.M.LArmDU, -0.6f + Mathf.Abs(lSin) * 0.1f);
+                _anim?.Set(HumanoidAnimator.M.RArmDU, -0.6f + Mathf.Abs(lSin) * 0.1f);
+                _anim?.Set(HumanoidAnimator.M.LForearm, HumanoidAnimator.Elbow(70f + lSin * 20f));
+                _anim?.Set(HumanoidAnimator.M.RForearm, HumanoidAnimator.Elbow(70f - lSin * 20f));
+                _anim?.Set(HumanoidAnimator.M.SpineFB, -0.3f * lS);
+                _anim?.SetFist(0.7f);
             }
-            _anim.Set(HumanoidAnimator.M.SpineTwist, -lSin * 0.18f);
-            _anim.Set(HumanoidAnimator.M.ChestTwist, -lSin * 0.15f);
-            _anim.Set(HumanoidAnimator.M.NeckNod, 0.1f);
-            _anim.BodyOffsetY = -0.04f - Mathf.Abs(lCos) * 0.03f * (1f + lS) - pSlide * 0.25f;
+            _anim?.Set(HumanoidAnimator.M.SpineTwist, -lSin * 0.18f);
+            _anim?.Set(HumanoidAnimator.M.ChestTwist, -lSin * 0.15f);
+            _anim?.Set(HumanoidAnimator.M.NeckNod, 0.1f);
+            if (_anim != null) _anim.BodyOffsetY = -0.04f - Mathf.Abs(lCos) * 0.03f * (1f + lS) - pSlide * 0.25f;
 
             if (Mathf.Floor(lPrev / Mathf.PI) != Mathf.Floor(_phase / Mathf.PI) && _player != null && _player.State == PlayerState.Ground)
             {
@@ -382,18 +363,18 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void PoseReady()
         {
-            _anim.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(70f));
-            _anim.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(100f));
-            _anim.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(-15f));
-            _anim.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(60f));
-            _anim.Set(HumanoidAnimator.M.LArmFB, 0.6f);
-            _anim.Set(HumanoidAnimator.M.RArmFB, -0.6f);
-            _anim.Set(HumanoidAnimator.M.LForearm, HumanoidAnimator.Elbow(80f));
-            _anim.Set(HumanoidAnimator.M.RForearm, HumanoidAnimator.Elbow(80f));
-            _anim.Set(HumanoidAnimator.M.SpineFB, -0.7f);
-            _anim.Set(HumanoidAnimator.M.NeckNod, 0.4f);
-            _anim.SetFist(0.8f);
-            _anim.BodyOffsetY = -0.3f;
+            _anim?.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(70f));
+            _anim?.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(100f));
+            _anim?.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(-15f));
+            _anim?.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(60f));
+            _anim?.Set(HumanoidAnimator.M.LArmFB, 0.6f);
+            _anim?.Set(HumanoidAnimator.M.RArmFB, -0.6f);
+            _anim?.Set(HumanoidAnimator.M.LForearm, HumanoidAnimator.Elbow(80f));
+            _anim?.Set(HumanoidAnimator.M.RForearm, HumanoidAnimator.Elbow(80f));
+            _anim?.Set(HumanoidAnimator.M.SpineFB, -0.7f);
+            _anim?.Set(HumanoidAnimator.M.NeckNod, 0.4f);
+            _anim?.SetFist(0.8f);
+            if (_anim != null) _anim.BodyOffsetY = -0.3f;
         }
 
         private void PoseAir()
@@ -403,19 +384,19 @@ namespace Com.IsartDigital.Hyperspeed
             // Anticipation : legs come forward when the ground gets close.
             float lLand = LandingAnticipation();
             float lTuck = Mathf.Lerp(30f, 85f, lRise);
-            _anim.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(Mathf.Lerp(lTuck, 45f, lLand)));
-            _anim.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(Mathf.Lerp(100f, 55f, lLand)));
-            _anim.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(Mathf.Lerp(-10f, 30f, lLand)));
-            _anim.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(Mathf.Lerp(70f, 50f, lLand)));
-            _anim.Set(HumanoidAnimator.M.LArmDU, Mathf.Lerp(0.2f, 0.55f, lRise));
-            _anim.Set(HumanoidAnimator.M.RArmDU, Mathf.Lerp(0.2f, 0.55f, lRise));
-            _anim.Set(HumanoidAnimator.M.LArmFB, -0.2f);
-            _anim.Set(HumanoidAnimator.M.RArmFB, 0.3f);
-            _anim.Set(HumanoidAnimator.M.LForearm, HumanoidAnimator.Elbow(35f));
-            _anim.Set(HumanoidAnimator.M.RForearm, HumanoidAnimator.Elbow(35f));
-            _anim.Set(HumanoidAnimator.M.SpineFB, Mathf.Lerp(-0.2f, 0.2f, lRise));
-            _anim.SetFist(0.3f);
-            _anim.BodyOffsetY = -lLand * 0.12f;
+            _anim?.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(Mathf.Lerp(lTuck, 45f, lLand)));
+            _anim?.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(Mathf.Lerp(100f, 55f, lLand)));
+            _anim?.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(Mathf.Lerp(-10f, 30f, lLand)));
+            _anim?.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(Mathf.Lerp(70f, 50f, lLand)));
+            _anim?.Set(HumanoidAnimator.M.LArmDU, Mathf.Lerp(0.2f, 0.55f, lRise));
+            _anim?.Set(HumanoidAnimator.M.RArmDU, Mathf.Lerp(0.2f, 0.55f, lRise));
+            _anim?.Set(HumanoidAnimator.M.LArmFB, -0.2f);
+            _anim?.Set(HumanoidAnimator.M.RArmFB, 0.3f);
+            _anim?.Set(HumanoidAnimator.M.LForearm, HumanoidAnimator.Elbow(35f));
+            _anim?.Set(HumanoidAnimator.M.RForearm, HumanoidAnimator.Elbow(35f));
+            _anim?.Set(HumanoidAnimator.M.SpineFB, Mathf.Lerp(-0.2f, 0.2f, lRise));
+            _anim?.SetFist(0.3f);
+            if (_anim != null) _anim.BodyOffsetY = -lLand * 0.12f;
         }
 
         private float LandingAnticipation()
@@ -429,125 +410,125 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void PoseDive()
         {
-            _anim.Set(HumanoidAnimator.M.LArmDU, 1f);
-            _anim.Set(HumanoidAnimator.M.RArmDU, 1f);
-            _anim.Set(HumanoidAnimator.M.LArmFB, -0.7f);
-            _anim.Set(HumanoidAnimator.M.RArmFB, -0.7f);
-            _anim.Set(HumanoidAnimator.M.LForearm, 1f);
-            _anim.Set(HumanoidAnimator.M.RForearm, 1f);
-            _anim.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(-12f));
-            _anim.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(-8f));
-            _anim.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(10f));
-            _anim.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(25f));
-            _anim.Set(HumanoidAnimator.M.NeckNod, 0.6f);
-            _anim.SetFist(0f);
+            _anim?.Set(HumanoidAnimator.M.LArmDU, 1f);
+            _anim?.Set(HumanoidAnimator.M.RArmDU, 1f);
+            _anim?.Set(HumanoidAnimator.M.LArmFB, -0.7f);
+            _anim?.Set(HumanoidAnimator.M.RArmFB, -0.7f);
+            _anim?.Set(HumanoidAnimator.M.LForearm, 1f);
+            _anim?.Set(HumanoidAnimator.M.RForearm, 1f);
+            _anim?.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(-12f));
+            _anim?.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(-8f));
+            _anim?.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(10f));
+            _anim?.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(25f));
+            _anim?.Set(HumanoidAnimator.M.NeckNod, 0.6f);
+            _anim?.SetFist(0f);
         }
 
         private void PoseDrift()
         {
             int lDir = _player.DriftDirection;
-            _anim.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(55f));
-            _anim.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(20f));
-            _anim.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(95f));
-            _anim.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(60f));
-            _anim.Set(HumanoidAnimator.M.LUpLegIO, 0.4f);
-            _anim.Set(HumanoidAnimator.M.RUpLegIO, 0.4f);
+            _anim?.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(55f));
+            _anim?.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(20f));
+            _anim?.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(95f));
+            _anim?.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(60f));
+            _anim?.Set(HumanoidAnimator.M.LUpLegIO, 0.4f);
+            _anim?.Set(HumanoidAnimator.M.RUpLegIO, 0.4f);
             // Inner hand reaches the ground, outer arm balances.
             HumanoidAnimator.M lInnerDU = lDir > 0 ? HumanoidAnimator.M.RArmDU : HumanoidAnimator.M.LArmDU;
             HumanoidAnimator.M lOuterDU = lDir > 0 ? HumanoidAnimator.M.LArmDU : HumanoidAnimator.M.RArmDU;
             HumanoidAnimator.M lOuterFB = lDir > 0 ? HumanoidAnimator.M.LArmFB : HumanoidAnimator.M.RArmFB;
-            _anim.Set(lInnerDU, -0.2f);
-            _anim.Set(lOuterDU, 0.6f);
-            _anim.Set(lOuterFB, 0.5f);
-            _anim.Set(lDir > 0 ? HumanoidAnimator.M.RForearm : HumanoidAnimator.M.LForearm, 1f);
-            _anim.Set(HumanoidAnimator.M.SpineLR, lDir * 0.6f);
-            _anim.Set(HumanoidAnimator.M.SpineFB, -0.5f);
-            _anim.Set(HumanoidAnimator.M.HeadTurn, -lDir * 0.6f);
-            _anim.SetFist(0.2f);
-            _anim.BodyOffsetY = -0.35f;
+            _anim?.Set(lInnerDU, -0.2f);
+            _anim?.Set(lOuterDU, 0.6f);
+            _anim?.Set(lOuterFB, 0.5f);
+            _anim?.Set(lDir > 0 ? HumanoidAnimator.M.RForearm : HumanoidAnimator.M.LForearm, 1f);
+            _anim?.Set(HumanoidAnimator.M.SpineLR, lDir * 0.6f);
+            _anim?.Set(HumanoidAnimator.M.SpineFB, -0.5f);
+            _anim?.Set(HumanoidAnimator.M.HeadTurn, -lDir * 0.6f);
+            _anim?.SetFist(0.2f);
+            if (_anim != null) _anim.BodyOffsetY = -0.35f;
         }
 
         private void PoseSurf()
         {
-            _anim.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(35f));
-            _anim.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(35f));
-            _anim.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(70f));
-            _anim.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(70f));
-            _anim.Set(HumanoidAnimator.M.LUpLegIO, 0.7f);
-            _anim.Set(HumanoidAnimator.M.RUpLegIO, 0.7f);
-            _anim.Set(HumanoidAnimator.M.LArmDU, 0.35f + Mathf.Sin(Time.time * 6f) * 0.08f);
-            _anim.Set(HumanoidAnimator.M.RArmDU, 0.35f - Mathf.Sin(Time.time * 6f) * 0.08f);
-            _anim.Set(HumanoidAnimator.M.LForearm, 0.9f);
-            _anim.Set(HumanoidAnimator.M.RForearm, 0.9f);
-            _anim.Set(HumanoidAnimator.M.HeadTurn, -0.8f);
-            _anim.Set(HumanoidAnimator.M.SpineFB, -0.3f);
-            _anim.SetFist(0f);
-            _anim.BodyOffsetY = -0.2f;
+            _anim?.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(35f));
+            _anim?.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(35f));
+            _anim?.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(70f));
+            _anim?.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(70f));
+            _anim?.Set(HumanoidAnimator.M.LUpLegIO, 0.7f);
+            _anim?.Set(HumanoidAnimator.M.RUpLegIO, 0.7f);
+            _anim?.Set(HumanoidAnimator.M.LArmDU, 0.35f + Mathf.Sin(Time.time * 6f) * 0.08f);
+            _anim?.Set(HumanoidAnimator.M.RArmDU, 0.35f - Mathf.Sin(Time.time * 6f) * 0.08f);
+            _anim?.Set(HumanoidAnimator.M.LForearm, 0.9f);
+            _anim?.Set(HumanoidAnimator.M.RForearm, 0.9f);
+            _anim?.Set(HumanoidAnimator.M.HeadTurn, -0.8f);
+            _anim?.Set(HumanoidAnimator.M.SpineFB, -0.3f);
+            _anim?.SetFist(0f);
+            if (_anim != null) _anim.BodyOffsetY = -0.2f;
         }
 
         private void PoseHang()
         {
             float lSwing = Mathf.Sin(Time.time * 4f);
-            _anim.Set(HumanoidAnimator.M.LArmDU, 1.05f);
-            _anim.Set(HumanoidAnimator.M.RArmDU, 1.05f);
-            _anim.Set(HumanoidAnimator.M.LArmFB, -0.25f);
-            _anim.Set(HumanoidAnimator.M.RArmFB, -0.25f);
-            _anim.Set(HumanoidAnimator.M.LForearm, 0.9f);
-            _anim.Set(HumanoidAnimator.M.RForearm, 0.9f);
-            _anim.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(35f + lSwing * 15f));
-            _anim.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(25f + lSwing * 15f));
-            _anim.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(40f));
-            _anim.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(30f));
-            _anim.SetFist(1f);
+            _anim?.Set(HumanoidAnimator.M.LArmDU, 1.05f);
+            _anim?.Set(HumanoidAnimator.M.RArmDU, 1.05f);
+            _anim?.Set(HumanoidAnimator.M.LArmFB, -0.25f);
+            _anim?.Set(HumanoidAnimator.M.RArmFB, -0.25f);
+            _anim?.Set(HumanoidAnimator.M.LForearm, 0.9f);
+            _anim?.Set(HumanoidAnimator.M.RForearm, 0.9f);
+            _anim?.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(35f + lSwing * 15f));
+            _anim?.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(25f + lSwing * 15f));
+            _anim?.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(40f));
+            _anim?.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(30f));
+            _anim?.SetFist(1f);
         }
 
         private void PoseCrash()
         {
             float lT = Time.time * 14f;
-            _anim.Set(HumanoidAnimator.M.LArmDU, 0.8f + Mathf.Sin(lT) * 0.3f);
-            _anim.Set(HumanoidAnimator.M.RArmDU, 0.6f + Mathf.Cos(lT) * 0.3f);
-            _anim.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(50f + Mathf.Sin(lT * 1.3f) * 30f));
-            _anim.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(10f + Mathf.Cos(lT * 1.1f) * 30f));
-            _anim.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(80f));
-            _anim.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(40f));
-            _anim.SetFist(0f);
+            _anim?.Set(HumanoidAnimator.M.LArmDU, 0.8f + Mathf.Sin(lT) * 0.3f);
+            _anim?.Set(HumanoidAnimator.M.RArmDU, 0.6f + Mathf.Cos(lT) * 0.3f);
+            _anim?.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(50f + Mathf.Sin(lT * 1.3f) * 30f));
+            _anim?.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(10f + Mathf.Cos(lT * 1.1f) * 30f));
+            _anim?.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(80f));
+            _anim?.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(40f));
+            _anim?.SetFist(0f);
         }
 
         private void PoseDash()
         {
-            _anim.Set(HumanoidAnimator.M.LArmFB, 0.95f);
-            _anim.Set(HumanoidAnimator.M.RArmFB, 0.95f);
-            _anim.Set(HumanoidAnimator.M.LArmDU, -0.2f);
-            _anim.Set(HumanoidAnimator.M.RArmDU, -0.2f);
-            _anim.Set(HumanoidAnimator.M.LForearm, 1f);
-            _anim.Set(HumanoidAnimator.M.RForearm, 1f);
-            _anim.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(60f));
-            _anim.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(-20f));
-            _anim.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(90f));
-            _anim.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(30f));
-            _anim.Set(HumanoidAnimator.M.SpineFB, -0.8f);
+            _anim?.Set(HumanoidAnimator.M.LArmFB, 0.95f);
+            _anim?.Set(HumanoidAnimator.M.RArmFB, 0.95f);
+            _anim?.Set(HumanoidAnimator.M.LArmDU, -0.2f);
+            _anim?.Set(HumanoidAnimator.M.RArmDU, -0.2f);
+            _anim?.Set(HumanoidAnimator.M.LForearm, 1f);
+            _anim?.Set(HumanoidAnimator.M.RForearm, 1f);
+            _anim?.Set(HumanoidAnimator.M.LUpLegFB, HumanoidAnimator.Leg(60f));
+            _anim?.Set(HumanoidAnimator.M.RUpLegFB, HumanoidAnimator.Leg(-20f));
+            _anim?.Set(HumanoidAnimator.M.LLowLeg, HumanoidAnimator.Knee(90f));
+            _anim?.Set(HumanoidAnimator.M.RLowLeg, HumanoidAnimator.Knee(30f));
+            _anim?.Set(HumanoidAnimator.M.SpineFB, -0.8f);
         }
 
         private void PosePunch(float pAmount)
         {
-            _anim.Set(HumanoidAnimator.M.RArmDU, Mathf.Lerp(-0.4f, 0.35f, pAmount));
-            _anim.Set(HumanoidAnimator.M.RArmFB, Mathf.Lerp(0.3f, -1f, pAmount));
-            _anim.Set(HumanoidAnimator.M.RForearm, Mathf.Lerp(0f, 1f, pAmount));
-            _anim.Set(HumanoidAnimator.M.LArmFB, Mathf.Lerp(0f, 0.7f, pAmount));
-            _anim.Set(HumanoidAnimator.M.SpineTwist, -0.6f * pAmount);
-            _anim.Set(HumanoidAnimator.M.ChestTwist, -0.6f * pAmount);
-            _anim.SetFist(1f);
+            _anim?.Set(HumanoidAnimator.M.RArmDU, Mathf.Lerp(-0.4f, 0.35f, pAmount));
+            _anim?.Set(HumanoidAnimator.M.RArmFB, Mathf.Lerp(0.3f, -1f, pAmount));
+            _anim?.Set(HumanoidAnimator.M.RForearm, Mathf.Lerp(0f, 1f, pAmount));
+            _anim?.Set(HumanoidAnimator.M.LArmFB, Mathf.Lerp(0f, 0.7f, pAmount));
+            _anim?.Set(HumanoidAnimator.M.SpineTwist, -0.6f * pAmount);
+            _anim?.Set(HumanoidAnimator.M.ChestTwist, -0.6f * pAmount);
+            _anim?.SetFist(1f);
         }
 
         private void PoseVictory()
         {
-            _anim.Set(HumanoidAnimator.M.LArmDU, 1f);
-            _anim.Set(HumanoidAnimator.M.RArmDU, 0.9f);
-            _anim.Set(HumanoidAnimator.M.LArmFB, -0.3f);
-            _anim.Set(HumanoidAnimator.M.RArmFB, -0.2f);
-            _anim.Set(HumanoidAnimator.M.LForearm, 1f);
-            _anim.Set(HumanoidAnimator.M.RForearm, 0.6f);
-            _anim.SetFist(1f);
+            _anim?.Set(HumanoidAnimator.M.LArmDU, 1f);
+            _anim?.Set(HumanoidAnimator.M.RArmDU, 0.9f);
+            _anim?.Set(HumanoidAnimator.M.LArmFB, -0.3f);
+            _anim?.Set(HumanoidAnimator.M.RArmFB, -0.2f);
+            _anim?.Set(HumanoidAnimator.M.LForearm, 1f);
+            _anim?.Set(HumanoidAnimator.M.RForearm, 0.6f);
+            _anim?.SetFist(1f);
         }
 
         // ================================================================ effects

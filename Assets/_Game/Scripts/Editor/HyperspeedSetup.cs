@@ -27,10 +27,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
         private const string LATO = "Assets/_Plugins/Feel/MMTools/Demos/MMTween/Fonts/Lato/SDF/";
         private const string BODY_FONT = "Assets/_Plugins/Feel/MMTools/Demos/MMTween/Fonts/Lato/SDF/Lato-Black SDF.asset";
         public const string BUILD_PATH = "Builds/Windows/HyperSpeed.exe";
-        private const string ELLEN = "Assets/_Plugins/INab Studio/Demo Assets/Unity Companion License/3D Game Kit - Character Pack/Ellen/";
-        private const string PROPS = "Assets/_Plugins/INab Studio/Demo Assets/Unity Companion License/3D Game Kit - Props Pack/Environment/Prefabs/";
         private const string SHERBBS = "Assets/_Plugins/Sherbbs Particle Collection/Particles/";
-        private const string CHARACTER_DIR = "Assets/_Game/Art/Character/";
 
         [MenuItem("Hyperspeed/Setup Project")]
         public static void SetupAll()
@@ -112,17 +109,6 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
             lAssets.bodyFont = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(LATO + "Lato-Bold SDF.asset");
             lAssets.thinFont = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(LATO + "Lato-Light SDF.asset");
             lAssets.impactFramePrefab = AssetDatabase.LoadAssetAtPath<GameObject>(IMPACT_PREFAB);
-            lAssets.characterPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(ELLEN + "Prefabs/Ellen.prefab");
-            lAssets.characterMaterials = CreateCharacterMaterials();
-            lAssets.islandProps = new[]
-            {
-                AssetDatabase.LoadAssetAtPath<GameObject>(PROPS + "RockFloating04.prefab"),
-                AssetDatabase.LoadAssetAtPath<GameObject>(PROPS + "VegetationLarge03.prefab"),
-                AssetDatabase.LoadAssetAtPath<GameObject>(PROPS + "VegetationLarge04.prefab"),
-                AssetDatabase.LoadAssetAtPath<GameObject>(PROPS + "VegetationMedium01.prefab"),
-                AssetDatabase.LoadAssetAtPath<GameObject>(PROPS + "VegetationMedium02.prefab"),
-                AssetDatabase.LoadAssetAtPath<GameObject>(PROPS + "VegetationMedium04.prefab")
-            };
             lAssets.ambientParticles = new[]
             {
                 AssetDatabase.LoadAssetAtPath<GameObject>(SHERBBS + "Atmosphere/FireFlies.prefab"),
@@ -147,48 +133,6 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
             lAssets.icons = lIcons.ToArray();
             EditorUtility.SetDirty(lAssets);
             AssetDatabase.SaveAssets();
-        }
-
-        // Toon materials for the runner, one per submesh slot of Ellen's body mesh.
-        private static Material[] CreateCharacterMaterials()
-        {
-            Directory.CreateDirectory(CHARACTER_DIR);
-            string[] lNames = { "Hair", "Body", "Head", "Eyes", "Tear", "Hair" };
-            string[] lTextures = { "Ellen_Hair_Albedo", "Ellen_Body_Albedo", "Ellen_Head_Albedo", "Ellen_Eye_Albedo", "", "Ellen_Hair_Albedo" };
-            Material[] lResult = new Material[lNames.Length];
-            for (int i = 0; i < lNames.Length; i++)
-            {
-                string lPath = CHARACTER_DIR + "M_Runner_" + lNames[i] + ".mat";
-                Material lMaterial = AssetDatabase.LoadAssetAtPath<Material>(lPath);
-                if (lMaterial == null)
-                {
-                    lMaterial = new Material(Shader.Find("Hyperspeed/Toon"));
-                    AssetDatabase.CreateAsset(lMaterial, lPath);
-                }
-                if (!string.IsNullOrEmpty(lTextures[i]))
-                {
-                    string[] lFound = AssetDatabase.FindAssets(lTextures[i] + " t:Texture2D", new[] { ELLEN + "Textures" });
-                    if (lFound.Length > 0) lMaterial.SetTexture("_BaseMap", AssetDatabase.LoadAssetAtPath<Texture2D>(AssetDatabase.GUIDToAssetPath(lFound[0])));
-                }
-                bool lEyes = lNames[i] == "Eyes" || lNames[i] == "Tear";
-                lMaterial.SetColor("_BaseColor", lNames[i] == "Tear" ? new Color(1f, 1f, 1f) : Color.white * 1.05f);
-                lMaterial.SetColor("_ShadeColor", new Color(0.62f, 0.5f, 0.78f));
-                lMaterial.SetFloat("_ShadeStep", 0.42f);
-                lMaterial.SetFloat("_ShadeSoft", 0.03f);
-                lMaterial.SetFloat("_HalftoneAmount", 0.45f);
-                lMaterial.SetFloat("_HalftoneSize", 5f);
-                lMaterial.SetColor("_RimColor", new Color(1f, 0.85f, 0.95f));
-                lMaterial.SetFloat("_RimAmount", 0.45f);
-                lMaterial.SetFloat("_RimPower", 3.5f);
-                lMaterial.SetFloat("_SpecSize", lNames[i] == "Hair" ? 0.35f : 0f);
-                lMaterial.SetColor("_OutlineColor", new Color(0.12f, 0.05f, 0.1f));
-                lMaterial.SetFloat("_OutlineWidth", lEyes ? 0f : 0.008f);
-                lMaterial.SetFloat("_UseVertexColor", 0f);
-                lMaterial.SetFloat("_Wobble", 0f);
-                EditorUtility.SetDirty(lMaterial);
-                lResult[i] = lMaterial;
-            }
-            return lResult;
         }
 
         [MenuItem("Hyperspeed/Configure Renderer")]

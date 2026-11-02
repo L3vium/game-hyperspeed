@@ -35,7 +35,6 @@ namespace Com.IsartDigital.Hyperspeed
             lRival.chaser = pChaser;
             lRival.distance = pStartDistance;
             lRival._model = RivalFactory.Build(pKind, lRival.transform);
-            if (pKind != RivalKind.Supernova) lRival._model.localScale = Vector3.one * RivalFactory.Scale(pKind);
             AudioManager.CreateLoop3D(RivalFactory.EngineSound(pKind), lRival.transform, 1f);
             lRival._placement = RivalFactory.GetPlacement(pKind, TrackBuilder.DEFAULT_WIDTH);
             lRival._hourHand = lRival._model.Find("HourHand");

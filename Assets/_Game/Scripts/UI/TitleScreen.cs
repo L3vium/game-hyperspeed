@@ -16,8 +16,6 @@ namespace Com.IsartDigital.Hyperspeed
         private Screen _screen = Screen.Press;
         private RectTransform _root;
         private Camera _camera;
-        private PlayerVisual _display;
-        private Transform _stage;
         private Material _speedLines;
         private float _orbit;
         private int _enteredFrame;
@@ -77,42 +75,11 @@ namespace Com.IsartDigital.Hyperspeed
             _camera = CameraRig.CreateCamera();
             _camera.fieldOfView = 62f;
             new GameObject("PostFX").AddComponent<PostFX>().speed01 = 0.45f;
-
-            _stage = new GameObject("Stage").transform;
-            _stage.SetParent(lRoot, false);
-            for (int i = 0; i < 24; i++)
-            {
-                Color lColor = i % 2 == 0 ? lTheme.roadA : lTheme.roadB;
-                PropFactory.Part(PrimitiveType.Cube, _stage, new Vector3(0f, -1.25f, i * 8f - 40f), new Vector3(16f, 2.5f, 8f), lColor, default(Vector3), 0f).name = "Tile";
-            }
-            PropFactory.Part(PrimitiveType.Cube, _stage, new Vector3(-7.6f, -0.05f, 50f), new Vector3(0.8f, 0.1f, 200f), lTheme.roadEdge, default(Vector3), 0f);
-            PropFactory.Part(PrimitiveType.Cube, _stage, new Vector3(7.6f, -0.05f, 50f), new Vector3(0.8f, 0.1f, 200f), lTheme.roadEdge, default(Vector3), 0f);
-            Random.InitState(5);
-            for (int i = 0; i < 60; i++)
-            {
-                float lSide = i % 2 == 0 ? -1f : 1f;
-                Vector3 lPosition = new Vector3(lSide * Random.Range(30f, 160f), Random.Range(-40f, 5f), Random.Range(-80f, 600f));
-                PropFactory.Decor(DecorKind.Islands, lTheme, _stage, lPosition, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), Random.Range(1f, 2.5f));
-            }
-            _display = PlayerVisual.CreateDisplay(lRoot);
-            _display.transform.position = Vector3.zero;
         }
 
         private void Update()
         {
             float lDt = Time.deltaTime;
-            _display.TickDisplay(lDt, 72f);
-            foreach (Transform lChild in _stage)
-            {
-                bool lTile = lChild.name == "Tile";
-                if (!lTile && lChild.name != "Decor") continue;
-                Vector3 lPosition = lChild.localPosition;
-                lPosition.z -= lDt * (lTile ? 60f : 25f);
-                if (lTile && lPosition.z < -48f) lPosition.z += 24 * 8f;
-                else if (!lTile && lPosition.z < -100f) lPosition.z += 700f;
-                lChild.localPosition = lPosition;
-            }
-
             _orbit += lDt * 9f;
             bool lSide = _screen == Screen.Main || _screen == Screen.Settings || _screen == Screen.Controls;
             float lAngle = Mathf.Sin(_orbit * Mathf.Deg2Rad * 2f) * 25f + (lSide ? -28f : -10f);
