@@ -87,7 +87,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         public float Length => spine.EndS;
 
-        public void Finalize()
+        public void Seal()
         {
             foreach (Deck lDeck in decks) lDeck.Finalize(spine);
             _decksAt = new List<Deck>[spine.Count];

@@ -33,7 +33,6 @@ namespace Com.IsartDigital.Hyperspeed
         private float _widthRate = WIDTH_RATE;
         private EdgeKind _edges = EdgeKind.Wall;
         private int _nextId;
-        private bool _laneSet;
         private int _laneSide = -1;
         private float _laneOffset = 46f;
         private float _laneHeight = -6f;
@@ -218,7 +217,6 @@ namespace Com.IsartDigital.Hyperspeed
         // Road (or track) the rival drives on, parallel to the route and pushed out of the way of every platform.
         public LevelBuilder Lane(Side pSide, float pOffset = 46f, float pHeight = -6f, DeckStyle pStyle = DeckStyle.Road)
         {
-            _laneSet = true;
             _laneSide = (int)pSide;
             _laneOffset = pOffset;
             _laneHeight = pHeight;
@@ -251,7 +249,7 @@ namespace Com.IsartDigital.Hyperspeed
         public LevelLayout Build()
         {
             BuildLane();
-            layout.Finalize();
+            layout.Seal();
             BuildSafePoints();
             BreakDirector lDirector = BreakDirector.Create(layout, _zones, root, theme);
             foreach (Action lSpawn in _spawns) lSpawn();
