@@ -51,12 +51,13 @@ namespace Com.IsartDigital.Hyperspeed
             if (!_freeRoam)
             {
                 float lTargetRun = RUN_SPEED * (1f + 0.12f * Mathf.Max(0f, HSInput.Forward));
-                if (State == PlayerState.Finished) lTargetRun = Progress > _layout.finishS + 150f ? 0f : 30f;
+                if (State == PlayerState.Finished) lTargetRun = Progress > _layout.finishS + 110f ? 0f : 30f;
                 if (_speed < lTargetRun) _speed = Mathf.MoveTowards(_speed, lTargetRun, RUN_ACCEL * (Sliding ? 0.3f : 1f) * pDt);
                 else
                 {
                     float lDecay = ((_speed - lTargetRun) * 0.18f + 3f) * (Sliding ? 0.4f : 1f) * (lSlope > 0.1f ? 0.3f : 1f);
-                    if (State == PlayerState.Finished) lDecay = 30f;
+                    // Past the line : brake well inside the run-out (121 m/s stops in ~110 m).
+                    if (State == PlayerState.Finished) lDecay = 50f + (_speed - lTargetRun) * 0.5f;
                     _speed = Mathf.Max(lTargetRun, _speed - lDecay * pDt);
                 }
             }

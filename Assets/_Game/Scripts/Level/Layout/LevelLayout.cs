@@ -89,6 +89,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         public void Seal()
         {
+            acts.Sort((pA, pB) => pA.s.CompareTo(pB.s));
             foreach (Deck lDeck in decks) lDeck.Finalize(spine);
             _decksAt = new List<Deck>[spine.Count];
             _floorY = new float[spine.Count];

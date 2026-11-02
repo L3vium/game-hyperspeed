@@ -18,7 +18,9 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _player = pPlayer;
             _layout = pLayout;
-            _player.OnDied += () => { if (Enabled) Debug.Log("[HS-LD] death s=" + _player.Progress.ToString("F0") + " deck=" + (_player.CurrentDeck != null ? _player.CurrentDeck.id : -1)); };
+            _player.OnDied += () => { if (Enabled) Debug.Log("[HS-LD] death s=" + _player.Progress.ToString("F0") + " deck=" + (_player.CurrentDeck != null ? _player.CurrentDeck.id : -1) + " v=" + _player.Speed.ToString("F0")); };
+            // After a respawn the route acts behind the restart point are replayed.
+            _player.OnRespawned += () => _actIndex = 0;
         }
 
         private void OnDisable() => Release();
@@ -63,7 +65,8 @@ namespace Com.IsartDigital.Hyperspeed
                 RouteAct lAct = _layout.acts[i];
                 if (lAct.s > lS + lSpeed * 0.1f) break;
                 if (lS < lAct.s - lSpeed * 0.05f) continue;
-                Fire(lAct, lNext);
+                // An act that could not fire yet (wrong state) stays pending until the runner is well past it.
+                if (!Fire(lAct, lNext) && lS < lAct.s + Mathf.Max(6f, lSpeed * 0.12f)) break;
                 _actIndex = i + 1;
             }
 
@@ -88,15 +91,18 @@ namespace Com.IsartDigital.Hyperspeed
             }
         }
 
-        private void Fire(RouteAct pAct, int pFrame)
+        private bool Fire(RouteAct pAct, int pFrame)
         {
+            bool lFired = true;
             switch (pAct.action)
             {
                 case RouteAction.Jump:
-                    if (_player.State == PlayerState.Ground) HSInput.BotJumpFrame = pFrame;
+                    lFired = _player.State == PlayerState.Ground;
+                    if (lFired) HSInput.BotJumpFrame = pFrame;
                     break;
                 case RouteAction.Dive:
-                    if (_player.State == PlayerState.Air) HSInput.BotSlideFrame = pFrame;
+                    lFired = _player.State == PlayerState.Air && !_player.Diving;
+                    if (lFired) HSInput.BotSlideFrame = pFrame;
                     break;
                 case RouteAction.DropThrough:
                     HSInput.BotSlideFrame = pFrame;
@@ -106,6 +112,8 @@ namespace Com.IsartDigital.Hyperspeed
                     HSInput.BotPunchFrame = pFrame;
                     break;
             }
+            if (lFired) Debug.Log("[HS-BOT] " + pAct.action + "@" + pAct.s.ToString("F0") + " fired at s=" + _player.Progress.ToString("F0") + " " + _player.State + " frame " + pFrame);
+            return lFired;
         }
     }
 }

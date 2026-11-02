@@ -7,6 +7,7 @@ namespace Com.IsartDigital.Hyperspeed
     {
         private void TryJump()
         {
+            if (Autopilot.Enabled) Debug.Log("[HS-BOT] TryJump s=" + Progress.ToString("F0") + " " + State + " frame " + Time.frameCount);
             bool lCoyote = State == PlayerState.Air && Time.time - _lastGrounded < COYOTE_TIME && Vector3.Dot(_velocity, _gravityUp) <= 1f;
             if (State == PlayerState.Ground || lCoyote)
             {
