@@ -158,6 +158,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                 lAssets.rockTextures[i] = AssetDatabase.LoadAssetAtPath<Texture2D>(ROCKS + lNames[i] + "_diff.png");
                 if (i < 6) lAssets.rockMeshesLow[i] = AssetDatabase.LoadAssetAtPath<Mesh>(ROCKS + lNames[i] + "_lo.fbx");
             }
+            lAssets.groundTexture = AssetDatabase.LoadAssetAtPath<Texture2D>("Assets/_Game/Art/Environment/Ground/ground_rocky_terrain_diff.png");
             EditorUtility.SetDirty(lAssets);
             AssetDatabase.SaveAssets();
             int lFound = 0;

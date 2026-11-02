@@ -21,5 +21,16 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
             lImporter.importNormals = ModelImporterNormals.Import;
             lImporter.addCollider = false;
         }
+
+        // Rock and ground albedos : seen at grazing angles at 200 m/s, so anisotropic filtering and full resolution.
+        private void OnPreprocessTexture()
+        {
+            if (!assetPath.Replace('\\', '/').StartsWith("Assets/_Game/Art/Environment/")) return;
+            TextureImporter lImporter = (TextureImporter)assetImporter;
+            lImporter.anisoLevel = 8;
+            lImporter.wrapMode = UnityEngine.TextureWrapMode.Repeat;
+            lImporter.maxTextureSize = 2048;
+            lImporter.mipmapEnabled = true;
+        }
     }
 }

@@ -21,6 +21,8 @@ namespace Com.IsartDigital.Hyperspeed
         public Mesh[] rockMeshes;
         public Mesh[] rockMeshesLow;
         public Texture2D[] rockTextures;
+        // Scanned ground albedo (Poly Haven rocky terrain, 90 m) for the world-space detail on decks and cliffs.
+        public Texture2D groundTexture;
 
         private static GameAssets _instance;
 

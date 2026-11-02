@@ -15,6 +15,14 @@ namespace Com.IsartDigital.Hyperspeed
             lMaterials.deck = new Material(Mats.Toon(Color.white, pTheme.shade, 0f, 0.15f, true));
             lMaterials.deck.SetFloat("_RoadStreaks", 1f);
             lMaterials.deck.SetFloat("_HalftoneAmount", 0.35f);
+            // Scanned rocky ground in world space : slabs, cracks and moss under the theme colors.
+            Texture2D lGround = GameAssets.Instance.groundTexture;
+            if (lGround != null)
+            {
+                lMaterials.deck.SetTexture("_GroundMap", lGround);
+                lMaterials.deck.SetFloat("_GroundScale", 1f / 60f);
+                lMaterials.deck.SetFloat("_GroundAmount", 0.6f);
+            }
             Color lMembrane = pTheme.accent * 1.4f;
             lMembrane.a = 0.55f;
             lMaterials.membrane = new Material(Mats.Glow(lMembrane, false, 0f, 1.2f, false));
