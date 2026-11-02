@@ -29,6 +29,7 @@ namespace Com.IsartDigital.Hyperspeed
         private TextMeshProUGUI _timerText;
         private TextMeshProUGUI _objectiveText;
         private TextMeshProUGUI _gapText;
+        private TextMeshProUGUI _rivalLabel;
         private RectTransform _combo;
         private CanvasGroup _comboGroup;
         private TextMeshProUGUI _comboText;
@@ -93,9 +94,10 @@ namespace Com.IsartDigital.Hyperspeed
             UIKit.Tile(_root, "TimerAccentL", UIKit.RED, new Vector2(0.5f, 1f), new Vector2(-218f, -62f), new Vector2(16f, 80f), 0.45f);
             UIKit.Tile(_root, "TimerAccentR", UIKit.CYAN, new Vector2(0.5f, 1f), new Vector2(218f, -62f), new Vector2(16f, 80f), 0.45f);
             _timerText = UIKit.Text(_root, "00:00.00", 60f, UIKit.WHITE, new Vector2(0.5f, 1f), new Vector2(4f, -60f), new Vector2(400f, 80f), UIKit.Font.Heavy);
-            _objectiveText = UIKit.Text(_root, "VS " + RivalShortName(), 26f, UIKit.WHITE, new Vector2(0.5f, 1f), new Vector2(-70f, -122f), new Vector2(400f, 36f), UIKit.Font.Heavy, TextAlignmentOptions.Right);
+            // "VS RIVAL" ends just left of the center line, the gap starts just right of it : never overlapping.
+            _objectiveText = UIKit.Text(_root, "VS " + RivalShortName(), 26f, UIKit.WHITE, new Vector2(0.5f, 1f), new Vector2(-212f, -122f), new Vector2(400f, 36f), UIKit.Font.Heavy, TextAlignmentOptions.Right);
             UIFactory.Outline(_objectiveText, UIKit.INK, 0.3f);
-            _gapText = UIKit.Text(_root, "", 30f, UIKit.CYAN, new Vector2(0.5f, 1f), new Vector2(110f, -122f), new Vector2(260f, 36f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
+            _gapText = UIKit.Text(_root, "", 30f, UIKit.CYAN, new Vector2(0.5f, 1f), new Vector2(142f, -122f), new Vector2(260f, 36f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
             UIFactory.Outline(_gapText, UIKit.INK, 0.3f);
 
             // Combo counter + event feed (center).
@@ -121,6 +123,7 @@ namespace Com.IsartDigital.Hyperspeed
             UIKit.Icon(_rail, "flag", UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(0f, RAIL_HALF + 30f), 46f);
             _rivalMarker = Marker("Rival", UIKit.RED, RivalShortName());
             _playerMarker = Marker("Player", UIKit.CYAN, "YOU");
+            _rivalLabel = _rivalMarker.GetComponentInChildren<TextMeshProUGUI>();
 
             // Speedometer (bottom right).
             _speedo = UIFactory.CreateRect(_root, "Speedo", new Vector2(1f, 0f), new Vector2(-250f, 110f), new Vector2(420f, 150f));
@@ -247,6 +250,10 @@ namespace Com.IsartDigital.Hyperspeed
             _playerMarker.anchoredPosition = new Vector2(0f, RailY(_player.Progress));
             if (_rival == null) return;
             _rivalMarker.anchoredPosition = new Vector2(0f, RailY(Mathf.Max(0f, _rival.distance)));
+            // Markers side by side on the rail : the rival label steps aside so both names stay readable.
+            float lDy = _rivalMarker.anchoredPosition.y - _playerMarker.anchoredPosition.y;
+            float lPush = Mathf.Abs(lDy) < 32f ? (lDy >= 0f ? 1f : -1f) * (32f - Mathf.Abs(lDy)) : 0f;
+            _rivalLabel.rectTransform.anchoredPosition = new Vector2(130f, lPush);
             float lGap = _player.Progress - _rival.distance;
             int lMeters = Mathf.RoundToInt(lGap);
             _gapText.text = (lMeters >= 0 ? "+" : "") + lMeters + " m";

@@ -11,6 +11,10 @@ namespace Com.IsartDigital.Hyperspeed
         private PlayerController _player;
         private LevelLayout _layout;
         private int _actIndex;
+        // Last ~3 s of samples, dumped on every death so LD failures can be read from the log.
+        private readonly string[] _trace = new string[12];
+        private int _traceCursor;
+        private float _traceTimer;
         private float _slideHold;
         private float _punchCooldown;
 
@@ -18,7 +22,17 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _player = pPlayer;
             _layout = pLayout;
-            _player.OnDied += () => { if (Enabled) Debug.Log("[HS-LD] death s=" + _player.Progress.ToString("F0") + " deck=" + (_player.CurrentDeck != null ? _player.CurrentDeck.id : -1) + " v=" + _player.Speed.ToString("F0")); };
+            _player.OnDied += () =>
+            {
+                if (!Enabled) return;
+                System.Text.StringBuilder lLog = new System.Text.StringBuilder("[HS-LD] death s=" + _player.Progress.ToString("F0") + " deck=" + (_player.CurrentDeck != null ? _player.CurrentDeck.id : -1) + " v=" + _player.Speed.ToString("F0"));
+                for (int i = 0; i < _trace.Length; i++)
+                {
+                    string lLine = _trace[(_traceCursor + i) % _trace.Length];
+                    if (lLine != null) lLog.Append("\n   ").Append(lLine);
+                }
+                Debug.Log(lLog.ToString());
+            };
             // After a respawn the route acts behind the restart point are replayed.
             _player.OnRespawned += () => _actIndex = 0;
         }
@@ -48,6 +62,18 @@ namespace Com.IsartDigital.Hyperspeed
 
             float lSpeed = Mathf.Max(_player.Speed, 20f);
             float lS = _player.Progress;
+            _traceTimer -= Time.deltaTime;
+            if (_traceTimer <= 0f)
+            {
+                _traceTimer = 0.25f;
+                Deck lDeck = _player.CurrentDeck;
+                float lFloor = lDeck != null ? lDeck.SurfacePoint(lS, _player.Lateral - lDeck.LateralOffset(lS)).y : float.NaN;
+                _trace[_traceCursor] = "t" + Time.time.ToString("F2") + " s" + lS.ToString("F0") + " lat" + _player.Lateral.ToString("F1") + " y" + _player.transform.position.y.ToString("F1")
+                    + " floor" + lFloor.ToString("F1") + " " + _player.State + " deck" + (lDeck != null ? lDeck.id : -1) + " v" + _player.Speed.ToString("F0")
+                    + " vy" + Vector3.Dot(_player.Velocity, Vector3.up).ToString("F0") + (_player.HasLandingPrediction ? " land@" + _player.LandingPoint.y.ToString("F0") : " noLand")
+                    + (_player.Gliding ? " glide" : "") + (_player.Diving ? " dive" : "");
+                _traceCursor = (_traceCursor + 1) % _trace.Length;
+            }
             int lNext = Time.frameCount + 1;
             _punchCooldown -= Time.deltaTime;
 
@@ -70,6 +96,9 @@ namespace Com.IsartDigital.Hyperspeed
                 _actIndex = i + 1;
             }
 
+            // Dash on clear ground like a decent player : keeps the speed benchmark used to tune the rivals honest.
+            if (_player.State == PlayerState.Ground && _player.Speed < 100f && !ActAhead(lS, 50f + lSpeed * 0.4f)) HSInput.BotDashFrame = lNext;
+
             // Keep crouching through stacked membranes, glide when nothing is below.
             _slideHold -= Time.deltaTime;
             HSInput.BotSlideHeld = _slideHold > 0f;
@@ -91,6 +120,35 @@ namespace Com.IsartDigital.Hyperspeed
             }
         }
 
+        // A jump only pays when the next route deck sits above the no-jump arc (the ledge assist covers ~1 m) :
+        // at speed a short gap is crossed by running off the lip, while a jump would overshoot the next platform.
+        private bool JumpNeeded(RouteAct pAct, float pSpeed)
+        {
+            Deck lFrom = pAct.deck;
+            float lLip = lFrom != null ? Mathf.Min(pAct.s + 3f, lFrom.EndS) : pAct.s + 3f;
+            float lFromY = lFrom != null ? lFrom.SurfacePoint(lLip, 0f).y : _player.transform.position.y;
+            for (float lS = lLip + 1f; lS < lLip + 90f; lS += 1f)
+            {
+                RouteNode lNode = _layout.RouteAt(lS, null);
+                if (lNode.deck == null || lNode.deck == lFrom || !lNode.deck.ContainsS(lS)) continue;
+                float lTime = (lS - lLip) / Mathf.Max(pSpeed, 1f);
+                float lArc = lFromY - 0.5f * 58f * lTime * lTime;
+                return lNode.deck.SurfacePoint(lS, lNode.lateral).y > lArc + 1f;
+            }
+            return true;
+        }
+
+        private bool ActAhead(float pS, float pDistance)
+        {
+            for (int i = _actIndex; i < _layout.acts.Count; i++)
+            {
+                float lS = _layout.acts[i].s;
+                if (lS > pS + pDistance) return false;
+                if (lS >= pS - 2f) return true;
+            }
+            return false;
+        }
+
         private bool Fire(RouteAct pAct, int pFrame)
         {
             bool lFired = true;
@@ -98,7 +156,7 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 case RouteAction.Jump:
                     lFired = _player.State == PlayerState.Ground;
-                    if (lFired) HSInput.BotJumpFrame = pFrame;
+                    if (lFired && JumpNeeded(pAct, _player.Speed)) HSInput.BotJumpFrame = pFrame;
                     break;
                 case RouteAction.Dive:
                     lFired = _player.State == PlayerState.Air && !_player.Diving;
