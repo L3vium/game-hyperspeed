@@ -240,6 +240,7 @@ namespace Com.IsartDigital.Hyperspeed
             }
             else
             {
+                _visual.SetResult(false);
                 Juice.Flash(_level.rival == RivalKind.Supernova ? Color.white : UIFactory.RED, 0.6f);
                 Juice.Shake(0.6f);
                 AudioManager.Play("sfx_lose", 1f);

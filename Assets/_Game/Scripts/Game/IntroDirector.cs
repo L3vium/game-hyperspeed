@@ -56,6 +56,7 @@ namespace Com.IsartDigital.Hyperspeed
 
             // 3. The runner, from the route side so the vehicle is in the background.
             _hud.IntroRunner();
+            _player.Visual?.Taunt();
             yield return Shot(1.4f, pT => lRunner - lSide * 6.5f + Vector3.up * 0.4f + lForward * Mathf.Lerp(2.5f, -1f, pT), pT => lRunner + Vector3.up * 0.2f, 42f);
             if (_skip) yield break;
 

@@ -72,6 +72,7 @@ namespace Com.IsartDigital.Hyperspeed
         public float DistanceFromPath => Mathf.Abs(Lateral);
         public bool FreeRoam => _freeRoam;
         public Deck CurrentDeck => _deck;
+        public PlayerVisual Visual => _visual;
         public float AirTime => _airTime;
 
         // Camera / visual signals.
@@ -551,7 +552,7 @@ namespace Com.IsartDigital.Hyperspeed
         // Falling with nothing below : the layout knows within ~0.65 s.
         private void CheckFallOut()
         {
-            if (_layout == null || State == PlayerState.Finished || State == PlayerState.Dead) return;
+            if (_layout == null || State == PlayerState.Finished || State == PlayerState.Dead || _autoRun) return;
             if (State != PlayerState.Air && State != PlayerState.Crash) return;
             bool lNoLanding = !HasLandingPrediction && transform.position.y < _takeoffY - 12f;
             bool lBelow = transform.position.y < _layout.FloorY(Progress) - 14f;

@@ -17,6 +17,8 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
             "slide", "wall_run", "grind", "hang", "rider_pose"
         };
 
+        private static bool _wirePending;
+
         private bool InFolder => assetPath.Replace('\\', '/').StartsWith(FOLDER) && assetPath.ToLower().EndsWith(".fbx");
 
         private static bool IsCharacter(string pPath)
@@ -77,8 +79,20 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
         }
 
         // The character arrived after its clips : reimport the clips so they pick up its avatar.
+        // Any import in the folder rewires the runner (model + generated controller) once the import settles.
         private static void OnPostprocessAllAssets(string[] pImported, string[] pDeleted, string[] pMoved, string[] pMovedFrom)
         {
+            bool lTouched = false;
+            foreach (string lPath in pImported) if (lPath.Replace('\\', '/').StartsWith(FOLDER) && lPath.ToLower().EndsWith(".fbx")) lTouched = true;
+            if (lTouched && !_wirePending)
+            {
+                _wirePending = true;
+                EditorApplication.delayCall += () =>
+                {
+                    _wirePending = false;
+                    HyperspeedSetup.WireRunner();
+                };
+            }
             foreach (string lPath in pImported)
             {
                 if (!lPath.Replace('\\', '/').StartsWith(FOLDER) || !IsCharacter(lPath)) continue;

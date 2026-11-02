@@ -14,6 +14,9 @@ namespace Com.IsartDigital.Hyperspeed
         public GameObject[] ambientParticles;
         public GameObject sparkBurstPrefab;
         public Texture2D[] icons;
+        // Mixamo runner (Art/Character/Mixamo/runner_character.fbx) and its generated controller.
+        public GameObject runnerPrefab;
+        public RuntimeAnimatorController runnerController;
 
         private static GameAssets _instance;
 

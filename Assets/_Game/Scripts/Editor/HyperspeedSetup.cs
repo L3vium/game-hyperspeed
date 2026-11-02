@@ -33,6 +33,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
         public static void SetupAll()
         {
             ConfigurePlayer();
+            ConfigureLayers();
             CreateGameAssets();
             ConfigureRenderer();
             ConfigureAudio();
@@ -133,6 +134,31 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
             lAssets.icons = lIcons.ToArray();
             EditorUtility.SetDirty(lAssets);
             AssetDatabase.SaveAssets();
+            WireRunner();
+        }
+
+        // Mixamo runner + generated controller into GameAssets (rerun automatically when Mixamo files are imported).
+        [MenuItem("Hyperspeed/Wire Runner")]
+        public static void WireRunner()
+        {
+            GameAssets lAssets = AssetDatabase.LoadAssetAtPath<GameAssets>(GAME_ASSETS);
+            if (lAssets == null) return;
+            lAssets.runnerPrefab = AssetDatabase.LoadAssetAtPath<GameObject>(MixamoImporter.CHARACTER);
+            lAssets.runnerController = RunnerAnimatorBuilder.HasClips() ? RunnerAnimatorBuilder.Build() : null;
+            EditorUtility.SetDirty(lAssets);
+            AssetDatabase.SaveAssets();
+            Debug.Log("[Hyperspeed] Runner : " + (lAssets.runnerPrefab != null ? "model OK" : "no model (placeholder)") + ", " + (lAssets.runnerController != null ? "animator OK" : "no clips"));
+        }
+
+        // Names the gameplay layers used by the generated levels (indices fixed in Layers).
+        [MenuItem("Hyperspeed/Configure Layers")]
+        public static void ConfigureLayers()
+        {
+            SerializedObject lTags = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset")[0]);
+            SerializedProperty lLayers = lTags.FindProperty("layers");
+            string[] lNames = { "Deck", "Membrane", "Prop", "Debris" };
+            for (int i = 0; i < lNames.Length; i++) lLayers.GetArrayElementAtIndex(Layers.DECK + i).stringValue = lNames[i];
+            lTags.ApplyModifiedProperties();
         }
 
         [MenuItem("Hyperspeed/Configure Renderer")]
