@@ -59,6 +59,8 @@ namespace Com.IsartDigital.Hyperspeed
         private LevelLayout _layout;
         private Theme _theme;
         private float _wave = float.MinValue;
+        // Grace after a respawn : the wave stays parked far behind and no meteor is thrown.
+        private float _hold;
         private float _meteorTimer;
         private float _skyTimer;
         private float _rumble;
@@ -111,9 +113,13 @@ namespace Com.IsartDigital.Hyperspeed
             UpdateMeteors(lDt);
             SkyMeteors(lDt);
             if (!RaceContext.Running || RaceContext.Player == null) return;
+            // The world waits while the runner is down and rewinding : the wave used to keep chasing the death point
+            // and was already ahead of the respawn (endless fall loop).
+            if (RaceContext.Player.State == PlayerState.Dead) return;
             float lS = RaceContext.PlayerProgress;
+            _hold = Mathf.Max(0f, _hold - lDt);
             UpdateWave(lS, lDt);
-            SpawnRouteMeteors(lS, lDt);
+            if (_hold <= 0f) SpawnRouteMeteors(lS, lDt);
         }
 
         // ---------------------------------------------------------------- collapse
@@ -135,7 +141,12 @@ namespace Com.IsartDigital.Hyperspeed
                 AudioManager.SetLoop("sfx_rumble_loop", 0f);
                 return;
             }
-            if (_wave < pS - WAVE_MAX_BEHIND - 50f) _wave = pS - WAVE_START_BEHIND;
+            if (_wave == float.MinValue || _wave < pS - 400f) _wave = pS - WAVE_START_BEHIND;
+            if (_hold > 0f)
+            {
+                _wave = Mathf.Min(_wave, pS - WAVE_MAX_BEHIND);
+                return;
+            }
             _wave = Mathf.Max(_wave + lZone.value * pDt, pS - WAVE_MAX_BEHIND);
             for (int i = 0; i < _tiles.Count; i++)
             {
@@ -202,7 +213,8 @@ namespace Com.IsartDigital.Hyperspeed
                 if (lTile.chunk.body != null) lTile.chunk.body.enabled = true;
                 _falling.Remove(lTile);
             }
-            _wave = pS - WAVE_START_BEHIND - 40f;
+            _wave = pS - WAVE_MAX_BEHIND - 60f;
+            _hold = 2f;
             foreach (Meteor lMeteor in _meteors) Hide(lMeteor);
         }
 
