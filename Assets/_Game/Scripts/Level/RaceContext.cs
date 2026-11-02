@@ -4,7 +4,7 @@ namespace Com.IsartDigital.Hyperspeed
     public static class RaceContext
     {
         public static PlayerController Player;
-        public static TrackPath Path;
+        public static LevelLayout Layout;
         public static Theme Theme;
         public static float PlayerProgress;
         public static bool Running;
@@ -12,7 +12,7 @@ namespace Com.IsartDigital.Hyperspeed
         public static void Clear()
         {
             Player = null;
-            Path = null;
+            Layout = null;
             Theme = null;
             PlayerProgress = 0f;
             Running = false;

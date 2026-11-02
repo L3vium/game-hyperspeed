@@ -2,8 +2,8 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // The thing you race. Follows the track path with a light rubber band.
-    // Chasers (Death, Supernova) start behind and end the run if they catch you.
+    // The thing you race. Ground vehicles drive their own lane (road / track running beside the route), fliers ride
+    // above the highest platform. Light rubber band. Chasers (Death, Supernova) start behind and end the run if they catch you.
     public class Rival : MonoBehaviour
     {
         public RivalKind kind;
@@ -14,16 +14,17 @@ namespace Com.IsartDigital.Hyperspeed
 
         private RivalFactory.Placement _placement;
         private Transform _model;
-        private Transform _hourHand;
-        private Transform _minuteHand;
         private float _elapsed;
         private float _bobTime;
-        private Quaternion _lastRotation = Quaternion.identity;
+        private Vector3 _lastForward = Vector3.forward;
         private float _bank;
         private bool _playerWasAhead;
+        private bool _onLane;
 
         public bool Finished { get; private set; }
         public float Gap => RaceContext.PlayerProgress - distance;
+        public bool OnLane => _onLane;
+        public Transform Model => _model;
 
         public static Rival Create(RivalKind pKind, float pSpeed, float pStartDelay, bool pChaser, float pStartDistance, Transform pParent)
         {
@@ -36,27 +37,27 @@ namespace Com.IsartDigital.Hyperspeed
             lRival.distance = pStartDistance;
             lRival._model = RivalFactory.Build(pKind, lRival.transform);
             AudioManager.CreateLoop3D(RivalFactory.EngineSound(pKind), lRival.transform, 1f);
-            lRival._placement = RivalFactory.GetPlacement(pKind, TrackBuilder.DEFAULT_WIDTH);
-            lRival._hourHand = lRival._model.Find("HourHand");
-            lRival._minuteHand = lRival._model.Find("MinuteHand");
+            lRival._placement = RivalFactory.GetPlacement(pKind);
+            lRival._onLane = lRival._placement.onLane && RaceContext.Layout != null && RaceContext.Layout.lane != null;
             lRival.Place(0f);
             return lRival;
         }
 
         private void Update()
         {
+            LevelLayout lLayout = RaceContext.Layout;
             if (RaceContext.Running && !Finished)
             {
                 _elapsed += Time.deltaTime;
                 if (_elapsed > startDelay)
                 {
                     float lGap = Gap;
-                    float lRubber = chaser ? Mathf.Clamp(1f + (lGap - 140f) / 500f, 0.9f, 1.3f) : Mathf.Clamp(1f + lGap / 650f, 0.82f, 1.22f);
+                    float lRubber = chaser ? Mathf.Clamp(1f + (lGap - 140f) / 500f, 0.9f, 1.3f) : Mathf.Clamp(1f + lGap / 650f, 0.85f, 1.2f);
                     distance += speed * lRubber * Time.deltaTime;
                 }
-                if (!chaser && distance >= RaceContext.Path.finishDistance)
+                if (!chaser && lLayout != null && distance >= lLayout.finishS)
                 {
-                    distance = RaceContext.Path.finishDistance;
+                    distance = lLayout.finishS;
                     Finished = true;
                 }
 
@@ -65,9 +66,8 @@ namespace Com.IsartDigital.Hyperspeed
                 {
                     AudioManager.Play("sfx_pass", 1f);
                     Juice.Popup("OVERTAKE!", UIFactory.YELLOW, 1.4f);
-                    Juice.Rollback(10f);
-                    Juice.ImpactFrame(1f);
-                    Juice.SlowMo(0.3f, 0.5f);
+                    Juice.Rollback(6f);
+                    Juice.SlowMo(0.4f, 0.4f);
                 }
                 _playerWasAhead = lPlayerAhead;
             }
@@ -80,38 +80,56 @@ namespace Com.IsartDigital.Hyperspeed
             Animate();
         }
 
-        // Intro fly-by : the rival storms past the start line, then gets parked back at its start distance.
-        public void IntroOffset(float pDistance)
+        // Cinematics can park the rival anywhere along its line.
+        public void SetDistance(float pDistance)
         {
             distance = pDistance;
             Place(0f);
         }
 
+        public void Frame(out Vector3 pPosition, out Quaternion pRotation)
+        {
+            pPosition = transform.position;
+            pRotation = transform.rotation;
+        }
+
         private void Place(float pDt)
         {
-            if (RaceContext.Path == null) return;
-            float lDistance = Mathf.Clamp(distance, 0f, RaceContext.Path.Length);
-            TrackSample lSample = RaceContext.Path.Evaluate(lDistance);
+            LevelLayout lLayout = RaceContext.Layout;
+            if (lLayout == null) return;
+            float lS = Mathf.Clamp(distance, lLayout.spine.StartS, lLayout.spine.EndS);
+            Vector3 lPosition;
+            Vector3 lForward;
+            Vector3 lUp;
             _bobTime += pDt;
             float lBob = Mathf.Sin(_bobTime * 2.3f) * _placement.bob;
-            Vector3 lLateralAxis = lSample.Right;
-            Vector3 lUp = _placement.height > 0f ? Vector3.Slerp(lSample.Up, Vector3.up, 0.5f) : lSample.Up;
-            Vector3 lPosition = lSample.position + lLateralAxis * _placement.lateral + lUp * (_placement.height + lBob);
-            if (distance < 0f) lPosition -= lSample.Forward * -distance;
-            if (distance > RaceContext.Path.Length) lPosition += lSample.Forward * (distance - RaceContext.Path.Length);
+            if (_onLane)
+            {
+                Vector3 lC, lR;
+                float lW;
+                lLayout.lane.Frame(lS, out lC, out lForward, out lR, out lUp, out lW);
+                lPosition = lLayout.lane.SurfacePoint(lS, _placement.lateral) + lUp * lBob;
+            }
+            else
+            {
+                SpineSample lSample = lLayout.spine.Evaluate(lS);
+                lForward = lSample.Forward;
+                lUp = Vector3.up;
+                float lHeight = _placement.fromSky ? lLayout.SkyY(lS) + _placement.height : lSample.position.y + _placement.height;
+                lPosition = lLayout.spine.Point(lS, _placement.lateral, lHeight + lBob);
+            }
+            if (distance < lLayout.spine.StartS) lPosition -= lForward * (lLayout.spine.StartS - distance);
+            if (distance > lLayout.spine.EndS) lPosition += lForward * (distance - lLayout.spine.EndS);
 
-            Quaternion lRotation = Quaternion.LookRotation(lSample.Forward, lUp);
-            float lYaw = Vector3.SignedAngle(_lastRotation * Vector3.forward, lSample.Forward, lUp);
-            _lastRotation = lRotation;
-            if (pDt > 0f) _bank = Mathf.Lerp(_bank, Mathf.Clamp(-lYaw / pDt * 0.6f, -35f, 35f), pDt * 3f);
-            float lBankScale = _placement.height > 0f ? 1f : 0.2f;
-            transform.SetPositionAndRotation(lPosition, lRotation * Quaternion.Euler(0f, 0f, _bank * lBankScale));
+            float lYaw = pDt > 0f ? Vector3.SignedAngle(_lastForward, lForward, Vector3.up) / pDt : 0f;
+            _lastForward = lForward;
+            if (pDt > 0f) _bank = Mathf.Lerp(_bank, Mathf.Clamp(-lYaw * 0.6f, -35f, 35f), pDt * 3f);
+            float lBankScale = _onLane ? (kind == RivalKind.Moto ? 1f : 0.15f) : 1f;
+            transform.SetPositionAndRotation(lPosition, Quaternion.LookRotation(lForward, lUp) * Quaternion.Euler(0f, 0f, _bank * lBankScale));
         }
 
         private void Animate()
         {
-            if (_hourHand != null) _hourHand.localRotation = Quaternion.Euler(0f, 0f, -Time.time * 30f);
-            if (_minuteHand != null) _minuteHand.localRotation = Quaternion.Euler(0f, 0f, -Time.time * 360f);
             if (kind == RivalKind.Supernova)
             {
                 float lPulse = 1f + Mathf.Sin(Time.time * 9f) * 0.06f + Mathf.Sin(Time.time * 23f) * 0.03f;

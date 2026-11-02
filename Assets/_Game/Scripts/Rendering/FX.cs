@@ -210,6 +210,21 @@ namespace Com.IsartDigital.Hyperspeed
         private static Mesh _ringMesh;
         private static Mesh RingMesh => _ringMesh != null ? _ringMesh : (_ringMesh = MeshUtil.Ring(0.85f, 1f, 48));
 
+        // Glowing head with a long trail moving in a straight line (sky meteors).
+        public static void Streak(Vector3 pPosition, Vector3 pDirection, float pSpeed, float pDuration, Color pColor)
+        {
+            GameObject lHead = new GameObject("Streak");
+            lHead.transform.position = pPosition;
+            TrailRenderer lTrail = lHead.AddComponent<TrailRenderer>();
+            lTrail.time = 0.9f;
+            lTrail.startWidth = 6f;
+            lTrail.endWidth = 0f;
+            lTrail.minVertexDistance = 4f;
+            lTrail.sharedMaterial = Mats.Glow(pColor, true);
+            lTrail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            lHead.AddComponent<StreakAnim>().Init(pDirection * pSpeed, pDuration);
+        }
+
         public static void Explosion(Vector3 pPosition, Color pColor, float pScale)
         {
             Sparks(pPosition, pColor, 40, 30f * pScale, 0.8f * pScale, 0.6f);
@@ -249,6 +264,25 @@ namespace Com.IsartDigital.Hyperspeed
                 Destroy(_material);
                 Destroy(gameObject);
             }
+        }
+    }
+
+    public class StreakAnim : MonoBehaviour
+    {
+        private Vector3 _velocity;
+        private float _life;
+
+        public void Init(Vector3 pVelocity, float pLife)
+        {
+            _velocity = pVelocity;
+            _life = pLife;
+        }
+
+        private void Update()
+        {
+            if (_life > 0f) transform.position += _velocity * Time.deltaTime;
+            _life -= Time.deltaTime;
+            if (_life <= -1f) Destroy(gameObject);
         }
     }
 

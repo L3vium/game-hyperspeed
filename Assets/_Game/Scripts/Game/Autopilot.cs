@@ -2,18 +2,23 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // Simple track-following bot (F9). Used to playtest levels end to end and as an attract mode.
+    // Route-following bot (F9) : steers to the route deck lateral with a PD controller and fires the layout actions
+    // (jumps before lips, dives, drop-throughs, glides). Used to playtest every stage end to end.
     public class Autopilot : MonoBehaviour
     {
         public static bool Enabled;
 
         private PlayerController _player;
-        private float _jumpCooldown;
-        private float _airDecisionCooldown;
+        private LevelLayout _layout;
+        private int _actIndex;
+        private float _slideHold;
+        private float _punchCooldown;
 
-        public void Init(PlayerController pPlayer)
+        public void Init(PlayerController pPlayer, LevelLayout pLayout)
         {
             _player = pPlayer;
+            _layout = pLayout;
+            _player.OnDied += () => { if (Enabled) Debug.Log("[HS-LD] death s=" + _player.Progress.ToString("F0") + " deck=" + (_player.CurrentDeck != null ? _player.CurrentDeck.id : -1)); };
         }
 
         private void OnDisable() => Release();
@@ -22,6 +27,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             HSInput.BotSteer = 0f;
             HSInput.BotSlideHeld = false;
+            HSInput.BotGlideHeld = false;
         }
 
         private void Update()
@@ -32,94 +38,74 @@ namespace Com.IsartDigital.Hyperspeed
                 Juice.Popup(Enabled ? "AUTOPILOT ON" : "AUTOPILOT OFF", Color.white, 1f);
                 if (!Enabled) Release();
             }
-            if (!Enabled || _player == null || RaceContext.Path == null || !RaceContext.Running) return;
+            if (!Enabled || _player == null || _layout == null || !RaceContext.Running || _player.State == PlayerState.Dead)
+            {
+                if (Enabled) Release();
+                return;
+            }
 
-            TrackPath lPath = RaceContext.Path;
             float lSpeed = Mathf.Max(_player.Speed, 20f);
-            float lProgress = _player.Progress;
-            _jumpCooldown -= Time.deltaTime;
-            _airDecisionCooldown -= Time.deltaTime;
+            float lS = _player.Progress;
             int lNext = Time.frameCount + 1;
+            _punchCooldown -= Time.deltaTime;
 
-            // Steer toward a point ahead on the center line.
-            TrackSample lTarget = lPath.Evaluate(lProgress + 10f + lSpeed * 0.3f);
-            Vector3 lUp = _player.State == PlayerState.Ground ? _player.Up : _player.GravityUp;
-            Vector3 lToTarget = Vector3.ProjectOnPlane(lTarget.position - _player.transform.position, lUp);
-            float lAngle = Vector3.SignedAngle(Vector3.ProjectOnPlane(_player.Heading, lUp), lToTarget, lUp);
-            HSInput.BotSteer = Mathf.Clamp(lAngle / 25f, -1f, 1f);
+            // PD steering toward the route lateral a quarter second ahead.
+            float lAheadS = lS + lSpeed * 0.25f;
+            RouteNode lNode = _layout.RouteAt(lAheadS, _player.CurrentDeck);
+            float lTarget = lNode.deck != null ? lNode.deck.LateralOffset(lAheadS) + lNode.lateral : 0f;
+            float lLateralSpeed = Vector3.Dot(_player.Velocity, _layout.spine.Right(lS));
+            HSInput.BotSteer = Mathf.Clamp(0.22f * (lTarget - _player.Lateral) - 0.035f * lLateralSpeed, -1f, 1f);
 
-            // Over a floorless stretch : head for the closest wall to wall run.
-            if (_player.State == PlayerState.Air && !lPath.Evaluate(lProgress + 4f).solid)
+            // One-shot actions.
+            while (_actIndex < _layout.acts.Count && _layout.acts[_actIndex].s < lS - 30f) _actIndex++;
+            for (int i = _actIndex; i < _layout.acts.Count; i++)
             {
-                Vector3 lRight = Vector3.Cross(_player.GravityUp, _player.Heading).normalized;
-                Vector3 lCenter = _player.transform.position + _player.GravityUp;
-                RaycastHit lLeft, lRightHit;
-                bool lHasLeft = Physics.Raycast(lCenter, -lRight, out lLeft, 9f);
-                bool lHasRight = Physics.Raycast(lCenter, lRight, out lRightHit, 9f);
-                if (lHasLeft || lHasRight)
-                {
-                    bool lGoRight = lHasRight && (!lHasLeft || lRightHit.distance < lLeft.distance);
-                    HSInput.BotSteer = lGoRight ? 1f : -1f;
-                }
+                RouteAct lAct = _layout.acts[i];
+                if (lAct.s > lS + lSpeed * 0.1f) break;
+                if (lS < lAct.s - lSpeed * 0.05f) continue;
+                Fire(lAct, lNext);
+                _actIndex = i + 1;
             }
 
-            TrackSample lHere = lPath.Evaluate(lProgress);
-            TrackSample lAhead = lPath.Evaluate(lProgress + lSpeed * 0.05f + 2f);
-            float lHeight = Vector3.Dot(_player.transform.position - lHere.position, lHere.Up);
+            // Keep crouching through stacked membranes, glide when nothing is below.
+            _slideHold -= Time.deltaTime;
+            HSInput.BotSlideHeld = _slideHold > 0f;
+            HSInput.BotGlideHeld = _player.State == PlayerState.Air && !_player.HasLandingPrediction && !_player.Diving && _player.AirTime > 0.3f;
 
-            switch (_player.State)
+            if (_punchCooldown <= 0f && _player.Speed < PlayerController.SMASH_SPEED)
             {
-                case PlayerState.Ground:
-                    if (lHere.solid && !lAhead.solid && _jumpCooldown <= 0f && !HasRailAhead(lProgress))
-                    {
-                        HSInput.BotJumpFrame = lNext;
-                        _jumpCooldown = 0.4f;
-                    }
-                    break;
-                case PlayerState.Air:
-                    float lVertical = Vector3.Dot(_player.Velocity, _player.GravityUp);
-                    if (_airDecisionCooldown <= 0f && lVertical < 0f && !lHere.solid && lHeight < 1.5f)
-                    {
-                        _airDecisionCooldown = 0.3f;
-                        if (_player.HasDoubleJump) HSInput.BotJumpFrame = lNext;
-                        else if (_player.HasAirDash) HSInput.BotDashFrame = lNext;
-                    }
-                    else if (_airDecisionCooldown <= 0f && lVertical < -4f && lHere.solid && lHeight < 5f && lHeight > 1.2f && !_player.Diving)
-                    {
-                        _airDecisionCooldown = 0.5f;
-                        HSInput.BotSlideFrame = lNext;
-                    }
-                    break;
-                case PlayerState.WallRun:
-                    if (_player.StateTime > 0.45f && _jumpCooldown <= 0f)
-                    {
-                        HSInput.BotJumpFrame = lNext;
-                        _jumpCooldown = 0.5f;
-                    }
-                    break;
-            }
-
-            foreach (Breakable lBreakable in Breakable.All)
-            {
-                Vector3 lDelta = lBreakable.transform.position - _player.transform.position;
-                float lAlong = Vector3.Dot(lDelta, _player.Heading);
-                if (lAlong > 0f && lAlong < 6f + lSpeed * 0.08f && Vector3.ProjectOnPlane(lDelta, _player.Heading).magnitude < 3.5f && _player.Speed < PlayerController.SMASH_SPEED)
+                foreach (Breakable lBreakable in Breakable.All)
                 {
-                    HSInput.BotPunchFrame = lNext;
-                    break;
+                    Vector3 lDelta = lBreakable.transform.position - _player.transform.position;
+                    float lAlong = Vector3.Dot(lDelta, _player.Heading);
+                    if (lAlong > 0f && lAlong < 8f + lSpeed * 0.08f && Vector3.ProjectOnPlane(lDelta, _player.Heading).magnitude < 3.5f)
+                    {
+                        HSInput.BotPunchFrame = lNext;
+                        _punchCooldown = 0.35f;
+                        break;
+                    }
                 }
             }
         }
 
-        private static bool HasRailAhead(float pProgress)
+        private void Fire(RouteAct pAct, int pFrame)
         {
-            TrackSample lSample = RaceContext.Path.Evaluate(pProgress + 8f);
-            foreach (GrindRail lRail in GrindRail.All)
+            switch (pAct.action)
             {
-                float lDistance, lRailDistance;
-                if (lRail.FindNearest(lSample.position, 4f, out lDistance, out lRailDistance)) return true;
+                case RouteAction.Jump:
+                    if (_player.State == PlayerState.Ground) HSInput.BotJumpFrame = pFrame;
+                    break;
+                case RouteAction.Dive:
+                    if (_player.State == PlayerState.Air) HSInput.BotSlideFrame = pFrame;
+                    break;
+                case RouteAction.DropThrough:
+                    HSInput.BotSlideFrame = pFrame;
+                    _slideHold = 0.8f;
+                    break;
+                case RouteAction.Punch:
+                    HSInput.BotPunchFrame = pFrame;
+                    break;
             }
-            return false;
         }
     }
 }

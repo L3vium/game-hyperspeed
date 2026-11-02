@@ -154,6 +154,11 @@ namespace Com.IsartDigital.Hyperspeed
             Instance._duckTimer = Mathf.Max(Instance._duckTimer, pDuration);
         }
 
+        public static void Unduck()
+        {
+            Instance._duckTimer = 0f;
+        }
+
         // Positional looping source (rival engines), doppler included.
         public static AudioSource CreateLoop3D(string pId, Transform pParent, float pVolume)
         {
