@@ -63,6 +63,7 @@ namespace Com.IsartDigital.Hyperspeed
         public int WallSide { get; private set; }
         public float StateTime { get; private set; }
         public int Combo { get; private set; }
+        public float ComboTimer01 => Mathf.Clamp01(_comboTimer / 3f);
         public int Respawns { get; private set; }
         public float TopSpeed { get; private set; }
         public bool Invulnerable => _invulnerable > 0f;

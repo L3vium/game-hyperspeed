@@ -6,8 +6,8 @@ using UnityEngine.UI;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // Minimal race HUD : timer, event feed under it, vertical progress rail on the right, rival pointer,
-    // discreet countdown, plus VS intro card, results and pause in the Boost-Vector-like style.
+    // Race HUD balanced around the center : timer + objective + rival gap at the top center, combo counter and
+    // event feed in the middle, progress rail on the left, speedometer bottom right, rival pointer in the world.
     public class HUD : MonoBehaviour
     {
         private class FeedEntry
@@ -18,7 +18,7 @@ namespace Com.IsartDigital.Hyperspeed
             public float targetY;
         }
 
-        private const int FEED_MAX = 5;
+        private const int FEED_MAX = 3;
         private const float RAIL_HALF = 330f;
 
         private Canvas _canvas;
@@ -27,6 +27,16 @@ namespace Com.IsartDigital.Hyperspeed
         private float _lineIntensity;
 
         private TextMeshProUGUI _timerText;
+        private TextMeshProUGUI _objectiveText;
+        private TextMeshProUGUI _gapText;
+        private RectTransform _combo;
+        private CanvasGroup _comboGroup;
+        private TextMeshProUGUI _comboText;
+        private UIShape _comboBar;
+        private int _shownCombo;
+        private TextMeshProUGUI _speedText;
+        private UIShape[] _speedBars;
+        private RectTransform _speedo;
         private RectTransform _feedRoot;
         private readonly List<FeedEntry> _feed = new List<FeedEntry>();
         private TextMeshProUGUI _bigText;
@@ -78,17 +88,32 @@ namespace Com.IsartDigital.Hyperspeed
             lLines.material = _speedLinesMaterial;
             lLines.raycastTarget = false;
 
-            // Timer (top right)
-            UIKit.Tile(_root, "TimerBack", new Color(0f, 0f, 0f, 0.55f), new Vector2(1f, 1f), new Vector2(-230f, -62f), new Vector2(380f, 74f), 0.45f);
-            UIKit.Tile(_root, "TimerAccent", UIKit.RED, new Vector2(1f, 1f), new Vector2(-418f, -62f), new Vector2(18f, 74f), 0.45f);
-            _timerText = UIKit.Text(_root, "00:00.00", 58f, UIKit.WHITE, new Vector2(1f, 1f), new Vector2(-226f, -60f), new Vector2(360f, 74f), UIKit.Font.Heavy);
-            _feedRoot = UIFactory.CreateRect(_root, "Feed", new Vector2(1f, 1f), new Vector2(-230f, -340f), new Vector2(380f, 400f));
+            // Timer, objective and rival gap (top center).
+            UIKit.Tile(_root, "TimerBack", new Color(0f, 0f, 0f, 0.55f), new Vector2(0.5f, 1f), new Vector2(0f, -62f), new Vector2(420f, 80f), 0.45f);
+            UIKit.Tile(_root, "TimerAccentL", UIKit.RED, new Vector2(0.5f, 1f), new Vector2(-218f, -62f), new Vector2(16f, 80f), 0.45f);
+            UIKit.Tile(_root, "TimerAccentR", UIKit.CYAN, new Vector2(0.5f, 1f), new Vector2(218f, -62f), new Vector2(16f, 80f), 0.45f);
+            _timerText = UIKit.Text(_root, "00:00.00", 60f, UIKit.WHITE, new Vector2(0.5f, 1f), new Vector2(4f, -60f), new Vector2(400f, 80f), UIKit.Font.Heavy);
+            _objectiveText = UIKit.Text(_root, "VS " + RivalShortName(), 26f, UIKit.WHITE, new Vector2(0.5f, 1f), new Vector2(-70f, -122f), new Vector2(400f, 36f), UIKit.Font.Heavy, TextAlignmentOptions.Right);
+            UIFactory.Outline(_objectiveText, UIKit.INK, 0.3f);
+            _gapText = UIKit.Text(_root, "", 30f, UIKit.CYAN, new Vector2(0.5f, 1f), new Vector2(110f, -122f), new Vector2(260f, 36f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
+            UIFactory.Outline(_gapText, UIKit.INK, 0.3f);
 
-            _bigText = UIKit.OutlineText(_root, "", 150f, UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(0f, 250f), new Vector2(1900f, 200f), -4f, 0.12f);
+            // Combo counter + event feed (center).
+            _combo = UIFactory.CreateRect(_root, "Combo", new Vector2(0.5f, 0.5f), new Vector2(0f, 330f), new Vector2(420f, 120f));
+            _comboGroup = _combo.gameObject.AddComponent<CanvasGroup>();
+            _comboText = UIKit.Text(_combo, "", 84f, UIKit.GOLD, new Vector2(0.5f, 0.5f), new Vector2(0f, 14f), new Vector2(420f, 100f), UIKit.Font.Heavy);
+            UIFactory.Outline(_comboText, UIKit.INK, 0.25f);
+            _comboText.gameObject.AddComponent<UISpeedGhost>();
+            UIKit.Tile(_combo, "BarBack", new Color(0f, 0f, 0f, 0.45f), new Vector2(0.5f, 0.5f), new Vector2(0f, -42f), new Vector2(240f, 10f), 0.6f);
+            _comboBar = UIKit.Tile(_combo, "Bar", UIKit.GOLD, new Vector2(0.5f, 0.5f), new Vector2(0f, -42f), new Vector2(240f, 10f), 0.6f);
+            _comboGroup.alpha = 0f;
+            _feedRoot = UIFactory.CreateRect(_root, "Feed", new Vector2(0.5f, 0.5f), new Vector2(0f, 230f), new Vector2(420f, 300f));
+
+            _bigText = UIKit.OutlineText(_root, "", 150f, UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(0f, 40f), new Vector2(1900f, 200f), -4f, 0.12f);
             _bigText.gameObject.SetActive(false);
 
-            // Vertical progress rail (right edge)
-            _rail = UIFactory.CreateRect(_root, "Rail", new Vector2(1f, 0.5f), new Vector2(-70f, -40f), new Vector2(8f, RAIL_HALF * 2f));
+            // Vertical progress rail (left edge) : start at the bottom, flag at the top.
+            _rail = UIFactory.CreateRect(_root, "Rail", new Vector2(0f, 0.5f), new Vector2(70f, -20f), new Vector2(8f, RAIL_HALF * 2f));
             UIFactory.CreateImage(_rail, "Line", new Color(1f, 1f, 1f, 0.35f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(6f, RAIL_HALF * 2f));
             if (_path != null && _path.finishS > 0f)
                 foreach (float lCheckpoint in _path.checkpoints)
@@ -97,13 +122,22 @@ namespace Com.IsartDigital.Hyperspeed
             _rivalMarker = Marker("Rival", UIKit.RED, RivalShortName());
             _playerMarker = Marker("Player", UIKit.CYAN, "YOU");
 
+            // Speedometer (bottom right).
+            _speedo = UIFactory.CreateRect(_root, "Speedo", new Vector2(1f, 0f), new Vector2(-250f, 110f), new Vector2(420f, 150f));
+            _speedText = UIKit.Text(_speedo, "0", 96f, UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(-30f, 16f), new Vector2(320f, 110f), UIKit.Font.Heavy, TextAlignmentOptions.Right);
+            UIFactory.Outline(_speedText, UIKit.INK, 0.25f);
+            UIKit.Text(_speedo, "KM/H", 26f, UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(170f, -6f), new Vector2(100f, 40f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
+            _speedBars = new UIShape[10];
+            for (int i = 0; i < _speedBars.Length; i++)
+                _speedBars[i] = UIKit.Tile(_speedo, "Bar" + i, new Color(1f, 1f, 1f, 0.2f), new Vector2(0.5f, 0.5f), new Vector2(-160f + i * 34f, -56f), new Vector2(26f, 14f + i * 1.6f), 0.5f);
+
             // Rival pointer in the world
             _rivalPointer = UIFactory.CreateRect(_root, "RivalPointer", new Vector2(0f, 0f), Vector2.zero, new Vector2(60f, 60f));
             UIFactory.CreateShape(_rivalPointer, "Arrow", UIShape.ShapeKind.Triangle, UIKit.RED, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(40f, 34f), 180f);
             _rivalPointerText = UIKit.Text(_rivalPointer, "", 24f, UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(0f, 36f), new Vector2(220f, 34f), UIKit.Font.Heavy);
             UIFactory.Outline(_rivalPointerText, UIKit.INK, 0.3f);
 
-            _warningText = UIKit.Text(_root, "", 40f, UIKit.RED, new Vector2(1f, 0.5f), new Vector2(-330f, -RAIL_HALF - 110f), new Vector2(560f, 50f), UIKit.Font.Heavy, TextAlignmentOptions.Right);
+            _warningText = UIKit.Text(_root, "", 40f, UIKit.RED, new Vector2(0.5f, 1f), new Vector2(0f, -170f), new Vector2(900f, 50f), UIKit.Font.Heavy);
             UIFactory.Outline(_warningText, UIKit.INK, 0.3f);
 
             // Hints (bottom center, small white tile)
@@ -124,8 +158,8 @@ namespace Com.IsartDigital.Hyperspeed
         private RectTransform Marker(string pName, Color pColor, string pLabel)
         {
             RectTransform lMarker = UIFactory.CreateRect(_rail, pName, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(40f, 40f));
-            UIFactory.CreateShape(lMarker, "Arrow", UIShape.ShapeKind.Chevron, pColor, new Vector2(0.5f, 0.5f), new Vector2(-14f, 0f), new Vector2(46f, 30f), 180f).skew = 0.45f;
-            TextMeshProUGUI lText = UIKit.Text(lMarker, pLabel, 22f, pColor, new Vector2(0.5f, 0.5f), new Vector2(-130f, 0f), new Vector2(200f, 30f), UIKit.Font.Heavy, TextAlignmentOptions.Right);
+            UIFactory.CreateShape(lMarker, "Arrow", UIShape.ShapeKind.Chevron, pColor, new Vector2(0.5f, 0.5f), new Vector2(14f, 0f), new Vector2(46f, 30f), 0f).skew = 0.45f;
+            TextMeshProUGUI lText = UIKit.Text(lMarker, pLabel, 22f, pColor, new Vector2(0.5f, 0.5f), new Vector2(130f, 0f), new Vector2(200f, 30f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
             UIFactory.Outline(lText, UIKit.INK, 0.3f);
             return lMarker;
         }
@@ -154,6 +188,8 @@ namespace Com.IsartDigital.Hyperspeed
                 UpdateRail();
                 UpdateRivalPointer();
                 UpdateHints(lDt);
+                UpdateCombo(lDt);
+                UpdateSpeedo(lDt);
             }
             UpdateFeed(lDt);
             if (_bigTimer > 0f)
@@ -166,6 +202,45 @@ namespace Com.IsartDigital.Hyperspeed
             }
         }
 
+        private void UpdateCombo(float pDt)
+        {
+            int lCombo = _player.Combo;
+            bool lShow = lCombo >= 2 && RaceContext.Running;
+            _comboGroup.alpha = Mathf.MoveTowards(_comboGroup.alpha, lShow ? 1f : 0f, pDt * 6f);
+            if (lCombo != _shownCombo)
+            {
+                if (lCombo > _shownCombo && lCombo >= 2)
+                {
+                    _comboText.text = "x" + lCombo + "<size=40%> COMBO</size>";
+                    UITween.Kill(_combo);
+                    UITween.Punch(_combo, 0.3f, 0.3f);
+                    _comboText.color = lCombo >= 10 ? UIKit.CYAN : lCombo >= 5 ? UIKit.GOLD : UIKit.WHITE;
+                }
+                _shownCombo = lCombo;
+            }
+            _comboBar.rectTransform.sizeDelta = new Vector2(240f * _player.ComboTimer01, 10f);
+        }
+
+        private float _shownSpeed;
+
+        private void UpdateSpeedo(float pDt)
+        {
+            float lKmh = _player.Speed * 3.6f;
+            _shownSpeed = Mathf.Lerp(_shownSpeed, lKmh, 1f - Mathf.Exp(-10f * pDt));
+            _speedText.text = Mathf.RoundToInt(_shownSpeed).ToString();
+            _speedText.color = _player.Hyper ? UIKit.CYAN : _player.BoostAmount > 0f ? UIKit.GOLD : UIKit.WHITE;
+            float lFill = Mathf.Clamp01(_player.Speed / PlayerController.MAX_SPEED) * _speedBars.Length;
+            for (int i = 0; i < _speedBars.Length; i++)
+            {
+                bool lOn = i < lFill;
+                Color lColor = i >= 6 ? UIKit.CYAN : i >= 3 ? UIKit.GOLD : UIKit.WHITE;
+                _speedBars[i].color = lOn ? lColor : new Color(1f, 1f, 1f, 0.18f);
+            }
+            // The whole block leans and shivers with speed.
+            _speedo.localRotation = Quaternion.Euler(0f, 0f, -_player.Speed01 * 3f);
+            _speedo.anchoredPosition = new Vector2(-250f, 110f) + (_player.Hyper ? Random.insideUnitCircle * 2.5f : Vector2.zero);
+        }
+
         private void UpdateRail()
         {
             if (_path == null || _path.finishS <= 0f) return;
@@ -173,6 +248,9 @@ namespace Com.IsartDigital.Hyperspeed
             if (_rival == null) return;
             _rivalMarker.anchoredPosition = new Vector2(0f, RailY(Mathf.Max(0f, _rival.distance)));
             float lGap = _player.Progress - _rival.distance;
+            int lMeters = Mathf.RoundToInt(lGap);
+            _gapText.text = (lMeters >= 0 ? "+" : "") + lMeters + " m";
+            _gapText.color = lMeters >= 0 ? UIKit.CYAN : UIKit.RED;
             if (_rival.chaser)
             {
                 bool lDanger = lGap < 90f && RaceContext.Running;
@@ -244,7 +322,7 @@ namespace Com.IsartDigital.Hyperspeed
                 _bigTimer = 1.1f;
             }
 
-            RectTransform lEntry = UIFactory.CreateRect(_feedRoot, "Entry", new Vector2(1f, 1f), new Vector2(-150f, 0f), new Vector2(380f, 54f));
+            RectTransform lEntry = UIFactory.CreateRect(_feedRoot, "Entry", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(380f, 54f));
             CanvasGroup lGroup = lEntry.gameObject.AddComponent<CanvasGroup>();
             bool lDark = pColor == UIKit.WHITE || pColor == Color.white;
             UIKit.Tile(lEntry, "Back", lDark ? new Color(0f, 0f, 0f, 0.6f) : UIKit.WHITE, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(340f, 48f), 0.45f);
@@ -253,7 +331,8 @@ namespace Com.IsartDigital.Hyperspeed
             lText.enableAutoSizing = true;
             lText.fontSizeMin = 16f;
             lText.fontSizeMax = 32f;
-            lEntry.anchoredPosition = new Vector2(260f, 0f);
+            lEntry.anchoredPosition = new Vector2(0f, 40f);
+            lEntry.localRotation = Quaternion.Euler(0f, 0f, Random.Range(-4f, 4f));
             _feed.Insert(0, new FeedEntry { rect = lEntry, group = lGroup, time = 0f });
             while (_feed.Count > FEED_MAX)
             {
@@ -268,7 +347,7 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 FeedEntry lEntry = _feed[i];
                 lEntry.time += pDt;
-                Vector2 lTarget = new Vector2(-170f + i * 14f, -i * 58f);
+                Vector2 lTarget = new Vector2(0f, -i * 48f);
                 lEntry.rect.anchoredPosition = Vector2.Lerp(lEntry.rect.anchoredPosition, lTarget, 1f - Mathf.Exp(-18f * pDt));
                 float lPop = Mathf.Max(0f, 1f - lEntry.time * 6f);
                 lEntry.rect.localScale = Vector3.one * (1f + lPop * 0.25f);
