@@ -201,7 +201,18 @@ namespace Com.IsartDigital.Hyperspeed
         private void Dive()
         {
             Vector3 lFlat = Vector3.ProjectOnPlane(_velocity, _gravityUp);
-            float lDown = Mathf.Min(Vector3.Dot(_velocity, _gravityUp), -(45f + 0.2f * lFlat.magnitude));
+            float lPlunge = 45f + 0.2f * lFlat.magnitude;
+            // Targeted : the plunge speed is solved so the runner lands on top of the deck below, a quarter of the way in,
+            // never short in the gap nor into its front face (at 100 m/s a fixed plunge does one or the other).
+            float lStart, lEnd, lDrop;
+            if (_layout != null && TargetBelow(lFlat.magnitude, out lStart, out lEnd, out lDrop))
+            {
+                float lTime = Mathf.Max(0.12f, (lStart + Mathf.Clamp((lEnd - lStart) * 0.25f, 4f, 20f)) / Mathf.Max(lFlat.magnitude, 1f));
+                float lGravity = 58f * 2.2f;
+                float lNeeded = (lDrop - 0.5f * lGravity * lTime * lTime) / lTime;
+                if (lNeeded > 4f) lPlunge = Mathf.Min(lPlunge, lNeeded);
+            }
+            float lDown = Mathf.Min(Vector3.Dot(_velocity, _gravityUp), -lPlunge);
             Vector3 lVelocity = lFlat + _gravityUp * lDown;
             if (_layout != null)
             {
@@ -223,6 +234,32 @@ namespace Com.IsartDigital.Hyperspeed
             _velocity = lVelocity;
             AudioManager.Play("sfx_dive", 0.8f);
             Juice.FovKick(4f);
+        }
+
+        // First deck below the runner along the route ahead : distances (from the runner) to where it starts and ends
+        // under the current lateral, and the height to drop onto it.
+        private bool TargetBelow(float pFlatSpeed, out float pStart, out float pEnd, out float pDrop)
+        {
+            pStart = pEnd = pDrop = 0f;
+            float lY = transform.position.y;
+            float lReach = Mathf.Max(40f, pFlatSpeed * 1.6f);
+            for (float lD = 1f; lD < lReach; lD += 2f)
+            {
+                float lS = Progress + lD;
+                foreach (Deck lDeck in _layout.DecksAt(lS))
+                {
+                    if (lDeck == _deck && State != PlayerState.Air) continue;
+                    if (lDeck.surface == DeckSurface.Lane || !lDeck.ContainsS(lS)) continue;
+                    if (Mathf.Abs(Lateral - lDeck.LateralOffset(lS)) > lDeck.Width(lS) * 0.5f - 1f) continue;
+                    float lTop = lDeck.SurfacePoint(lS, Lateral - lDeck.LateralOffset(lS)).y;
+                    if (lTop > lY - 2f) continue;
+                    pStart = lD;
+                    pEnd = Mathf.Max(lD + 4f, lDeck.EndS - Progress);
+                    pDrop = lY - lTop;
+                    return true;
+                }
+            }
+            return false;
         }
 
         // ================================================================ landing

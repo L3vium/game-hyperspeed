@@ -557,7 +557,13 @@ namespace Com.IsartDigital.Hyperspeed
             // A predicted landing always wins : long plunges and dives fall far below the route line on purpose.
             bool lNoLanding = !HasLandingPrediction && transform.position.y < _takeoffY - 12f;
             bool lBelow = !HasLandingPrediction && transform.position.y < _layout.FloorY(Progress) - 14f;
-            if (lNoLanding || lBelow || _airTime > (HasLandingPrediction ? 14f : 7f)) Die();
+            if (lNoLanding || lBelow || _airTime > (HasLandingPrediction ? 14f : 7f))
+            {
+                if (Autopilot.Enabled)
+                    Debug.Log("[HS-LD] fall-out " + (lNoLanding ? "noLanding" : lBelow ? "belowFloor" : "airTime") + " y=" + transform.position.y.ToString("F1") + " takeoffY=" + _takeoffY.ToString("F1")
+                        + " floor=" + _layout.FloorY(Progress).ToString("F1") + " vel=" + _velocity.ToString("F0") + " state=" + State);
+                Die();
+            }
         }
 
         public void Die()
@@ -588,7 +594,8 @@ namespace Com.IsartDigital.Hyperspeed
             float lLateral = lDeck != null ? Mathf.Clamp(pCrumb.lateral, -(lDeck.Width(pCrumb.s) * 0.5f - 3f), lDeck.Width(pCrumb.s) * 0.5f - 3f) : 0f;
             Vector3 lPosition = lDeck != null ? lDeck.SurfacePoint(pCrumb.s, lLateral) : pCrumb.position;
             Place(lPosition, _layout.spine.Forward(pCrumb.s), lDeck, pCrumb.s);
-            _speed = Mathf.Max(RUN_SPEED, pCrumb.speed * 0.9f);
+            // Back in the race at a controllable pace : never relaunched at hyper speed right before the danger.
+            _speed = Mathf.Clamp(pCrumb.speed * 0.9f, RUN_SPEED, RUN_SPEED + 20f);
             _velocity = _heading * _speed;
             _invulnerable = 1.5f;
             _airTime = 0f;

@@ -70,15 +70,16 @@ namespace Com.IsartDigital.Hyperspeed
             _count = Mathf.Min(_count + 1, CAPACITY);
         }
 
-        // Newest safe crumb at least 25 m before the death point, else the layout safe point before it.
+        // Newest safe crumb at least 60 m before the death point (about a second to read the obstacle again),
+        // else the layout safe point before it.
         public Breadcrumb PickSafe(float pDeathS, LevelLayout pLayout)
         {
             for (int i = 0; i < _count; i++)
             {
                 Breadcrumb lCrumb = Get(i);
-                if (lCrumb.safe && lCrumb.s <= pDeathS - 25f) return lCrumb;
+                if (lCrumb.safe && lCrumb.s <= pDeathS - 60f) return lCrumb;
             }
-            SafePoint lPoint = pLayout.SafePointBefore(pDeathS - 25f);
+            SafePoint lPoint = pLayout.SafePointBefore(pDeathS - 60f);
             Vector3 lPosition = lPoint.deck != null ? lPoint.deck.SurfacePoint(lPoint.s, 0f) : pLayout.startPosition;
             return new Breadcrumb { position = lPosition, s = lPoint.s, deck = lPoint.deck, lateral = 0f, speed = PlayerController.RUN_SPEED, safe = true };
         }

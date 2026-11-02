@@ -160,13 +160,14 @@ namespace Com.IsartDigital.Hyperspeed
                 EdgeKind lLeft = j == 0 ? EdgeKind.Wall : EdgeKind.Lip;
                 EdgeKind lRight = j == pCount - 1 ? EdgeKind.Wall : EdgeKind.Lip;
                 float lS = lSplit + (lCenter ? 9f : 12f);
-                int lSegment = 0;
                 while (lS < lMerge - 40f)
                 {
                     float lLength = Mathf.Min(Random.Range(45f, 80f), lMerge - 14f - lS);
                     if (lLength < 25f) break;
                     bool lLast = lS + lLength >= lMerge - 40f;
-                    float lHeight = lLast || (lCenter && lSegment == 0) ? lH0 : lH0 + Random.Range(-pStep, pStep) * (lCenter ? 0.5f : 1f);
+                    // The route lane stays level (its gaps are run across at any speed, the jump is optional) ;
+                    // side lanes step up at most what the ledge assist catches.
+                    float lHeight = lLast || lCenter ? lH0 : lH0 + Random.Range(-pStep, Mathf.Min(pStep, 1.8f));
                     float lXc = lX;
                     Deck lDeck = AddDeck(lS, lS + lLength, DeckStyle.Rock, pCrumble ? DeckSurface.Crumble : DeckSurface.Solid,
                         pS => lXc, pS => lHeight, pS => LANE_WIDTH, lLeft, lRight);
@@ -182,7 +183,6 @@ namespace Com.IsartDigital.Hyperspeed
                         Spawn(() => LevelProps.Boost(root, lDeck, lPadS, 0f, theme));
                     }
                     lS += lLength + Random.Range(lCenter ? 8f : 10f, lCenter ? 13f : 17f);
-                    lSegment++;
                 }
             }
             // Falling between platforms costs time, never a life.

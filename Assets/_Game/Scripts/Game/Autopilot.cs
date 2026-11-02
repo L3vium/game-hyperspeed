@@ -33,8 +33,12 @@ namespace Com.IsartDigital.Hyperspeed
                 }
                 Debug.Log(lLog.ToString());
             };
-            // After a respawn the route acts behind the restart point are replayed.
-            _player.OnRespawned += () => _actIndex = 0;
+            // After a respawn only the acts ahead of the restart point count (never replay the jump just behind).
+            _player.OnRespawned += () =>
+            {
+                _actIndex = 0;
+                while (_actIndex < _layout.acts.Count && _layout.acts[_actIndex].s < _player.Progress + 2f) _actIndex++;
+            };
         }
 
         private void OnDisable() => Release();
