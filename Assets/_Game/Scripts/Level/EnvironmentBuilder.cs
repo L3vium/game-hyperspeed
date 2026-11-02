@@ -54,8 +54,10 @@ namespace Com.IsartDigital.Hyperspeed
             for (float lChunk = pLayout.spine.StartS; lChunk < lEnd; lChunk += CHUNK)
             {
                 MeshData lData = new MeshData();
-                SpeedProps(lData, pTheme, pLayout, lChunk, Mathf.Min(lEnd, lChunk + CHUNK), lRandom);
-                DistantScenery(lData, pTheme, pLayout, lChunk, Mathf.Min(lEnd, lChunk + CHUNK), lRandom);
+                RockKit.Batch lRocks = RockKit.Available ? new RockKit.Batch() : null;
+                SpeedProps(lData, lRocks, pTheme, pLayout, lChunk, Mathf.Min(lEnd, lChunk + CHUNK), lRandom);
+                DistantScenery(lData, lRocks, pTheme, pLayout, lChunk, Mathf.Min(lEnd, lChunk + CHUNK), lRandom);
+                if (lRocks != null && !lRocks.Empty) lRocks.Build("Rocks" + Mathf.RoundToInt(lChunk), lDecor, Layers.DEBRIS, pTheme.shade, false);
                 if (lData.Count == 0) continue;
                 GameObject lObject = new GameObject("Scenery" + Mathf.RoundToInt(lChunk));
                 lObject.transform.SetParent(lDecor, false);
@@ -79,8 +81,11 @@ namespace Com.IsartDigital.Hyperspeed
 
         private static float Rand(System.Random pRandom, float pMin, float pMax) => pMin + (float)pRandom.NextDouble() * (pMax - pMin);
 
+        // Scanned rock faces tall enough to stand as spires (the wide Namaqualand shelf is kept for islands).
+        private static readonly int[] SPIRES = { 0, 1, 3 };
+
         // Close props on both sides, every 25-50 m : the eye reads speed from things flashing by.
-        private static void SpeedProps(MeshData pData, Theme pTheme, LevelLayout pLayout, float pS0, float pS1, System.Random pRandom)
+        private static void SpeedProps(MeshData pData, RockKit.Batch pRocks, Theme pTheme, LevelLayout pLayout, float pS0, float pS1, System.Random pRandom)
         {
             for (float lS = pS0 + Rand(pRandom, 5f, 25f); lS < pS1; lS += Rand(pRandom, 25f, 50f))
             {
@@ -90,6 +95,32 @@ namespace Com.IsartDigital.Hyperspeed
                 float lRoute = pLayout.spine.Height(lS);
                 double lKind = pRandom.NextDouble();
                 Color lColor = Color.Lerp(pTheme.decorB, pTheme.decorC, (float)pRandom.NextDouble());
+                if (pRocks != null)
+                {
+                    Color lTint = RockKit.Tint(lColor);
+                    if (lKind < 0.45)
+                    {
+                        // Rock spire rising from the abyss (a scanned rock face stood up), top around route height.
+                        float lHeight = lRoute - lBase + Rand(pRandom, -6f, 25f);
+                        float lWidth = Mathf.Max(Rand(pRandom, 6f, 14f), lHeight * 0.28f);
+                        pRocks.Cliff(SPIRES[pRandom.Next(0, SPIRES.Length)], pLayout.spine.Point(lS, lLateral, lBase), Quaternion.Euler(Rand(pRandom, -5f, 5f), Rand(pRandom, 0f, 360f), Rand(pRandom, -5f, 5f)),
+                            lWidth, Mathf.Clamp(lHeight / (lWidth * 0.75f), 1f, 3.5f), lTint);
+                    }
+                    else if (lKind < 0.85)
+                    {
+                        // Floating chunk of broken ground, tumbling.
+                        float lSize = Rand(pRandom, 4f, 12f);
+                        float lY = lRoute + Rand(pRandom, -12f, 20f);
+                        pRocks.Boulder(pRandom.Next(0, RockKit.BOULDERS), false, pLayout.spine.Point(lS, lLateral, lY), Quaternion.Euler(Rand(pRandom, 0f, 360f), Rand(pRandom, 0f, 360f), Rand(pRandom, 0f, 360f)), lSize, 1f, lTint);
+                    }
+                    else
+                    {
+                        // Leaning slab over the void.
+                        float lHeight = Rand(pRandom, 18f, 34f);
+                        pRocks.Cliff(pRandom.Next(0, RockKit.CLIFFS), pLayout.spine.Point(lS, lLateral, lRoute - 15f), Quaternion.Euler(0f, Rand(pRandom, 0f, 360f), -lSide * 18f), lHeight * 0.45f, 2f, lTint);
+                    }
+                    continue;
+                }
                 if (lKind < 0.45)
                 {
                     // Spire rising from the abyss, top around route height.
@@ -117,7 +148,7 @@ namespace Com.IsartDigital.Hyperspeed
         }
 
         // Far islands and mountains : depth and scale, the world keeps going in every direction.
-        private static void DistantScenery(MeshData pData, Theme pTheme, LevelLayout pLayout, float pS0, float pS1, System.Random pRandom)
+        private static void DistantScenery(MeshData pData, RockKit.Batch pRocks, Theme pTheme, LevelLayout pLayout, float pS0, float pS1, System.Random pRandom)
         {
             for (float lS = pS0 + Rand(pRandom, 0f, 60f); lS < pS1; lS += Rand(pRandom, 60f, 120f))
             {
@@ -125,6 +156,26 @@ namespace Com.IsartDigital.Hyperspeed
                 float lLateral = lSide * Rand(pRandom, 160f, 650f);
                 float lRoute = pLayout.spine.Height(lS);
                 Color lColor = Color.Lerp(pTheme.decorB, pTheme.fog, Mathf.InverseLerp(160f, 650f, Mathf.Abs(lLateral)) * 0.6f);
+                if (pRocks != null)
+                {
+                    Color lTint = RockKit.Tint(lColor, 0.7f);
+                    if (pRandom.NextDouble() < 0.6)
+                    {
+                        // Floating island : a wide rock shelf on top, a boulder keel hanging below.
+                        float lSize = Rand(pRandom, 30f, 90f);
+                        Vector3 lCenter = pLayout.spine.Point(lS, lLateral, lRoute + Rand(pRandom, -80f, 60f));
+                        float lYaw = Rand(pRandom, 0f, 360f);
+                        pRocks.Cliff(2, lCenter - Vector3.up * lSize * 0.05f, Quaternion.Euler(0f, lYaw, 0f), lSize, 0.6f, Color.Lerp(RockKit.Tint(pTheme.roadA, 0.5f), lTint, 0.4f));
+                        pRocks.Boulder(pRandom.Next(0, RockKit.BOULDERS), false, lCenter, Quaternion.Euler(180f, lYaw + 40f, 0f), lSize * 0.75f, 1.6f, lTint);
+                    }
+                    else
+                    {
+                        // Mountain : the scanned mountainside at landscape scale.
+                        float lHeight = Rand(pRandom, 120f, 320f);
+                        pRocks.Cliff(3, pLayout.spine.Point(lS, lLateral, lRoute - 200f), Quaternion.Euler(Rand(pRandom, -4f, 4f), Rand(pRandom, 0f, 360f), Rand(pRandom, -4f, 4f)), lHeight * 0.9f, 1.1f, lTint);
+                    }
+                    continue;
+                }
                 if (pRandom.NextDouble() < 0.6)
                 {
                     float lSize = Rand(pRandom, 25f, 80f);

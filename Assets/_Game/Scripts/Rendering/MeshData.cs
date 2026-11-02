@@ -86,6 +86,20 @@ namespace Com.IsartDigital.Hyperspeed
             for (int i = 0; i < lTriangles.Length; i++) triangles.Add(lTriangles[i] + lOffset);
         }
 
+        // Appends cached mesh arrays with their UVs (textured scanned rocks).
+        public void Append(Vector3[] pVertices, Vector3[] pNormals, Vector2[] pUvs, int[] pTriangles, Matrix4x4 pMatrix, Color pColor)
+        {
+            int lOffset = vertices.Count;
+            for (int i = 0; i < pVertices.Length; i++)
+            {
+                vertices.Add(pMatrix.MultiplyPoint3x4(pVertices[i]));
+                normals.Add(pMatrix.MultiplyVector(pNormals[i]).normalized);
+                colors.Add(pColor);
+                uvs.Add(pUvs.Length > i ? pUvs[i] : Vector2.zero);
+            }
+            for (int i = 0; i < pTriangles.Length; i++) triangles.Add(pTriangles[i] + lOffset);
+        }
+
         public Mesh ToMesh(string pName)
         {
             Mesh lMesh = new Mesh { name = pName };

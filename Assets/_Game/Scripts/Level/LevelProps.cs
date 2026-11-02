@@ -236,6 +236,7 @@ namespace Com.IsartDigital.Hyperspeed
         public static void DebrisField(Transform pRoot, LevelLayout pLayout, float pS0, float pS1, float pTop, float pBottom, Theme pTheme)
         {
             MeshData lData = new MeshData();
+            RockKit.Batch lRocks = RockKit.Available ? new RockKit.Batch() : null;
             System.Random lRandom = new System.Random(Mathf.RoundToInt(pS0 * 13f));
             int lCount = Mathf.RoundToInt((pS1 - pS0) / 6f);
             for (int i = 0; i < lCount; i++)
@@ -247,8 +248,10 @@ namespace Com.IsartDigital.Hyperspeed
                 float lSize = 2f + (float)lRandom.NextDouble() * 7f;
                 Quaternion lRotation = Quaternion.Euler((float)lRandom.NextDouble() * 360f, (float)lRandom.NextDouble() * 360f, (float)lRandom.NextDouble() * 360f);
                 Color lColor = Color.Lerp(pTheme.roadSide, pTheme.decorC, (float)lRandom.NextDouble());
-                RockSculptor.Place(lData, RockSculptor.Boulder(lRandom.Next(0, 6)), pLayout.spine.Point(lS, lLateral, lY), lRotation, new Vector3(lSize, lSize * 0.8f, lSize), lColor);
+                if (lRocks != null) lRocks.Boulder(lRandom.Next(0, RockKit.BOULDERS), true, pLayout.spine.Point(lS, lLateral, lY), lRotation, lSize * 1.3f, 1f, RockKit.Tint(lColor));
+                else RockSculptor.Place(lData, RockSculptor.Boulder(lRandom.Next(0, 6)), pLayout.spine.Point(lS, lLateral, lY), lRotation, new Vector3(lSize, lSize * 0.8f, lSize), lColor);
             }
+            if (lRocks != null && !lRocks.Empty) lRocks.Build("Debris", pRoot, Layers.DEBRIS, pTheme.shade, false);
             if (lData.Count > 0) MeshObject("Debris", pRoot, lData, Mats.Toon(Color.white, pTheme.shade, 0f, 0.3f, true), Layers.DEBRIS);
         }
     }

@@ -135,6 +135,34 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
             EditorUtility.SetDirty(lAssets);
             AssetDatabase.SaveAssets();
             WireRunner();
+            WireRocks();
+        }
+
+        private const string ROCKS = "Assets/_Game/Art/Environment/Rocks/";
+
+        // Scanned rocks for RockKit (boulders a-f, cliffs a-d, low boulders, albedo textures).
+        [MenuItem("Hyperspeed/Wire Rocks")]
+        public static void WireRocks()
+        {
+            GameAssets lAssets = AssetDatabase.LoadAssetAtPath<GameAssets>(GAME_ASSETS);
+            if (lAssets == null) return;
+            List<string> lNames = new List<string>();
+            foreach (char lLetter in "abcdef") lNames.Add("rock_boulder_" + lLetter);
+            foreach (char lLetter in "abcd") lNames.Add("rock_cliff_" + lLetter);
+            lAssets.rockMeshes = new Mesh[lNames.Count];
+            lAssets.rockTextures = new Texture2D[lNames.Count];
+            lAssets.rockMeshesLow = new Mesh[6];
+            for (int i = 0; i < lNames.Count; i++)
+            {
+                lAssets.rockMeshes[i] = AssetDatabase.LoadAssetAtPath<Mesh>(ROCKS + lNames[i] + ".fbx");
+                lAssets.rockTextures[i] = AssetDatabase.LoadAssetAtPath<Texture2D>(ROCKS + lNames[i] + "_diff.png");
+                if (i < 6) lAssets.rockMeshesLow[i] = AssetDatabase.LoadAssetAtPath<Mesh>(ROCKS + lNames[i] + "_lo.fbx");
+            }
+            EditorUtility.SetDirty(lAssets);
+            AssetDatabase.SaveAssets();
+            int lFound = 0;
+            foreach (Mesh lMesh in lAssets.rockMeshes) if (lMesh != null) lFound++;
+            Debug.Log("[Hyperspeed] Rocks wired : " + lFound + "/" + lNames.Count);
         }
 
         // Mixamo runner + generated controller into GameAssets (rerun automatically when Mixamo files are imported).

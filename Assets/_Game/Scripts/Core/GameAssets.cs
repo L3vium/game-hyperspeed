@@ -17,6 +17,10 @@ namespace Com.IsartDigital.Hyperspeed
         // Mixamo runner (Art/Character/Mixamo/runner_character.fbx) and its generated controller.
         public GameObject runnerPrefab;
         public RuntimeAnimatorController runnerController;
+        // Scanned rocks (Art/Environment/Rocks) : boulders a-f then cliffs a-d, low boulders a-f, albedo per mesh.
+        public Mesh[] rockMeshes;
+        public Mesh[] rockMeshesLow;
+        public Texture2D[] rockTextures;
 
         private static GameAssets _instance;
 

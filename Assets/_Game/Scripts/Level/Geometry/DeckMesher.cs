@@ -191,6 +191,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             MeshData lVisual = new MeshData();
             MeshData lCollision = new MeshData();
+            RockKit.Batch lRocks = RockKit.Available ? new RockKit.Batch() : null;
             bool lMembrane = pDeck.surface == DeckSurface.Membrane;
             float lSeed = pDeck.id * 5.7f;
 
@@ -261,7 +262,7 @@ namespace Com.IsartDigital.Hyperspeed
                     lVisual.FacetQuad(lP00, lP10, lP11, lP01, (lP00 + lP01) * 0.5f - lMidA, lColor);
                 }
 
-                if (!lMembrane) EdgeRocks(lVisual, pDeck, pTheme, lA, lB, k, pRandom);
+                if (!lMembrane) EdgeRocks(lVisual, lRocks, pDeck, pTheme, lA, lB, k, pRandom);
             }
 
             if (pK0 == 0 && pDeck.startCap) Cap(lVisual, lCollision, pDeck, pTheme, pSections[0], -1f, lSeed, lMembrane);
@@ -275,6 +276,8 @@ namespace Com.IsartDigital.Hyperspeed
             MeshCollider lCollider = lChunk.AddComponent<MeshCollider>();
             lCollider.sharedMesh = lCollision.ToMesh(lChunk.name + "_col");
             DeckChunk lDeckChunk = DeckChunk.Register(lChunk, pDeck, pSections[pK0].s, pSections[pK1].s, lCollider);
+            // Scanned edge rocks ride with the chunk (they fall with it when it crumbles).
+            if (lRocks != null && !lRocks.Empty) lRocks.Build(lChunk.name + "_Rocks", lChunk.transform, lChunk.layer, pTheme.shade, true);
             if (pCrumble && pDirector != null) pDirector.AddTile(lDeckChunk);
         }
 
@@ -308,10 +311,45 @@ namespace Com.IsartDigital.Hyperspeed
             }
         }
 
-        // Level art follows the edge kind : boulders on hard edges, small tufts on lips.
-        private static void EdgeRocks(MeshData pVisual, Deck pDeck, Theme pTheme, Section pA, Section pB, int pK, System.Random pRandom)
+        // Scanned boulders (low versions) : a broken rampart on hard edges, a few stones on lips.
+        private static void ScannedEdgeRocks(RockKit.Batch pRocks, Deck pDeck, Theme pTheme, Section pA, Section pB, int pK, System.Random pRandom)
+        {
+            for (int lSide = -1; lSide <= 1; lSide += 2)
+            {
+                EdgeKind lKind = lSide < 0 ? pDeck.edgeL[pK] : pDeck.edgeR[pK];
+                double lChance = lKind == EdgeKind.Wall ? 0.42 : lKind == EdgeKind.Lip ? 0.07 : 0.0;
+                if (pRandom.NextDouble() > lChance) continue;
+                float lT = (float)pRandom.NextDouble();
+                Vector3 lCenter = Vector3.Lerp(pA.c, pB.c, lT);
+                Vector3 lRight = Vector3.Slerp(pA.r, pB.r, lT);
+                Vector3 lUp = Vector3.Slerp(pA.u, pB.u, lT);
+                float lHalf = Mathf.Lerp(pA.half, pB.half, lT);
+                Quaternion lRotation = Quaternion.LookRotation(Vector3.Slerp(pA.f, pB.f, lT), lUp) * Quaternion.Euler((float)pRandom.NextDouble() * 16f - 8f, (float)pRandom.NextDouble() * 360f, (float)pRandom.NextDouble() * 16f - 8f);
+                Color lTint = RockKit.Tint(Color.Lerp(pTheme.decorC, pTheme.roadSide, (float)pRandom.NextDouble()), 0.55f);
+                if (lKind == EdgeKind.Wall)
+                {
+                    float lSize = 1.8f + (float)pRandom.NextDouble() * 2.6f;
+                    Vector3 lBase = lCenter + lRight * lSide * (lHalf + 0.3f + lSize * 0.22f) - lUp * 0.7f;
+                    pRocks.Boulder(pRandom.Next(0, 4), true, lBase, lRotation, lSize, 1f + (float)pRandom.NextDouble() * 0.4f, lTint);
+                }
+                else
+                {
+                    float lSize = 0.6f + (float)pRandom.NextDouble() * 0.6f;
+                    Vector3 lBase = lCenter + lRight * lSide * (lHalf + 0.25f) - lUp * 0.2f;
+                    pRocks.Boulder(4 + pRandom.Next(0, 2), true, lBase, lRotation, lSize, 1f, lTint);
+                }
+            }
+        }
+
+        // Level art follows the edge kind : boulders on hard edges, small stones on lips.
+        private static void EdgeRocks(MeshData pVisual, RockKit.Batch pRocks, Deck pDeck, Theme pTheme, Section pA, Section pB, int pK, System.Random pRandom)
         {
             if (pDeck.style != DeckStyle.Rock && pDeck.style != DeckStyle.Slab) return;
+            if (pRocks != null)
+            {
+                ScannedEdgeRocks(pRocks, pDeck, pTheme, pA, pB, pK, pRandom);
+                return;
+            }
             for (int lSide = -1; lSide <= 1; lSide += 2)
             {
                 EdgeKind lKind = lSide < 0 ? pDeck.edgeL[pK] : pDeck.edgeR[pK];
