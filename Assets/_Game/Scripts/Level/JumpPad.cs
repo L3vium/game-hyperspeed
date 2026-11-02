@@ -7,6 +7,10 @@ namespace Com.IsartDigital.Hyperspeed
     {
         public Vector3 target;
         public float bonus = 10f;
+        // Front face of the deck the pad sends you onto (distance ahead, height of its top above the pad) : the arc
+        // gets steeper and slower when it would otherwise reach that face before being above it.
+        public float faceDistance;
+        public float faceHeight;
 
         private Transform _spring;
         private Transform _marker;
@@ -62,8 +66,26 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lFlat = target - lFrom;
             lFlat.y = 0f;
             float lDistance = lFlat.magnitude;
-            float lHorizontal = Mathf.Max(pPlayer.Speed, 55f) + bonus;
+            // A pad is a scripted arc : capped horizontal speed (predictable landing) and an apex that always clears
+            // the target deck by 3 m (never into its front face at high speed).
+            float lHorizontal = Mathf.Clamp(pPlayer.Speed, 55f, 100f) + bonus;
             float lVertical = Ballistics.SolveVerticalSpeed(lDistance, lHorizontal, target.y - lFrom.y);
+            lVertical = Mathf.Max(lVertical, Mathf.Sqrt(2f * Ballistics.G_RISE * Mathf.Max(0f, target.y - lFrom.y + 3f)));
+            if (faceDistance > 1f && faceHeight > -1f)
+            {
+                float lClimb = Mathf.Min(Mathf.Max(lVertical, 30f), 48f);
+                float lDisc = lClimb * lClimb - 2f * Ballistics.G_RISE * (faceHeight + 1.5f);
+                if (lDisc > 0f)
+                {
+                    float lRise = (lClimb - Mathf.Sqrt(lDisc)) / Ballistics.G_RISE;
+                    float lMax = faceDistance / Mathf.Max(0.05f, lRise);
+                    if (lHorizontal > lMax)
+                    {
+                        lHorizontal = Mathf.Max(30f, lMax);
+                        lVertical = Mathf.Max(lVertical, lClimb);
+                    }
+                }
+            }
             Vector3 lVelocity = (lDistance > 0.1f ? lFlat / lDistance : transform.forward) * lHorizontal + Vector3.up * lVertical;
             pPlayer.LaunchTo(lVelocity, target);
             FX.Shockwave(transform.position + transform.up * 0.2f, transform.up, UIFactory.YELLOW, 10f);

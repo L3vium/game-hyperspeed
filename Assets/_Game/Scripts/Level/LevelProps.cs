@@ -40,7 +40,16 @@ namespace Com.IsartDigital.Hyperspeed
 
         public static void Jump(Transform pRoot, Deck pFrom, float pS, float pLateral, Deck pTo, float pToS, float pToLateral, Theme pTheme)
         {
-            JumpPad.Create(pRoot, pFrom.SurfacePoint(pS, pLateral), Rotation(pFrom, pS), pTo.SurfacePoint(pToS, pToLateral), Up(pTo, pToS), UIKit.GOLD);
+            Vector3 lPad = pFrom.SurfacePoint(pS, pLateral);
+            JumpPad lJump = JumpPad.Create(pRoot, lPad, Rotation(pFrom, pS), pTo.SurfacePoint(pToS, pToLateral), Up(pTo, pToS), UIKit.GOLD);
+            if (pTo.StartS > pS)
+            {
+                Vector3 lFace = pTo.SurfacePoint(pTo.StartS, pToLateral);
+                Vector3 lFlat = lFace - lPad;
+                lFlat.y = 0f;
+                lJump.faceDistance = lFlat.magnitude;
+                lJump.faceHeight = lFace.y - lPad.y;
+            }
         }
 
         public static void Ring(Transform pRoot, LevelLayout pLayout, float pS, float pLateral, float pHeight, Theme pTheme)

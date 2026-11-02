@@ -236,22 +236,30 @@ namespace Com.IsartDigital.Hyperspeed
             lMembrane.startCap = false;
             lMembrane.underDepth = 0.6f;
             float lM1 = _s;
-            BreakMain(false);
+            // The upper path ends over open air : everyone finishes on the lower deck and its pads bring them back
+            // up with nothing overhead (a pad under the next deck launched runners into its underside).
+            BreakMain();
+            Advance(100f, 0f, null, false);
             Advance(40f, 0f, null, true);
-            _main.startCap = false;
+            _main.startCap = true;
             Deck lAfter = _main;
-            Deck lLower = AddDeck(lM0 - 12f, lM1 + 24f, DeckStyle.Rock, DeckSurface.Solid, pS => 0f, pS => RouteHeight(pS) - pDepth, pS => MAIN_WIDTH, EdgeKind.Wall, EdgeKind.Wall);
+            Deck lLower = AddDeck(lM0 - 12f, lM1 + 60f, DeckStyle.Rock, DeckSurface.Solid, pS => 0f, pS => RouteHeight(pS) - pDepth, pS => MAIN_WIDTH, EdgeKind.Wall, EdgeKind.Wall);
             lLower.underDepth = 12f;
+            lLower.endCap = true;
             Act(lM0 + 12f, RouteAction.DropThrough, lMembrane);
-            Route(lM0 + 12f, lM1 + 24f, lLower);
+            Route(lM0 + 12f, lM1 + 60f, lLower);
             for (int i = 0; i < 3; i++)
             {
                 float lS = lM0 + 30f + i * (lM1 - lM0 - 40f) / 3f;
                 Spawn(() => LevelProps.Boost(root, lLower, lS, 0f, theme));
             }
-            float lPadS = lM1 + 14f;
-            float lLand = lM1 + 70f;
-            Spawn(() => LevelProps.Jump(root, lLower, lPadS, 0f, lAfter, lLand, 0f, theme));
+            float lPadS = lM1 + 20f;
+            float lLand = lM1 + 125f;
+            for (int i = -1; i <= 1; i++)
+            {
+                float lLateral = i * 8f;
+                Spawn(() => LevelProps.Jump(root, lLower, lPadS, lLateral, lAfter, lLand, lLateral * 0.5f, theme));
+            }
             Advance(60f, 0f, null, true);
             return this;
         }
