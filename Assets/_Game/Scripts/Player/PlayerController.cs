@@ -554,9 +554,10 @@ namespace Com.IsartDigital.Hyperspeed
         {
             if (_layout == null || State == PlayerState.Finished || State == PlayerState.Dead || _autoRun) return;
             if (State != PlayerState.Air && State != PlayerState.Crash) return;
+            // A predicted landing always wins : long plunges and dives fall far below the route line on purpose.
             bool lNoLanding = !HasLandingPrediction && transform.position.y < _takeoffY - 12f;
-            bool lBelow = transform.position.y < _layout.FloorY(Progress) - 14f;
-            if (lNoLanding || lBelow || _airTime > 7f) Die();
+            bool lBelow = !HasLandingPrediction && transform.position.y < _layout.FloorY(Progress) - 14f;
+            if (lNoLanding || lBelow || _airTime > (HasLandingPrediction ? 14f : 7f)) Die();
         }
 
         public void Die()
