@@ -550,13 +550,22 @@ namespace Com.IsartDigital.Hyperspeed
         }
 
         // Falling with nothing below : the layout knows within ~0.65 s.
+        private float _lostTime;
+
         private void CheckFallOut()
         {
             if (_layout == null || State == PlayerState.Finished || State == PlayerState.Dead || _autoRun) return;
-            if (State != PlayerState.Air && State != PlayerState.Crash) return;
+            if (State != PlayerState.Air && State != PlayerState.Crash)
+            {
+                _lostTime = 0f;
+                return;
+            }
             // A predicted landing always wins : long plunges and dives fall far below the route line on purpose.
-            bool lNoLanding = !HasLandingPrediction && transform.position.y < _takeoffY - 12f;
-            bool lBelow = !HasLandingPrediction && transform.position.y < _layout.FloorY(Progress) - 14f;
+            // Without one, the verdict waits 0.15 s so a single frame of doubt never kills.
+            _lostTime = HasLandingPrediction ? 0f : _lostTime + Time.deltaTime;
+            bool lLost = _lostTime > 0.15f;
+            bool lNoLanding = lLost && transform.position.y < _takeoffY - 12f;
+            bool lBelow = lLost && transform.position.y < _layout.FloorY(Progress) - 14f;
             if (lNoLanding || lBelow || _airTime > (HasLandingPrediction ? 14f : 7f))
             {
                 if (Autopilot.Enabled)

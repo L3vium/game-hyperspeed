@@ -4,7 +4,9 @@ Réglages communs : **FBX for Unity**, **30 fps**, Keyframe Reduction **none**, 
 Animations en **Without Skin**, personnages en **With Skin** (T-pose).
 Si une recherche ne donne rien de convaincant, saute la ligne : elle est couverte en procédural.
 
-L'import (rig Humanoid, boucles, matériaux toon, AnimatorController) se fait tout seul à partir des noms de fichiers.
+L'import (rig Humanoid, boucles, matériaux toon, AnimatorController) se fait tout seul à partir des noms de fichiers :
+dès qu'un FBX arrive ici, `Art/Character/Runner.controller` est régénéré et le coureur est branché dans `GameAssets`
+(menu **Hyperspeed > Wire Runner** pour forcer). Tant que `runner_character.fbx` manque, le jeu affiche une capsule provisoire.
 
 | Fichier à enregistrer | Recherche Mixamo | Ce qu'il faut |
 |---|---|---|

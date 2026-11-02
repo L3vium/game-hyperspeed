@@ -59,6 +59,8 @@ namespace Com.IsartDigital.Hyperspeed
             float lS = pHintS;
             for (float lT = 0f; lT < pMaxTime; lT += PREDICT_STEP)
             {
+                Vector3 lPrevious = lPosition;
+                float lPreviousS = lS;
                 lVelocity.y -= Gravity(lVelocity.y) * pGravityScale * PREDICT_STEP;
                 lPosition += lVelocity * PREDICT_STEP;
                 float lLateral;
@@ -68,6 +70,14 @@ namespace Com.IsartDigital.Hyperspeed
                 {
                     pTime = lT;
                     pS = lS;
+                    return true;
+                }
+                // A fast plunge can step past a surface : test the start of the step against the whole height it covered.
+                float lFall = lPrevious.y - lPosition.y;
+                if (lFall > 0.8f && pLayout.SurfaceBelow(lPrevious, lPreviousS, 0.4f, lFall + 0.6f, pIgnoreMembrane, out pHit))
+                {
+                    pTime = lT;
+                    pS = lPreviousS;
                     return true;
                 }
                 if (lPosition.y < pLayout.FloorY(lS) - 30f) break;
