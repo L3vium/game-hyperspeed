@@ -137,6 +137,15 @@ namespace Com.IsartDigital.Hyperspeed
 
         public static bool MouseClicked => Ms != null && Ms.leftButton.wasPressedThisFrame;
 
+        public static bool MouseHeld => Ms != null && Ms.leftButton.isPressed;
+
+        public static float MouseWheel => Ms != null ? Ms.scroll.ReadValue().y : 0f;
+
+        // Confirm without the jump key (on the title the runner jumps with Space / A).
+        public static bool SubmitMenuPressed =>
+            (Kb != null && (Kb.enterKey.wasPressedThisFrame || Kb.numpadEnterKey.wasPressedThisFrame)) ||
+            (Pad != null && Pad.startButton.wasPressedThisFrame);
+
         public static Vector2 MousePosition => Ms != null ? Ms.position.ReadValue() : Vector2.zero;
 
         public static Vector2 MouseDelta => Ms != null ? Ms.delta.ReadValue() : Vector2.zero;

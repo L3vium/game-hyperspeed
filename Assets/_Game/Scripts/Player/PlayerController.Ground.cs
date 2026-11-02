@@ -129,11 +129,11 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lCameraForward = CameraRig.Instance != null ? CameraRig.Instance.transform.forward : _heading;
             Vector3 lFlatForward = Vector3.ProjectOnPlane(lCameraForward, _up).normalized;
             Vector3 lFlatRight = Vector3.Cross(_up, lFlatForward).normalized;
-            Vector3 lInput = lFlatForward * HSInput.Forward + lFlatRight * HSInput.Steer;
+            Vector3 lInput = InputLocked ? Vector3.zero : lFlatForward * HSInput.Forward + lFlatRight * HSInput.Steer;
             float lAmount = Mathf.Clamp01(lInput.magnitude);
             if (lAmount > 0.1f) _heading = Vector3.RotateTowards(_heading, lInput.normalized, 10f * pDt, 0f);
             _heading = Vector3.ProjectOnPlane(_heading, _up).normalized;
-            float lTarget = lAmount * FREE_ROAM_SPEED * (HSInput.DashHeld ? 1.6f : 1f);
+            float lTarget = lAmount * FREE_ROAM_SPEED * (HSInput.DashHeld && !InputLocked ? 1.6f : 1f);
             _speed = Mathf.MoveTowards(_speed, lTarget, (lTarget > _speed ? 45f : 60f) * pDt);
             _psi = 0f;
         }

@@ -44,6 +44,8 @@ namespace Com.IsartDigital.Hyperspeed
         public Vector3 FacingDirection => _heading;
         public float BoostAmount => Mathf.Clamp01(_boostTimer / 0.6f);
         public bool CheatInvincible;
+        // Menus own the keyboard (title screen) : the runner idles in place.
+        public bool InputLocked;
         public bool Hyper { get; private set; }
         public bool Drifting { get; private set; }
         public int DriftDirection { get; private set; }
@@ -300,7 +302,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void ReadInput(float pDt)
         {
-            bool lCanAct = State != PlayerState.Crash && State != PlayerState.Finished && !_autoRun;
+            bool lCanAct = State != PlayerState.Crash && State != PlayerState.Finished && !_autoRun && !InputLocked;
             Steer = lCanAct ? HSInput.Steer : 0f;
             _jumpPressed = lCanAct && HSInput.JumpPressed;
             _dashPressed = lCanAct && HSInput.DashPressed && !_freeRoam;
