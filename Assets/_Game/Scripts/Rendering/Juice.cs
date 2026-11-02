@@ -106,14 +106,14 @@ namespace Com.IsartDigital.Hyperspeed
 
         // ---------------------------------------------------------------- impact frames
 
-        // Anime impact frame : ink-inverted frames + manga radial lines + Vefects impact sprite.
+        // Anime impact frame, reserved for the big moments (hyper speed entry, finish) : the real scene is inked
+        // for a few frames (inverted first), thin manga lines around the edges, Vefects scene-sampled sprite.
         public static void ImpactFrame(float pStrength = 1f)
         {
             Juice lJuice = Instance;
             if (PostFX.Instance != null) PostFX.Instance.Impact(pStrength > 0.8f ? 3 : 2);
             lJuice.ShowImpactOverlay(pStrength);
-            Shake(0.25f + 0.3f * pStrength);
-            if (CameraRig.Instance != null) CameraRig.Instance.FovPunch(-10f * pStrength);
+            Shake(0.2f + 0.2f * pStrength);
             GameObject lPrefab = GameAssets.Instance.impactFramePrefab;
             if (lPrefab != null && CameraRig.Instance != null && pStrength > 0.55f)
             {
@@ -123,13 +123,6 @@ namespace Com.IsartDigital.Hyperspeed
                 lFx.transform.localRotation = Quaternion.identity;
                 Destroy(lFx, 1.2f);
             }
-        }
-
-        // Impact frame anchored on a world hit (punch, smash).
-        public static void Impact(Vector3 pPoint, float pStrength = 1f)
-        {
-            Hitstop(0.05f + 0.05f * pStrength);
-            ImpactFrame(pStrength);
         }
 
         private void BuildImpactOverlay()
@@ -161,8 +154,8 @@ namespace Com.IsartDigital.Hyperspeed
             if (_impactCanvas == null || !_impactCanvas.gameObject.activeSelf) return;
             _impactTimer -= Time.unscaledDeltaTime;
             float lT = Mathf.Clamp01(_impactTimer / 0.12f);
-            _impactMaterial.SetFloat("_Intensity", lT * _impactStrength);
-            _impactBurst.color = new Color(1f, 1f, 1f, lT * 0.9f);
+            _impactMaterial.SetFloat("_Intensity", lT * _impactStrength * 0.6f);
+            _impactBurst.color = new Color(1f, 1f, 1f, 0f);
             _impactBurst.rectTransform.localScale = Vector3.one * Mathf.Lerp(1.6f, 0.6f, lT);
             if (_impactTimer <= 0f) _impactCanvas.gameObject.SetActive(false);
         }

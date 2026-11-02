@@ -11,12 +11,18 @@ namespace Com.IsartDigital.Hyperspeed
         public TMP_FontAsset bodyFont;
         public TMP_FontAsset thinFont;
         public GameObject impactFramePrefab;
-        public GameObject characterPrefab;
-        public Material[] characterMaterials;
-        public GameObject[] islandProps;
         public GameObject[] ambientParticles;
         public GameObject sparkBurstPrefab;
         public Texture2D[] icons;
+        // Mixamo runner (Art/Character/Mixamo/runner_character.fbx) and its generated controller.
+        public GameObject runnerPrefab;
+        public RuntimeAnimatorController runnerController;
+        // Scanned rocks (Art/Environment/Rocks) : boulders a-f then cliffs a-d, low boulders a-f, albedo per mesh.
+        public Mesh[] rockMeshes;
+        public Mesh[] rockMeshesLow;
+        public Texture2D[] rockTextures;
+        // Scanned ground albedo (Poly Haven rocky terrain, 90 m) for the world-space detail on decks and cliffs.
+        public Texture2D groundTexture;
 
         private static GameAssets _instance;
 

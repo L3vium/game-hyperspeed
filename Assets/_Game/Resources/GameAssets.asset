@@ -16,21 +16,6 @@ MonoBehaviour:
   bodyFont: {fileID: 11400000, guid: 693430919429cff4d9e10f1225ca56c8, type: 2}
   thinFont: {fileID: 11400000, guid: a7cf2bc8733f6c0468062c8e95e84690, type: 2}
   impactFramePrefab: {fileID: 7434498302926140362, guid: 66209373dd5e22140a220a74414d244b, type: 3}
-  characterPrefab: {fileID: 3235965575132758090, guid: 1c443c3abb862244aa6185fe28d5f5bb, type: 3}
-  characterMaterials:
-  - {fileID: 2100000, guid: cd82fe59e0d5d1e4ca6d8c08ef622892, type: 2}
-  - {fileID: 2100000, guid: 2d0e7cf74d0d8ab48836058b4de0b230, type: 2}
-  - {fileID: 2100000, guid: 928b88a01648706488cce51c652f3cdb, type: 2}
-  - {fileID: 2100000, guid: 4ed3ca1c8dda6b14684552fa6696679e, type: 2}
-  - {fileID: 2100000, guid: 5d6060ee673d9a4429f3d9ddc831f14a, type: 2}
-  - {fileID: 2100000, guid: cd82fe59e0d5d1e4ca6d8c08ef622892, type: 2}
-  islandProps:
-  - {fileID: 9060806240832988614, guid: a17e41bd688c1c24c96fee89d0577100, type: 3}
-  - {fileID: 7542192482378030675, guid: 7308e10b2eb647a46889dc811e71b1cf, type: 3}
-  - {fileID: 8769157947400576918, guid: 2c3adb11019fc1e45a449ac431b210a9, type: 3}
-  - {fileID: 3224241093639303699, guid: 7128ac1a1d97c724483da331530b0e6e, type: 3}
-  - {fileID: 1506861836641392221, guid: 9e14fda5d8ea96746b484e814d499873, type: 3}
-  - {fileID: 3325360541173626388, guid: f537370f26f555b4eaad36bf1524674f, type: 3}
   ambientParticles:
   - {fileID: 3456768597155298673, guid: 0b28d04bc9a122543ae0f12a59c00b20, type: 3}
   - {fileID: 1449064860000398824, guid: de89c977f177310489b6d6cb12a9a3f6, type: 3}
@@ -48,3 +33,35 @@ MonoBehaviour:
   - {fileID: 2800000, guid: 55bc8cc463c871b4a98f2afc6370ca56, type: 3}
   - {fileID: 2800000, guid: 7ff557daa0753914bad0b618db6e2f67, type: 3}
   - {fileID: 2800000, guid: da9f9c34ca362654d9e10c61a74d99ae, type: 3}
+  runnerPrefab: {fileID: 0}
+  runnerController: {fileID: 0}
+  rockMeshes:
+  - {fileID: -1262097558908715089, guid: ee7de86c879b9454387fadc37e1c3b4c, type: 3}
+  - {fileID: 4945154018058572060, guid: d5e1894f64c088843b4d52bce22e2d9d, type: 3}
+  - {fileID: -6832688024708798678, guid: 649731bbf51308a4bbd2ea36ad94531a, type: 3}
+  - {fileID: -4503819094059145448, guid: 8f595a489fcd486478066c48ba915567, type: 3}
+  - {fileID: 2181582826432374005, guid: 86d5a1da6e1cf874697c0498268917fb, type: 3}
+  - {fileID: 7437677136645429035, guid: 01209a055e16a6f4aaa008189ca6c6e2, type: 3}
+  - {fileID: -5769096461892032435, guid: 3220166eec461d340b9431c435e8065a, type: 3}
+  - {fileID: 4139135412125070454, guid: 235cab393edb07e438b2f22ccd6956b4, type: 3}
+  - {fileID: -4823702235097825742, guid: 99e52bec98916f645830f9264808eea0, type: 3}
+  - {fileID: 3611466593646140529, guid: eb04c5831281ae748a53de13ea3051f4, type: 3}
+  rockMeshesLow:
+  - {fileID: -861038955402826218, guid: 54dd7a03dc03a6746bb22aab6a449dfd, type: 3}
+  - {fileID: 6811434219833466807, guid: b496f3fb51e752b49a078e4cf1e508fc, type: 3}
+  - {fileID: -1134797805558399968, guid: ab720f45c96e39149bc27637a17a8c21, type: 3}
+  - {fileID: -3613068954562932229, guid: 98e83aab5b9c6ae439c4998f56cea1b6, type: 3}
+  - {fileID: -4895954406851200014, guid: ced7cbe5d2465444cb1878bf9b4d2804, type: 3}
+  - {fileID: -8623924950805609081, guid: a1b6e4c46f1d8bb4caaefbf99f8b4034, type: 3}
+  rockTextures:
+  - {fileID: 2800000, guid: 45f18d4214fd82448a0f9a26d86ae3ed, type: 3}
+  - {fileID: 2800000, guid: 615bf5b3e9d3440419226173448dce2d, type: 3}
+  - {fileID: 2800000, guid: ffe158d109f80a640a924523e6194e0c, type: 3}
+  - {fileID: 2800000, guid: ef38aa1187112b346a722df172e58c9e, type: 3}
+  - {fileID: 2800000, guid: 42c616b0c71edd74ca60f64281b5596f, type: 3}
+  - {fileID: 2800000, guid: 6da1938be7a01e6419e17099263f9380, type: 3}
+  - {fileID: 2800000, guid: f01cc134018a8eb4fb570776eb2c25a7, type: 3}
+  - {fileID: 2800000, guid: ef28c752ab5ecf242b1a5216309a6c0f, type: 3}
+  - {fileID: 2800000, guid: 0aecf3a86c037014c8380d9a6f574dc8, type: 3}
+  - {fileID: 2800000, guid: 45c27ec3d99fc1c43901614fa338a054, type: 3}
+  groundTexture: {fileID: 2800000, guid: a0b9923278a9abc4bb4dc1ea975e2a72, type: 3}

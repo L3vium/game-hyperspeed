@@ -25,6 +25,8 @@ Shader "Hyperspeed/Stylize"
             float _HS_Flash;
             float4 _HS_FlashColor;
             float4 _HS_ImpactColor;
+            float _HS_Rewind;
+            float _HS_Desaturate;
 
             static const float BAYER[16] = { 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 };
 
@@ -49,7 +51,8 @@ Shader "Hyperspeed/Stylize"
                 if (_HS_RadialBlur > 0.001)
                 {
                     half3 lAccum = lColor;
-                    float lStrength = _HS_RadialBlur * 0.06 * saturate(lEdge * 1.5);
+                    // Blur only outside a central ellipse : the runner and the road ahead stay crisp.
+                    float lStrength = _HS_RadialBlur * 0.06 * smoothstep(0.28, 1.1, lEdge);
                     [unroll] for (int i = 1; i <= 6; i++)
                     {
                         lAccum += SampleScene(lUV - lDelta * lStrength * i);
@@ -71,6 +74,14 @@ Shader "Hyperspeed/Stylize"
                     // First impact frames are inverted (black sky, white ink), then plain ink.
                     if (_HS_Impact > 0.5) lInk = 1.0 - lInk;
                     lColor = lInk;
+                }
+
+                if (_HS_Rewind > 0.001)
+                {
+                    half lGrey = dot(lColor, half3(0.299, 0.587, 0.114));
+                    lColor = lerp(lColor, half3(lGrey * 0.85, lGrey * 0.95, lGrey * 1.15), saturate(_HS_Desaturate));
+                    float lScan = 0.85 + 0.15 * step(0.5, frac(lUV.y * _ScreenParams.y * 0.25 + _Time.y * 30.0));
+                    lColor *= lerp(1.0, lScan, _HS_Rewind);
                 }
 
                 lColor = lerp(lColor, _HS_FlashColor.rgb, saturate(_HS_Flash));

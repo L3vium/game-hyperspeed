@@ -14,6 +14,7 @@ namespace Com.IsartDigital.Hyperspeed
         private readonly List<Vector3> _points = new List<Vector3>();
         private readonly List<Vector3> _ups = new List<Vector3>();
         private readonly List<float> _distances = new List<float>();
+        private readonly List<float> _spineS = new List<float>();
         private Bounds _bounds;
 
         public float Length { get; private set; }
@@ -23,56 +24,75 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void OnDisable() => All.Remove(this);
 
-        public void AddPoint(Vector3 pPoint, Vector3 pUp)
+        public void AddPoint(Vector3 pPoint, Vector3 pUp, float pSpineS = 0f)
         {
             if (_points.Count > 0) Length += Vector3.Distance(_points[_points.Count - 1], pPoint);
             _points.Add(pPoint);
             _ups.Add(pUp);
             _distances.Add(Length);
+            _spineS.Add(pSpineS);
         }
 
-        public void Finish(Color pColor, Color pPostColor)
+        public float StartS => _spineS.Count > 0 ? _spineS[0] : 0f;
+
+        public float EndS => _spineS.Count > 0 ? _spineS[_spineS.Count - 1] : 0f;
+
+        // Spine distance under a rail distance (progress while grinding).
+        public float SpineS(float pDistance)
+        {
+            pDistance = Mathf.Clamp(pDistance, 0f, Length);
+            int lIndex = 1;
+            while (lIndex < _distances.Count - 1 && _distances[lIndex] < pDistance) lIndex++;
+            float lT = Mathf.InverseLerp(_distances[lIndex - 1], _distances[lIndex], pDistance);
+            return Mathf.Lerp(_spineS[lIndex - 1], _spineS[lIndex], lT);
+        }
+
+        private void ComputeBounds()
         {
             _bounds = new Bounds(_points[0], Vector3.zero);
             foreach (Vector3 lPoint in _points) _bounds.Encapsulate(lPoint);
             _bounds.Expand(8f);
-            BuildTube(pColor);
-            Material lPost = Mats.Toon(pPostColor, null, 0.02f);
-            for (float lDist = 4f; lDist < Length; lDist += 14f)
-            {
-                Vector3 lPos, lTangent, lUp;
-                Evaluate(lDist, out lPos, out lTangent, out lUp);
-                GameObject lPostObject = Mats.Primitive(PrimitiveType.Cube, transform, lPos - lUp * 1.6f, new Vector3(0.35f, 3.2f, 0.35f), lPost);
-                lPostObject.transform.rotation = Quaternion.LookRotation(lTangent, lUp);
-            }
         }
 
-        // Zip line : thin cable between two towers, glowing handle markers along it.
+        // Floating glowing tube (no posts : rails are embedded in the deck troughs at both ends).
+        public void Finish(Color pColor)
+        {
+            ComputeBounds();
+            BuildTube(pColor);
+        }
+
+        // Zip line : thin cable between two sculpted towers, glowing handle markers along it.
         public void FinishZip(Color pTowerColor, Color pAccent)
         {
-            _bounds = new Bounds(_points[0], Vector3.zero);
-            foreach (Vector3 lPoint in _points) _bounds.Encapsulate(lPoint);
-            _bounds.Expand(8f);
+            ComputeBounds();
             BuildTube(pAccent, 0.09f, Mats.Toon(new Color(0.12f, 0.1f, 0.14f), null, 0f));
-            Material lTower = Mats.Toon(pTowerColor, null, 0.03f);
-            Material lGlow = Mats.Glow(pAccent * 2.5f, false, 0f, 0f, true);
+            MeshData lTowers = new MeshData();
             for (int i = 0; i < 2; i++)
             {
-                Vector3 lTop = i == 0 ? _points[0] : _points[_points.Count - 1];
-                GameObject lPole = Mats.Primitive(PrimitiveType.Cube, transform, lTop - Vector3.up * 7f, new Vector3(0.9f, 14f, 0.9f), lTower);
-                lPole.transform.rotation = Quaternion.LookRotation(Vector3.ProjectOnPlane(_points[_points.Count - 1] - _points[0], Vector3.up), Vector3.up);
-                Mats.Primitive(PrimitiveType.Cube, transform, lTop + Vector3.up * 0.4f, new Vector3(2.4f, 0.5f, 0.5f), lGlow).transform.rotation = lPole.transform.rotation;
+                Vector3 lTop = transform.InverseTransformPoint(i == 0 ? _points[0] : _points[_points.Count - 1]);
+                RockSculptor.Place(lTowers, RockSculptor.Shard(i), lTop - Vector3.up * 16f, Quaternion.identity, new Vector3(1.6f, 6.5f, 1.6f), pTowerColor);
             }
+            GameObject lTowerObject = new GameObject("Towers");
+            lTowerObject.transform.SetParent(transform, false);
+            lTowerObject.AddComponent<MeshFilter>().sharedMesh = lTowers.ToMesh("ZipTowers");
+            lTowerObject.AddComponent<MeshRenderer>().sharedMaterial = Mats.Toon(Color.white, null, 0.02f, 0.35f, true);
+            Material lGlow = Mats.Glow(pAccent * 2.5f, false, 0f, 0f, true);
             for (float lDist = 6f; lDist < Length; lDist += 9f)
             {
                 Vector3 lPos, lTangent, lUp;
                 Evaluate(lDist, out lPos, out lTangent, out lUp);
-                Mats.Primitive(PrimitiveType.Sphere, transform, lPos, Vector3.one * 0.45f, lGlow);
+                GameObject lMarker = new GameObject("Handle");
+                lMarker.transform.SetParent(transform, false);
+                lMarker.transform.position = lPos;
+                lMarker.transform.rotation = Quaternion.LookRotation(lTangent);
+                lMarker.AddComponent<MeshFilter>().sharedMesh = MeshUtil.Ring(0.18f, 0.42f, 12);
+                lMarker.AddComponent<MeshRenderer>().sharedMaterial = lGlow;
             }
         }
 
         private void BuildTube(Color pColor)
         {
+            if (_points.Count < 2) return;
             Material lMaterial = Mats.GlowStripes(pColor * 2.2f, 1f, 3f);
             lMaterial.SetFloat("_Cull", 2f);
             BuildTube(pColor, TUBE_RADIUS, lMaterial);

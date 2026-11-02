@@ -743,6 +743,41 @@ def music_race_v2(name, bpm, progression, seed_lead, dark=False):
     write(name, None, 0.88, (left, right))
 
 
+def make_sfx_v3():
+    """Platform-era sounds : fall, rewind, glide, meteor warning, collapse rumble."""
+    # Fall : descending whistle over rushing wind.
+    fall = mix(sine_sweep(1400, 220, 1.0, 0.7) * env_adsr(1.0, 0.02, 0.2, 0.7, 0.4) * 0.35, whoosh(1.0, 3000, 300) * 0.9)
+    write("sfx_fall", fade(reverb(fall, 1.2, 0.35, 0.25)), 0.8)
+
+    # Rewind : tape spun backward, warbling upward, ends on a soft click.
+    d = 0.75
+    t = t_axis(d)
+    warble = np.sin(2 * np.pi * np.cumsum(220 * (1 + 8 * (t / d) ** 2) * (1 + 0.15 * np.sin(2 * np.pi * 22 * t))) / SR)
+    tape = mix(warble * 0.35 * np.linspace(0.3, 1, len(t)), whoosh(d, 400, 8000)[::-1] * 0.8, highpass(noise(d), 4000) * 0.1)
+    click = highpass(noise(0.02), 3000) * env_exp(0.02, 0.004)
+    write("sfx_rewind", fade(mix(tape, at(click * 0.8, d - 0.02))), 0.75)
+
+    # Glide : fabric snapping open, then a soft airflow loop.
+    flap = lambda: bandpass(noise(0.07), 300, 2600) * env_exp(0.07, 0.015)
+    snap = mix(flap(), at(flap() * 0.8, 0.06), at(flap() * 0.6, 0.11), whoosh(0.35, 2500, 600) * 0.5)
+    write("sfx_glide_open", fade(reverb(snap, 0.6, 0.2, 0.15)), 0.75)
+    gt = t_axis(3.0)
+    air = bandpass(noise(3.0), 350, 1800) * (0.75 + 0.25 * np.sin(2 * np.pi * 0.7 * gt)) + lowpass(noise(3.0), 160) * 0.4
+    write("sfx_glide_loop", loopable(air, 0.4), 0.55)
+
+    # Meteor warning : two-tone alarm ping with an incoming whistle.
+    beep = lambda f: np.sin(2 * np.pi * f * t_axis(0.12)) * env_adsr(0.12, 0.005, 0.03, 0.7, 0.05)
+    warn = mix(beep(1320), at(beep(990), 0.16), at(sine_sweep(3000, 900, 0.9, 0.5) * env_adsr(0.9, 0.3, 0.2, 0.6, 0.3) * 0.3, 0.2),
+               at(whoosh(0.8, 6000, 900) * 0.5, 0.3))
+    write("sfx_meteor_warn", fade(reverb(warn, 1.0, 0.3, 0.25)), 0.8)
+
+    # Collapse rumble : sub-heavy loop with grinding debris.
+    rt = t_axis(3.0)
+    rumble = mix(lowpass(noise(3.0), 110) * 1.2, np.sin(2 * np.pi * 38 * rt) * 0.35 * (1 + 0.3 * np.sin(2 * np.pi * 1.3 * rt)),
+                 bandpass(noise(3.0), 500, 1400) * 0.12 * (0.5 + 0.5 * np.sin(2 * np.pi * 3.1 * rt)))
+    write("sfx_rumble_loop", loopable(drive(rumble, 1.5), 0.5), 0.75)
+
+
 if __name__ == "__main__":
     make_sfx()
     make_sfx_v2()
@@ -752,3 +787,4 @@ if __name__ == "__main__":
     music_race_v2("music_race2", 180, [(52, "m"), (53, "M"), (52, "m"), (50, "m7")], 9, dark=True)
     music_win()
     music_lose()
+    make_sfx_v3()

@@ -17,6 +17,7 @@ namespace Com.IsartDigital.Hyperspeed
         // Virtual inputs written by the autopilot (attract / test mode).
         public static float BotSteer;
         public static bool BotSlideHeld;
+        public static bool BotGlideHeld;
         public static int BotJumpFrame = -1;
         public static int BotDashFrame = -1;
         public static int BotSlideFrame = -1;
@@ -75,21 +76,40 @@ namespace Com.IsartDigital.Hyperspeed
             (Kb != null && (Kb.wKey.wasPressedThisFrame || Kb.zKey.wasPressedThisFrame || Kb.upArrowKey.wasPressedThisFrame)) ||
             (Pad != null && (Pad.rightTrigger.wasPressedThisFrame || Pad.dpad.up.wasPressedThisFrame));
 
-        public static bool JumpHeld =>
+        public static bool JumpHeld => BotGlideHeld ||
             (Kb != null && Kb.spaceKey.isPressed) || (Pad != null && Pad.buttonSouth.isPressed);
+
+        public static bool DashHeld =>
+            (Kb != null && Kb.leftShiftKey.isPressed) || (Pad != null && (Pad.rightShoulder.isPressed || Pad.buttonEast.isPressed));
+
+        // Camera orbit while free roaming : mouse (cursor locked) or right stick, in degrees this frame.
+        public static Vector2 LookDelta
+        {
+            get
+            {
+                Vector2 lValue = Vector2.zero;
+                if (Ms != null) lValue += Ms.delta.ReadValue() * 0.12f;
+                if (Pad != null)
+                {
+                    Vector2 lStick = Pad.rightStick.ReadValue();
+                    if (lStick.magnitude > STICK_DEADZONE) lValue += lStick * 160f * Time.unscaledDeltaTime;
+                }
+                return lValue;
+            }
+        }
 
         public static bool DashPressed => Bot(BotDashFrame) ||
             (Kb != null && Kb.leftShiftKey.wasPressedThisFrame) || (Ms != null && Ms.rightButton.wasPressedThisFrame) ||
             (Pad != null && (Pad.rightShoulder.wasPressedThisFrame || Pad.buttonEast.wasPressedThisFrame));
 
-        // Ground : drift. Air : dive.
+        // Crouch. Ground : slide / drift, drop through cracked floors. Air : dive to the platform below.
         public static bool SlidePressed => Bot(BotSlideFrame) ||
-            (Kb != null && (Kb.leftCtrlKey.wasPressedThisFrame || Kb.cKey.wasPressedThisFrame)) ||
-            (Pad != null && (Pad.leftTrigger.wasPressedThisFrame || Pad.leftShoulder.wasPressedThisFrame));
+            (Kb != null && (Kb.leftCtrlKey.wasPressedThisFrame || Kb.cKey.wasPressedThisFrame || Kb.sKey.wasPressedThisFrame || Kb.downArrowKey.wasPressedThisFrame)) ||
+            (Pad != null && (Pad.leftTrigger.wasPressedThisFrame || Pad.leftShoulder.wasPressedThisFrame || Pad.dpad.down.wasPressedThisFrame));
 
         public static bool SlideHeld => BotSlideHeld ||
-            (Kb != null && (Kb.leftCtrlKey.isPressed || Kb.cKey.isPressed)) ||
-            (Pad != null && (Pad.leftTrigger.isPressed || Pad.leftShoulder.isPressed));
+            (Kb != null && (Kb.leftCtrlKey.isPressed || Kb.cKey.isPressed || Kb.sKey.isPressed || Kb.downArrowKey.isPressed)) ||
+            (Pad != null && (Pad.leftTrigger.isPressed || Pad.leftShoulder.isPressed || Pad.dpad.down.isPressed));
 
         public static bool PunchPressed => Bot(BotPunchFrame) ||
             (Kb != null && (Kb.eKey.wasPressedThisFrame || Kb.fKey.wasPressedThisFrame)) || (Ms != null && Ms.leftButton.wasPressedThisFrame) ||
@@ -116,6 +136,15 @@ namespace Com.IsartDigital.Hyperspeed
             (Pad != null && (Pad.buttonSouth.wasPressedThisFrame || Pad.startButton.wasPressedThisFrame || Pad.buttonEast.wasPressedThisFrame));
 
         public static bool MouseClicked => Ms != null && Ms.leftButton.wasPressedThisFrame;
+
+        public static bool MouseHeld => Ms != null && Ms.leftButton.isPressed;
+
+        public static float MouseWheel => Ms != null ? Ms.scroll.ReadValue().y : 0f;
+
+        // Confirm without the jump key (on the title the runner jumps with Space / A).
+        public static bool SubmitMenuPressed =>
+            (Kb != null && (Kb.enterKey.wasPressedThisFrame || Kb.numpadEnterKey.wasPressedThisFrame)) ||
+            (Pad != null && Pad.startButton.wasPressedThisFrame);
 
         public static Vector2 MousePosition => Ms != null ? Ms.position.ReadValue() : Vector2.zero;
 

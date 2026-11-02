@@ -24,6 +24,9 @@ Shader "Hyperspeed/Toon"
         _Flash ("Flash", Range(0,1)) = 0
         _UseVertexColor ("Use Vertex Color", Range(0,1)) = 1
         _RoadStreaks ("Road Speed Streaks", Range(0,1)) = 0
+        _GroundMap ("Ground Detail (world triplanar)", 2D) = "grey" {}
+        _GroundScale ("Ground Scale (1/m)", Float) = 0.011
+        _GroundAmount ("Ground Amount", Range(0,1)) = 0
     }
 
     SubShader
@@ -35,6 +38,8 @@ Shader "Hyperspeed/Toon"
 
         TEXTURE2D(_BaseMap);
         SAMPLER(sampler_BaseMap);
+        TEXTURE2D(_GroundMap);
+        SAMPLER(sampler_GroundMap);
 
         CBUFFER_START(UnityPerMaterial)
             float4 _BaseMap_ST;
@@ -57,6 +62,8 @@ Shader "Hyperspeed/Toon"
             half _Flash;
             half _UseVertexColor;
             half _RoadStreaks;
+            float _GroundScale;
+            half _GroundAmount;
         CBUFFER_END
 
         float _HS_RoadScroll;
@@ -143,6 +150,22 @@ Shader "Hyperspeed/Toon"
                 lBand = saturate(lBand + lHalftone);
 
                 half3 lAlbedo = _BaseColor.rgb * input.color.rgb * SAMPLE_TEXTURE2D(_BaseMap, sampler_BaseMap, input.uv).rgb;
+
+                // Scanned ground detail in world space (triplanar) : mostly luminance so the theme colors survive.
+                if (_GroundAmount > 0)
+                {
+                    float3 lBlend = pow(abs(lNormal), 4.0);
+                    lBlend /= lBlend.x + lBlend.y + lBlend.z + 1e-4;
+                    float3 lP = input.positionWS * _GroundScale;
+                    half3 lGround = SAMPLE_TEXTURE2D(_GroundMap, sampler_GroundMap, lP.zy).rgb * lBlend.x
+                                  + SAMPLE_TEXTURE2D(_GroundMap, sampler_GroundMap, lP.xz).rgb * lBlend.y
+                                  + SAMPLE_TEXTURE2D(_GroundMap, sampler_GroundMap, lP.xy).rgb * lBlend.z;
+                    half3 lMean = max(SAMPLE_TEXTURE2D_LOD(_GroundMap, sampler_GroundMap, float2(0.5, 0.5), 12).rgb, 0.05);
+                    half lLuma = dot(lGround, half3(0.299, 0.587, 0.114)) / dot(lMean, half3(0.299, 0.587, 0.114));
+                    half3 lDetail = lerp(lLuma.xxx, lGround / lMean, 0.3);
+                    lAlbedo *= lerp(half3(1, 1, 1), lDetail, _GroundAmount);
+                }
+
                 half3 lShade = lAlbedo * _ShadeColor.rgb;
                 half3 lColor = lerp(lShade, lAlbedo, lBand) * lerp(half3(1,1,1), lLight.color, 0.35);
                 lColor += SampleSH(lNormal) * lAlbedo * 0.25;

@@ -3,9 +3,12 @@ using UnityEngine.Rendering;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // Sky, light, fog and scenery props scattered around the track path.
+    // Sky, light, fog, and the scenery of a broken world : speed props rushing past the route, floating islands and
+    // spires in the distance, wind streaks living in the level (never glued to the camera).
     public static class EnvironmentBuilder
     {
+        private const float CHUNK = 220f;
+
         public static Light Build(Theme pTheme, Transform pRoot)
         {
             Material lSky = new Material(Shader.Find("Hyperspeed/Sky"));
@@ -40,99 +43,203 @@ namespace Com.IsartDigital.Hyperspeed
             return lLight;
         }
 
-        public static void Decorate(Theme pTheme, TrackPath pPath, Transform pRoot, int pSeed)
+        public static void Decorate(Theme pTheme, LevelLayout pLayout, Transform pRoot, int pSeed)
         {
-            Random.State lState = Random.state;
-            Random.InitState(pSeed);
-            Transform lDecorRoot = new GameObject("Decor").transform;
-            lDecorRoot.SetParent(pRoot, false);
+            Transform lDecor = new GameObject("Decor").transform;
+            lDecor.SetParent(pRoot, false);
+            System.Random lRandom = new System.Random(pSeed);
+            Material lMaterial = Mats.Toon(Color.white, pTheme.shade, 0f, 0.3f, true);
 
-            float lLength = pPath.Length;
-            for (float lD = 0f; lD < lLength; lD += Random.Range(14f, 30f))
+            float lEnd = pLayout.spine.EndS;
+            for (float lChunk = pLayout.spine.StartS; lChunk < lEnd; lChunk += CHUNK)
             {
-                TrackSample lSample = pPath.Evaluate(lD);
-                if (Vector3.Dot(lSample.Up, Vector3.up) < 0.7f) continue;
-                int lSide = Random.value < 0.5f ? -1 : 1;
-                float lLateral = lSide * Random.Range(lSample.width * 0.5f + 22f, 160f);
-                Vector3 lFlatForward = Vector3.ProjectOnPlane(lSample.Forward, Vector3.up).normalized;
-                Vector3 lFlatRight = Vector3.Cross(Vector3.up, lFlatForward);
-                Vector3 lPosition = lSample.position + lFlatRight * lLateral + Vector3.up * Random.Range(-35f, 8f);
-                if (TooClose(pPath, lPosition, 26f)) continue;
-                float lScale = Random.Range(0.8f, 1.6f) * Mathf.Lerp(1f, 2.2f, Mathf.Abs(lLateral) / 160f);
-                PropFactory.Decor(pTheme.decor, pTheme, lDecorRoot, lPosition, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), lScale);
-                // Scenery close to the road is solid : you can land on it and run back.
-                if (Mathf.Abs(lLateral) < 75f) PropFactory.MakeSolid(lDecorRoot.GetChild(lDecorRoot.childCount - 1));
+                MeshData lData = new MeshData();
+                RockKit.Batch lRocks = RockKit.Available ? new RockKit.Batch() : null;
+                SpeedProps(lData, lRocks, pTheme, pLayout, lChunk, Mathf.Min(lEnd, lChunk + CHUNK), lRandom);
+                DistantScenery(lData, lRocks, pTheme, pLayout, lChunk, Mathf.Min(lEnd, lChunk + CHUNK), lRandom);
+                if (lRocks != null && !lRocks.Empty) lRocks.Build("Rocks" + Mathf.RoundToInt(lChunk), lDecor, Layers.DEBRIS, pTheme.shade, false);
+                if (lData.Count == 0) continue;
+                GameObject lObject = new GameObject("Scenery" + Mathf.RoundToInt(lChunk));
+                lObject.transform.SetParent(lDecor, false);
+                lObject.layer = Layers.DEBRIS;
+                lObject.AddComponent<MeshFilter>().sharedMesh = lData.ToMesh(lObject.name);
+                MeshRenderer lRenderer = lObject.AddComponent<MeshRenderer>();
+                lRenderer.sharedMaterial = lMaterial;
+                lRenderer.shadowCastingMode = ShadowCastingMode.Off;
             }
+            WorldWind.Create(pTheme, pRoot);
+        }
 
-            // Stepping platforms just off the road at road height.
-            for (float lD = 60f; lD < lLength; lD += Random.Range(45f, 90f))
-            {
-                TrackSample lSample = pPath.Evaluate(lD);
-                if (!lSample.solid || Vector3.Dot(lSample.Up, Vector3.up) < 0.9f) continue;
-                int lSide = Random.value < 0.5f ? -1 : 1;
-                Vector3 lFlatForward = Vector3.ProjectOnPlane(lSample.Forward, Vector3.up).normalized;
-                Vector3 lFlatRight = Vector3.Cross(Vector3.up, lFlatForward);
-                Vector3 lPosition = lSample.position + lFlatRight * lSide * Random.Range(lSample.width * 0.5f + 14f, lSample.width * 0.5f + 26f) + Vector3.up * Random.Range(-4f, 3f);
-                if (TooClose(pPath, lPosition, 15f)) continue;
-                PropFactory.Platform(lDecorRoot, lPosition, Quaternion.LookRotation(lFlatForward), pTheme, Random.Range(9f, 15f));
-            }
+        // Outermost platform extent on one side at s (props never come closer than that + margin).
+        private static float Extent(LevelLayout pLayout, float pS, int pSide)
+        {
+            float lExtent = 12f;
+            foreach (Deck lDeck in pLayout.DecksAt(pS))
+                lExtent = Mathf.Max(lExtent, lDeck.LateralOffset(pS) * pSide + lDeck.Width(pS) * 0.5f);
+            return lExtent;
+        }
 
-            if (pTheme.decor == DecorKind.Islands || pTheme.decor == DecorKind.Desert || pTheme.decor == DecorKind.Ice)
+        private static float Rand(System.Random pRandom, float pMin, float pMax) => pMin + (float)pRandom.NextDouble() * (pMax - pMin);
+
+        // Scanned rock faces tall enough to stand as spires (the wide Namaqualand shelf is kept for islands).
+        private static readonly int[] SPIRES = { 0, 1, 3 };
+
+        // Close props on both sides, every 25-50 m : the eye reads speed from things flashing by.
+        private static void SpeedProps(MeshData pData, RockKit.Batch pRocks, Theme pTheme, LevelLayout pLayout, float pS0, float pS1, System.Random pRandom)
+        {
+            for (float lS = pS0 + Rand(pRandom, 5f, 25f); lS < pS1; lS += Rand(pRandom, 25f, 50f))
             {
-                for (float lD = 30f; lD < lLength; lD += Random.Range(50f, 110f))
+                int lSide = pRandom.NextDouble() < 0.5 ? -1 : 1;
+                float lLateral = lSide * (Extent(pLayout, lS, lSide) + Rand(pRandom, 8f, 40f));
+                float lBase = pLayout.FloorY(lS) - Rand(pRandom, 10f, 40f);
+                float lRoute = pLayout.spine.Height(lS);
+                double lKind = pRandom.NextDouble();
+                Color lColor = Color.Lerp(pTheme.decorB, pTheme.decorC, (float)pRandom.NextDouble());
+                if (pRocks != null)
                 {
-                    TrackSample lSample = pPath.Evaluate(lD);
-                    Vector3 lPosition = lSample.position + Random.onUnitSphere * Random.Range(70f, 160f);
-                    if (TooClose(pPath, lPosition, 65f)) continue;
-                    PropFactory.FloatingRock(lDecorRoot, lPosition, Random.Range(0.4f, 1.1f));
+                    Color lTint = RockKit.Tint(lColor);
+                    if (lKind < 0.45)
+                    {
+                        // Rock spire rising from the abyss (a scanned rock face stood up), top around route height.
+                        float lHeight = lRoute - lBase + Rand(pRandom, -6f, 25f);
+                        float lWidth = Mathf.Max(Rand(pRandom, 6f, 14f), lHeight * 0.28f);
+                        pRocks.Cliff(SPIRES[pRandom.Next(0, SPIRES.Length)], pLayout.spine.Point(lS, lLateral, lBase), Quaternion.Euler(Rand(pRandom, -5f, 5f), Rand(pRandom, 0f, 360f), Rand(pRandom, -5f, 5f)),
+                            lWidth, Mathf.Clamp(lHeight / (lWidth * 0.75f), 1f, 3.5f), lTint);
+                    }
+                    else if (lKind < 0.85)
+                    {
+                        // Floating chunk of broken ground, tumbling.
+                        float lSize = Rand(pRandom, 4f, 12f);
+                        float lY = lRoute + Rand(pRandom, -12f, 20f);
+                        pRocks.Boulder(pRandom.Next(0, RockKit.BOULDERS), false, pLayout.spine.Point(lS, lLateral, lY), Quaternion.Euler(Rand(pRandom, 0f, 360f), Rand(pRandom, 0f, 360f), Rand(pRandom, 0f, 360f)), lSize, 1f, lTint);
+                    }
+                    else
+                    {
+                        // Leaning slab over the void.
+                        float lHeight = Rand(pRandom, 18f, 34f);
+                        pRocks.Cliff(pRandom.Next(0, RockKit.CLIFFS), pLayout.spine.Point(lS, lLateral, lRoute - 15f), Quaternion.Euler(0f, Rand(pRandom, 0f, 360f), -lSide * 18f), lHeight * 0.45f, 2f, lTint);
+                    }
+                    continue;
+                }
+                if (lKind < 0.45)
+                {
+                    // Spire rising from the abyss, top around route height.
+                    float lHeight = lRoute - lBase + Rand(pRandom, -6f, 25f);
+                    float lWidth = Rand(pRandom, 3f, 8f);
+                    RockSculptor.Place(pData, RockSculptor.Shard(pRandom.Next(0, 6)), pLayout.spine.Point(lS, lLateral, lBase), Quaternion.Euler(Rand(pRandom, -6f, 6f), Rand(pRandom, 0f, 360f), Rand(pRandom, -6f, 6f)),
+                        new Vector3(lWidth, lHeight / 2.6f, lWidth), lColor);
+                }
+                else if (lKind < 0.85)
+                {
+                    // Floating chunk of broken ground.
+                    float lSize = Rand(pRandom, 3f, 10f);
+                    float lY = lRoute + Rand(pRandom, -12f, 20f);
+                    RockSculptor.Place(pData, RockSculptor.Boulder(pRandom.Next(0, 6)), pLayout.spine.Point(lS, lLateral, lY), Quaternion.Euler(Rand(pRandom, 0f, 360f), Rand(pRandom, 0f, 360f), Rand(pRandom, 0f, 360f)),
+                        new Vector3(lSize, lSize * 0.7f, lSize), lColor);
+                }
+                else
+                {
+                    // Broken arch leaning over the void.
+                    float lHeight = Rand(pRandom, 18f, 34f);
+                    Vector3 lFoot = pLayout.spine.Point(lS, lLateral, lRoute - 15f);
+                    RockSculptor.Place(pData, RockSculptor.Shard(pRandom.Next(0, 6)), lFoot, Quaternion.Euler(0f, 0f, -lSide * 18f), new Vector3(4f, lHeight / 2.6f, 4f), lColor);
                 }
             }
-
-            // Giant far silhouettes for depth.
-            Bounds lBounds = new Bounds(pPath.samples[0].position, Vector3.zero);
-            foreach (TrackSample lSample in pPath.samples) lBounds.Encapsulate(lSample.position);
-            for (int i = 0; i < 40; i++)
-            {
-                float lAngle = Random.Range(0f, Mathf.PI * 2f);
-                float lRadius = Mathf.Max(lBounds.extents.x, lBounds.extents.z) + Random.Range(250f, 700f);
-                Vector3 lPosition = lBounds.center + new Vector3(Mathf.Cos(lAngle), 0f, Mathf.Sin(lAngle)) * lRadius + Vector3.up * Random.Range(-120f, 20f);
-                PropFactory.Decor(pTheme.decor, pTheme, lDecorRoot, lPosition, Quaternion.Euler(0f, Random.Range(0f, 360f), 0f), Random.Range(5f, 11f));
-            }
-            Random.state = lState;
         }
 
-        // Theme ambience (Sherbbs particles) carried by the camera.
-        public static void AttachAmbient(Theme pTheme, Transform pCamera)
+        // Far islands and mountains : depth and scale, the world keeps going in every direction.
+        private static void DistantScenery(MeshData pData, RockKit.Batch pRocks, Theme pTheme, LevelLayout pLayout, float pS0, float pS1, System.Random pRandom)
         {
-            GameObject[] lAmbient = GameAssets.Instance.ambientParticles;
-            if (lAmbient == null || lAmbient.Length < 4) return;
-            GameObject lPrefab;
-            switch (pTheme.decor)
+            for (float lS = pS0 + Rand(pRandom, 0f, 60f); lS < pS1; lS += Rand(pRandom, 60f, 120f))
             {
-                case DecorKind.Night: lPrefab = lAmbient[0]; break;
-                case DecorKind.Space:
-                case DecorKind.Void: lPrefab = lAmbient[1]; break;
-                case DecorKind.Industrial: lPrefab = lAmbient[3]; break;
-                default: lPrefab = lAmbient[2]; break;
-            }
-            if (lPrefab == null) return;
-            GameObject lInstance = Object.Instantiate(lPrefab, pCamera);
-            lInstance.transform.localPosition = new Vector3(0f, 0f, 25f);
-            lInstance.transform.localRotation = Quaternion.identity;
-            // Pack uses built-in pipeline particle shaders : swap for our URP glow.
-            foreach (ParticleSystemRenderer lRenderer in lInstance.GetComponentsInChildren<ParticleSystemRenderer>())
-            {
-                lRenderer.sharedMaterial = Mats.Glow(new Color(1f, 1f, 1f, 0.7f), true, 1f);
-                lRenderer.trailMaterial = Mats.Glow(new Color(1f, 1f, 1f, 0.5f), true);
+                int lSide = pRandom.NextDouble() < 0.5 ? -1 : 1;
+                float lLateral = lSide * Rand(pRandom, 160f, 650f);
+                float lRoute = pLayout.spine.Height(lS);
+                Color lColor = Color.Lerp(pTheme.decorB, pTheme.fog, Mathf.InverseLerp(160f, 650f, Mathf.Abs(lLateral)) * 0.6f);
+                if (pRocks != null)
+                {
+                    Color lTint = RockKit.Tint(lColor, 0.7f);
+                    if (pRandom.NextDouble() < 0.6)
+                    {
+                        // Floating island : a wide rock shelf on top, a boulder keel hanging below.
+                        float lSize = Rand(pRandom, 30f, 90f);
+                        Vector3 lCenter = pLayout.spine.Point(lS, lLateral, lRoute + Rand(pRandom, -80f, 60f));
+                        float lYaw = Rand(pRandom, 0f, 360f);
+                        pRocks.Cliff(2, lCenter - Vector3.up * lSize * 0.05f, Quaternion.Euler(0f, lYaw, 0f), lSize, 0.6f, Color.Lerp(RockKit.Tint(pTheme.roadA, 0.5f), lTint, 0.4f));
+                        pRocks.Boulder(pRandom.Next(0, RockKit.BOULDERS), false, lCenter, Quaternion.Euler(180f, lYaw + 40f, 0f), lSize * 0.75f, 1.6f, lTint);
+                    }
+                    else
+                    {
+                        // Mountain : the scanned mountainside at landscape scale.
+                        float lHeight = Rand(pRandom, 120f, 320f);
+                        pRocks.Cliff(3, pLayout.spine.Point(lS, lLateral, lRoute - 200f), Quaternion.Euler(Rand(pRandom, -4f, 4f), Rand(pRandom, 0f, 360f), Rand(pRandom, -4f, 4f)), lHeight * 0.9f, 1.1f, lTint);
+                    }
+                    continue;
+                }
+                if (pRandom.NextDouble() < 0.6)
+                {
+                    float lSize = Rand(pRandom, 25f, 80f);
+                    Vector3 lCenter = pLayout.spine.Point(lS, lLateral, lRoute + Rand(pRandom, -80f, 60f));
+                    // Floating island : flat-ish top + long keel.
+                    RockSculptor.Place(pData, RockSculptor.Boulder(pRandom.Next(0, 6)), lCenter, Quaternion.Euler(0f, Rand(pRandom, 0f, 360f), 0f), new Vector3(lSize, lSize * 0.35f, lSize), Color.Lerp(pTheme.roadA, lColor, 0.4f));
+                    RockSculptor.Place(pData, RockSculptor.Shard(pRandom.Next(0, 6)), lCenter, Quaternion.Euler(180f, Rand(pRandom, 0f, 360f), 0f), new Vector3(lSize * 0.8f, lSize * 0.5f, lSize * 0.8f), lColor);
+                }
+                else
+                {
+                    float lHeight = Rand(pRandom, 120f, 320f);
+                    RockSculptor.Place(pData, RockSculptor.Shard(pRandom.Next(0, 6)), pLayout.spine.Point(lS, lLateral, lRoute - 200f), Quaternion.Euler(Rand(pRandom, -8f, 8f), Rand(pRandom, 0f, 360f), Rand(pRandom, -8f, 8f)),
+                        new Vector3(lHeight * 0.35f, lHeight / 2.6f, lHeight * 0.35f), lColor);
+                }
             }
         }
+    }
 
-        private static bool TooClose(TrackPath pPath, Vector3 pPosition, float pDistance)
+    // Streaks of wind / embers / snow placed in the world ahead of the runner : they stay where they are spawned,
+    // so they fly past at your real speed (stretched by the camera motion).
+    public class WorldWind : MonoBehaviour
+    {
+        private ParticleSystem _system;
+        private ParticleSystem.EmitParams _params;
+
+        public static WorldWind Create(Theme pTheme, Transform pParent)
         {
-            float lSqr = pDistance * pDistance;
-            for (int i = 0; i < pPath.samples.Count; i += 5)
-                if ((pPath.samples[i].position - pPosition).sqrMagnitude < lSqr) return true;
-            return false;
+            WorldWind lWind = new GameObject("WorldWind").AddComponent<WorldWind>();
+            lWind.transform.SetParent(pParent, false);
+            Color lColor = pTheme.decor == DecorKind.Industrial ? new Color(2.5f, 1.2f, 0.4f, 0.8f)
+                : pTheme.decor == DecorKind.Night ? new Color(1.6f, 0.3f, 0.4f, 0.7f)
+                : new Color(1.6f, 1.7f, 1.9f, 0.55f);
+            lWind._system = FX.CreateSystem("Wind", Vector3.zero, Mats.Glow(lColor, true, 1f), false);
+            lWind._system.transform.SetParent(lWind.transform, false);
+            ParticleSystem.MainModule lMain = lWind._system.main;
+            lMain.maxParticles = 900;
+            lMain.startLifetime = 1.6f;
+            lMain.startSpeed = 0f;
+            lMain.startSize = new ParticleSystem.MinMaxCurve(0.05f, 0.14f);
+            lMain.gravityModifier = 0f;
+            ParticleSystemRenderer lRenderer = lWind._system.GetComponent<ParticleSystemRenderer>();
+            lRenderer.renderMode = ParticleSystemRenderMode.Stretch;
+            lRenderer.cameraVelocityScale = 0.06f;
+            lRenderer.velocityScale = 0f;
+            lRenderer.lengthScale = 1f;
+            return lWind;
+        }
+
+        private void Update()
+        {
+            PlayerController lPlayer = RaceContext.Player;
+            if (lPlayer == null || lPlayer.State == PlayerState.Frozen) return;
+            float lSpeed = lPlayer.Speed;
+            int lCount = Mathf.RoundToInt(Mathf.Clamp01((lSpeed - 20f) / 120f) * 180f * Time.deltaTime);
+            if (Random.value < (lSpeed - 20f) / 120f * 180f * Time.deltaTime - lCount) lCount++;
+            Vector3 lForward = Vector3.ProjectOnPlane(lPlayer.Heading, Vector3.up).normalized;
+            Vector3 lRight = Vector3.Cross(Vector3.up, lForward);
+            for (int i = 0; i < lCount; i++)
+            {
+                Vector2 lRing = Random.insideUnitCircle.normalized * Random.Range(3f, 22f);
+                _params.position = lPlayer.transform.position + lForward * Random.Range(25f, 70f) + lRight * lRing.x + Vector3.up * (Mathf.Abs(lRing.y) * 0.7f + 0.5f);
+                _params.velocity = Vector3.zero;
+                _system.Emit(_params, 1);
+            }
         }
     }
 }

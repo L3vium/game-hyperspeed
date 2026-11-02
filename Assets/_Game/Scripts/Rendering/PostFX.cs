@@ -14,11 +14,16 @@ namespace Com.IsartDigital.Hyperspeed
         private static readonly int FLASH = Shader.PropertyToID("_HS_Flash");
         private static readonly int FLASH_COLOR = Shader.PropertyToID("_HS_FlashColor");
         private static readonly int IMPACT_COLOR = Shader.PropertyToID("_HS_ImpactColor");
+        private static readonly int REWIND = Shader.PropertyToID("_HS_Rewind");
+        private static readonly int DESATURATE = Shader.PropertyToID("_HS_Desaturate");
 
         public static PostFX Instance { get; private set; }
 
         public float speed01;
         public float hyper01;
+        // Death rewind look (desaturated, scanlines) and pause backdrop (game visible but dimmed).
+        public float rewind;
+        public float pause;
 
         private VolumeProfile _profile;
         private Bloom _bloom;
@@ -27,6 +32,9 @@ namespace Com.IsartDigital.Hyperspeed
         private LensDistortion _lens;
         private ColorAdjustments _color;
         private MotionBlur _motionBlur;
+        private PaniniProjection _panini;
+        private float _rewind;
+        private float _pause;
 
         private float _pulse;
         private float _flash;
@@ -66,6 +74,10 @@ namespace Com.IsartDigital.Hyperspeed
             _motionBlur.mode.Override(MotionBlurMode.CameraOnly);
             _motionBlur.quality.Override(MotionBlurQuality.Medium);
 
+            // Keeps the screen edges readable at very wide FOV.
+            _panini = _profile.Add<PaniniProjection>(true);
+            _panini.cropToFit.Override(1f);
+
             Shader.SetGlobalColor(IMPACT_COLOR, UIFactory.RED);
             Shader.SetGlobalFloat(IMPACT, 0f);
             Shader.SetGlobalFloat(FLASH, 0f);
@@ -78,6 +90,8 @@ namespace Com.IsartDigital.Hyperspeed
             Shader.SetGlobalFloat(FLASH, 0f);
             Shader.SetGlobalFloat(ABERRATION, 0f);
             Shader.SetGlobalFloat(RADIAL_BLUR, 0f);
+            Shader.SetGlobalFloat(REWIND, 0f);
+            Shader.SetGlobalFloat(DESATURATE, 0f);
         }
 
         public void Pulse(float pAmount) => _pulse = Mathf.Max(_pulse, pAmount);
@@ -108,17 +122,24 @@ namespace Com.IsartDigital.Hyperspeed
             _vignetteBoost = Mathf.MoveTowards(_vignetteBoost, 0f, lDt * 1.5f);
 
             float lSpeed = speed01;
-            _chromatic.intensity.Override(Mathf.Clamp01(0.15f + lSpeed * 0.6f + _pulse * 0.8f + hyper01 * 0.4f));
-            _vignette.intensity.Override(0.22f + lSpeed * 0.18f + _vignetteBoost * 0.25f);
+            _rewind = Mathf.MoveTowards(_rewind, rewind, lDt * 6f);
+            _pause = Mathf.MoveTowards(_pause, pause, lDt * 6f);
+            // Clarity first : the center of the screen (runner + route) stays sharp at any speed.
+            _chromatic.intensity.Override(Mathf.Clamp01(0.08f + lSpeed * 0.35f + _pulse * 0.5f + hyper01 * 0.2f + _rewind * 0.6f));
+            _vignette.intensity.Override(0.2f + lSpeed * 0.16f + _vignetteBoost * 0.2f + _pause * 0.25f);
             _vignette.color.Override(Color.Lerp(Color.black, _vignetteColor, Mathf.Clamp01(_vignetteBoost * 1.5f)));
-            _lens.intensity.Override(-(lSpeed * 0.28f + _pulse * 0.2f + hyper01 * 0.15f));
-            _lens.scale.Override(1f + lSpeed * 0.04f);
-            _motionBlur.intensity.Override(lSpeed * 0.18f);
-            _bloom.intensity.Override(1.3f + lSpeed * 0.6f + hyper01 * 1.6f + _pulse * 1.4f);
-            _color.postExposure.Override(_pulse * 0.25f + hyper01 * 0.15f);
+            _lens.intensity.Override(-(lSpeed * 0.12f + _pulse * 0.1f));
+            _lens.scale.Override(1f);
+            _panini.distance.Override(Mathf.Clamp01((lSpeed - 0.15f) * 0.7f));
+            _motionBlur.intensity.Override(lSpeed * 0.12f);
+            _bloom.intensity.Override(1.1f + lSpeed * 0.4f + hyper01 * 0.7f + _pulse * 0.8f);
+            _color.postExposure.Override(_pulse * 0.15f + hyper01 * 0.1f - _pause * 0.35f);
+            _color.saturation.Override(22f - _pause * 40f);
 
-            Shader.SetGlobalFloat(ABERRATION, 0.2f + lSpeed * 1.4f + _pulse * 2.4f + hyper01 * 1.8f);
-            Shader.SetGlobalFloat(RADIAL_BLUR, Mathf.Clamp01(lSpeed - 0.3f) * 1.1f + _pulse * 0.9f + hyper01 * 1.1f);
+            Shader.SetGlobalFloat(ABERRATION, 0.15f + lSpeed * 0.8f + _pulse * 1.2f + hyper01 * 0.8f + _rewind * 2f);
+            Shader.SetGlobalFloat(RADIAL_BLUR, Mathf.Min(1.2f, Mathf.Clamp01(lSpeed - 0.25f) * 0.8f + _pulse * 0.5f + hyper01 * 0.5f));
+            Shader.SetGlobalFloat(REWIND, _rewind);
+            Shader.SetGlobalFloat(DESATURATE, _rewind * 0.75f);
             Shader.SetGlobalFloat(DITHER, 0.55f);
             Shader.SetGlobalFloat(FLASH, _flash);
             Shader.SetGlobalColor(FLASH_COLOR, _flashColor);
