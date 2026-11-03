@@ -277,7 +277,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
             foreach (GameObject lRoot in lCore.GetRootGameObjects())
                 if (lRoot.name == "--- GAME_MANAGER ---") lHeader = lRoot;
             if (lHeader == null) lHeader = new GameObject("--- GAME_MANAGER ---");
-            if (Object.FindFirstObjectByType<GameManager>() == null)
+            if (Object.FindAnyObjectByType<GameManager>() == null)
             {
                 GameObject lManager = new GameObject("GameManager");
                 lManager.transform.SetParent(lHeader.transform);

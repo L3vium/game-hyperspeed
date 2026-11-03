@@ -26,6 +26,9 @@ namespace Com.IsartDigital.Hyperspeed
         private const float HEIGHT = 1.8f;
         private const float SKIN = 0.04f;
         private const float GROUND_MIN_DOT = 0.55f;
+        // Steepest walkable surface against world up (wall-ride banks reach 65 deg) : rolling over a rounded lip
+        // onto a vertical cap used to turn the run into a vertical launch.
+        private const float GROUND_MIN_WORLD_DOT = 0.3f;
         private const float RAIL_RADIUS = 4.5f;
         private const float DRIFT_SLIP = 35f;
         private const float START_WINDOW_BEFORE = 0.25f;
@@ -463,7 +466,7 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 case PlayerState.Ground:
                 case PlayerState.Finished:
-                    if (Vector3.Dot(lNormal, _up) >= GROUND_MIN_DOT) return true;
+                    if (Vector3.Dot(lNormal, _up) >= GROUND_MIN_DOT && lNormal.y >= GROUND_MIN_WORLD_DOT) return true;
                     {
                         float lImpact = -Vector3.Dot(_heading, lNormal);
                         if (lImpact > 0.8f && _speed > 40f && !Invulnerable) { Crash(pHit.point, "BONK!"); return false; }
@@ -489,7 +492,12 @@ namespace Com.IsartDigital.Hyperspeed
                         TryWallRun();
                         if (State == PlayerState.WallRun) return false;
                     }
+                    // Sliding along a slanted rock face must never turn forward speed into a launch
+                    // (a jagged deck cap at 100 m/s used to throw the runner 80 m up).
+                    float lRise = Mathf.Max(0f, Vector3.Dot(_velocity, _gravityUp));
                     _velocity = Vector3.ProjectOnPlane(_velocity, lNormal);
+                    float lExtra = Vector3.Dot(_velocity, _gravityUp) - lRise;
+                    if (lExtra > 0f) _velocity -= _gravityUp * lExtra;
                     return true;
                 case PlayerState.WallRun:
                     if (Vector3.Dot(lNormal, _gravityUp) > 0.5f) { Land(lNormal, pHit.point, DeckChunk.DeckOf(pHit.collider)); return false; }

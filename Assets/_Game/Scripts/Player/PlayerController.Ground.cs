@@ -145,7 +145,7 @@ namespace Com.IsartDigital.Hyperspeed
             RaycastHit lHit;
             Vector3 lOrigin = transform.position + _up * 1.1f;
             if (Physics.Raycast(lOrigin, -_up, out lHit, 1.1f + SNAP_REACH, GroundMask, QueryTriggerInteraction.Ignore)
-                && Vector3.Dot(lHit.normal, _up) >= GROUND_MIN_DOT)
+                && Vector3.Dot(lHit.normal, _up) >= GROUND_MIN_DOT && lHit.normal.y >= GROUND_MIN_WORLD_DOT)
             {
                 Stick(lHit, pDt);
                 return true;
@@ -180,6 +180,9 @@ namespace Com.IsartDigital.Hyperspeed
         {
             Vector3 lRight = Vector3.Cross(_up, _moveDir).normalized;
             _velocity = _moveDir * _speed + lRight * _slip;
+            // A lip or an edge never throws the runner up more steeply than ~27 deg (ramps and crests stay natural).
+            float lClimb = _velocity.y - 0.45f * _velocity.magnitude;
+            if (lClimb > 0f) _velocity.y -= lClimb;
             _gravityUp = Vector3.Dot(_up, Vector3.up) > 0.85f ? Vector3.up : _up;
             _takeoffY = transform.position.y;
             _takeoffEdge = EdgeKind.Lip;
