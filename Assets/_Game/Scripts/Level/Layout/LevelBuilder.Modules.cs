@@ -160,11 +160,12 @@ namespace Com.IsartDigital.Hyperspeed
                 EdgeKind lLeft = j == 0 ? EdgeKind.Wall : EdgeKind.Lip;
                 EdgeKind lRight = j == pCount - 1 ? EdgeKind.Wall : EdgeKind.Lip;
                 float lS = lSplit + (lCenter ? 9f : 12f);
-                while (lS < lMerge - 40f)
+                // Islands stop 40 m before the merge : open sky over the catch pads below.
+                while (lS < lMerge - 66f)
                 {
-                    float lLength = Mathf.Min(Random.Range(45f, 80f), lMerge - 14f - lS);
+                    float lLength = Mathf.Min(Random.Range(45f, 80f), lMerge - 40f - lS);
                     if (lLength < 25f) break;
-                    bool lLast = lS + lLength >= lMerge - 40f;
+                    bool lLast = lS + lLength >= lMerge - 66f;
                     // The route lane stays level (its gaps are run across at any speed, the jump is optional) ;
                     // side lanes step up at most what the ledge assist catches.
                     float lHeight = lLast || lCenter ? lH0 : lH0 + Random.Range(-pStep, Mathf.Min(pStep, 1.8f));
@@ -198,7 +199,11 @@ namespace Com.IsartDigital.Hyperspeed
             Deck lLanding = _main;
             float lPadAt = lMerge - 30f;
             float lLandAt = lMerge + 25f;
-            Spawn(() => LevelProps.Jump(root, lCatch, lPadAt, 0f, lLanding, lLandAt, 0f, theme));
+            for (int j = 0; j < pCount; j++)
+            {
+                float lLateral = (j - (pCount - 1) * 0.5f) * pSpread;
+                Spawn(() => LevelProps.Jump(root, lCatch, lPadAt, lLateral, lLanding, lLandAt, lLateral * 0.4f, theme));
+            }
             return this;
         }
 
