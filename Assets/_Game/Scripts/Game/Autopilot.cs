@@ -100,8 +100,8 @@ namespace Com.IsartDigital.Hyperspeed
                 _actIndex = i + 1;
             }
 
-            // Dash on clear ground like a decent player : keeps the speed benchmark used to tune the rivals honest.
-            if (_player.State == PlayerState.Ground && _player.Speed < 100f && !ActAhead(lS, 50f + lSpeed * 0.4f)) HSInput.BotDashFrame = lNext;
+            // Dash on the ground like a decent player (keeps the rival benchmark honest and outruns collapse waves).
+            if (_player.State == PlayerState.Ground && _player.Speed < 100f && !ActAhead(lS, 12f)) HSInput.BotDashFrame = lNext;
 
             // Keep crouching through stacked membranes, glide when nothing is below.
             _slideHold -= Time.deltaTime;
