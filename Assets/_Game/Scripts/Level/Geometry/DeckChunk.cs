@@ -15,12 +15,12 @@ namespace Com.IsartDigital.Hyperspeed
         public const int GROUND_NO_MEMBRANE = (1 << 0) | (1 << DECK) | (1 << PROP);
     }
 
-    // Links a deck collider chunk to its deck (registry keyed by collider id : no GetComponent on ground hits).
+    // Links a deck collider chunk to its deck (registry keyed by collider : no GetComponent on ground hits).
     public class DeckChunk : MonoBehaviour
     {
-        private static readonly Dictionary<int, DeckChunk> _byCollider = new Dictionary<int, DeckChunk>();
+        private static readonly Dictionary<Collider, DeckChunk> _byCollider = new Dictionary<Collider, DeckChunk>();
 
-        public Deck deck;
+        [System.NonSerialized] public Deck deck;
         public float s0;
         public float s1;
         public Collider body;
@@ -32,21 +32,21 @@ namespace Com.IsartDigital.Hyperspeed
             lChunk.s0 = pS0;
             lChunk.s1 = pS1;
             lChunk.body = pCollider;
-            if (pCollider != null) _byCollider[pCollider.GetInstanceID()] = lChunk;
+            if (pCollider != null) _byCollider[pCollider] = lChunk;
             return lChunk;
         }
 
         public static Deck DeckOf(Collider pCollider)
         {
             DeckChunk lChunk;
-            return pCollider != null && _byCollider.TryGetValue(pCollider.GetInstanceID(), out lChunk) ? lChunk.deck : null;
+            return pCollider != null && _byCollider.TryGetValue(pCollider, out lChunk) ? lChunk.deck : null;
         }
 
         public static void ClearAll() => _byCollider.Clear();
 
         private void OnDestroy()
         {
-            if (body != null) _byCollider.Remove(body.GetInstanceID());
+            if (body != null) _byCollider.Remove(body);
         }
     }
 }
