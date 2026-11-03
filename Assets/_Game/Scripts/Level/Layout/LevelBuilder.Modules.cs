@@ -156,7 +156,8 @@ namespace Com.IsartDigital.Hyperspeed
             for (int j = 0; j < pCount; j++)
             {
                 float lX = (j - (pCount - 1) * 0.5f) * pSpread;
-                bool lCenter = Mathf.Abs(lX) < 1f;
+                // Route lane : the middle one (with an even count, the first right of center).
+                bool lCenter = j == pCount / 2;
                 EdgeKind lLeft = j == 0 ? EdgeKind.Wall : EdgeKind.Lip;
                 EdgeKind lRight = j == pCount - 1 ? EdgeKind.Wall : EdgeKind.Lip;
                 float lS = lSplit + (lCenter ? 9f : 12f);
@@ -204,6 +205,7 @@ namespace Com.IsartDigital.Hyperspeed
                 float lLateral = (j - (pCount - 1) * 0.5f) * pSpread;
                 Spawn(() => LevelProps.Jump(root, lCatch, lPadAt, lLateral, lLanding, lLandAt, lLateral * 0.4f, theme));
             }
+            if (pCount % 2 == 0) Spawn(() => LevelProps.Jump(root, lCatch, lPadAt, 0f, lLanding, lLandAt, 0f, theme));
             return this;
         }
 
