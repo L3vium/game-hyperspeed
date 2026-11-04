@@ -30,6 +30,7 @@ namespace Com.IsartDigital.Hyperspeed
 
             int lOverlaps = 0;
             float lFirst = float.NaN;
+            string lDetail = "";
             for (int i = 0; i < lSpine.Count; i += STRIDE)
             {
                 Vector3 lPoint = lSpine.samples[i].position;
@@ -54,13 +55,17 @@ namespace Com.IsartDigital.Hyperspeed
                             if (lDelta.sqrMagnitude < lMin * lMin)
                             {
                                 lOverlaps++;
-                                if (float.IsNaN(lFirst)) lFirst = lSpine.samples[i].s;
+                                if (float.IsNaN(lFirst))
+                                {
+                                    lFirst = lSpine.samples[i].s;
+                                    lDetail = " with s=" + lOther.s.ToString("F0") + " dist=" + lDelta.magnitude.ToString("F0") + " min=" + lMin.ToString("F0") + " yaw " + lSpine.samples[i].yaw.ToString("F0") + "/" + lOther.yaw.ToString("F0");
+                                }
                             }
                         }
                     }
                 }
             }
-            if (lOverlaps > 0) Debug.LogWarning("[HS-GEN] route overlaps itself " + lOverlaps + "x, first at s=" + lFirst.ToString("F0"));
+            if (lOverlaps > 0) Debug.LogWarning("[HS-GEN] route overlaps itself " + lOverlaps + "x, first at s=" + lFirst.ToString("F0") + lDetail);
             if (pDives < 2) Debug.LogWarning("[HS-GEN] only " + pDives + " dive zones");
         }
 

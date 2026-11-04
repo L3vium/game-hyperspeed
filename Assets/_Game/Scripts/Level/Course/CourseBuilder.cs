@@ -55,6 +55,9 @@ namespace Com.IsartDigital.Hyperspeed
         private int _dives;
         private float _maxY = float.MinValue;
 
+        // Stretches the open modules (not the jumps) : later stages last as long as the plan says despite their speed.
+        public float pace = 1f;
+
         public float K => _p.k;
         public float Scale => Mathf.Pow(_p.k, 0.7f);
         public LevelLayout Layout => _layout;
@@ -161,6 +164,7 @@ namespace Com.IsartDigital.Hyperspeed
         // Rolling ground with mountains to run over. Trend = height change per second of play.
         public CourseBuilder Hills(float pSeconds, float pAmount = 1f, float pTrend = -12f)
         {
+            pSeconds *= pace;
             float lS0 = _s;
             float lLength = M(pSeconds);
             Span(lLength, pTrend * pSeconds * K, 0f, HillAmp(pAmount), 0f, false);
@@ -183,6 +187,7 @@ namespace Com.IsartDigital.Hyperspeed
         // Flat, immense straight with a road painted on it.
         public CourseBuilder Road(float pSeconds, float pTrend = -6f)
         {
+            pSeconds *= pace;
             Span(M(pSeconds), pTrend * pSeconds * K, 0f, HillAmp(0.05f), 1f, false);
             return this;
         }
@@ -202,7 +207,7 @@ namespace Com.IsartDigital.Hyperspeed
             float lDegrees = Mathf.Min(pDegrees, lRoom);
             if (lDegrees < 5f) return this;
             // Wide enough that the inside of the ribbon never folds and both legs of a hairpin stay apart.
-            float lRadius = Mathf.Max(_halfWidth + 125f * Scale, _p.cruise * _p.cruise / 200f);
+            float lRadius = Mathf.Max(_halfWidth + 150f * Scale, _p.cruise * _p.cruise / 200f);
             float lLength = lRadius * lDegrees * Mathf.Deg2Rad;
             Span(lLength, -lLength * 0.01f, lSide * lDegrees, HillAmp(pHills), 0f, false);
             return this;
@@ -311,6 +316,7 @@ namespace Com.IsartDigital.Hyperspeed
         // Field of giant blocks to weave through, climb or run along.
         public CourseBuilder Blocks(float pSeconds, float pDensity = 1f)
         {
+            pSeconds *= pace;
             float lS0 = _s;
             float lLength = M(pSeconds);
             Span(lLength, -6f * pSeconds * K, 0f, HillAmp(0.2f), 0f, false);
@@ -380,6 +386,7 @@ namespace Com.IsartDigital.Hyperspeed
         // Meteorites coming at you : punch them apart.
         public CourseBuilder Meteors(float pSeconds, float pEverySeconds = 2f)
         {
+            pSeconds *= pace;
             float lS0 = _s;
             Span(M(pSeconds), -6f * pSeconds * K, 0f, HillAmp(0.3f), 0f, false);
             for (float lT = pEverySeconds * 0.5f; lT < pSeconds; lT += pEverySeconds)

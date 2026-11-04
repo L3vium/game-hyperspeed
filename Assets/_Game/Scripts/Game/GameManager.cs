@@ -64,7 +64,7 @@ namespace Com.IsartDigital.Hyperspeed
             Random.InitState(_level.seed);
             Transform lTrackRoot = new GameObject("Course").transform;
             lTrackRoot.SetParent(lRoot, false);
-            CourseBuilder lBuilder = new CourseBuilder(lTrackRoot, lTheme, lProfile, _level.seed);
+            CourseBuilder lBuilder = new CourseBuilder(lTrackRoot, lTheme, lProfile, _level.seed) { pace = LevelDatabase.Pace(_levelIndex) };
             _level.build(lBuilder);
             _layout = lBuilder.Build();
             Random.state = lState;
@@ -154,16 +154,18 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void Update()
         {
-            if (HSInput.PausePressed && _phase != Phase.Ended && !SceneTransition.IsBusy)
+            // Keys typed in another window must never reach a game running in the background.
+            bool lFocused = Application.isFocused;
+            if (lFocused && HSInput.PausePressed && _phase != Phase.Ended && !SceneTransition.IsBusy)
             {
                 if (_paused) Resume();
                 else Pause();
             }
             if (_paused) return;
-            if (HSInput.RestartPressed && !SceneTransition.IsBusy) Retry();
+            if (lFocused && HSInput.RestartPressed && !SceneTransition.IsBusy) Retry();
 
             DriveGlobals();
-            if (GameSession.CheatsEnabled) Cheats();
+            if (lFocused && GameSession.CheatsEnabled) Cheats();
 
             RaceContext.PlayerProgress = _player.Progress;
             if (_phase != Phase.Racing) return;
@@ -252,6 +254,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _phase = Phase.Ended;
             RaceContext.Running = false;
+            Debug.Log("[HS-END] " + pHeadline + " stage=" + (_levelIndex + 1) + " time=" + _raceTime.ToString("F1") + " s=" + _player.Progress.ToString("F0") + "/" + _layout.finishS.ToString("F0") + " rival=" + _rival.distance.ToString("F0") + " respawns=" + _player.Respawns + " top=" + _player.TopSpeed.ToString("F0"));
             _player.Finish();
             AudioManager.SetMusicPitch(1f);
 

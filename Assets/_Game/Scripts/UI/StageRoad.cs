@@ -288,7 +288,7 @@ namespace Com.IsartDigital.Hyperspeed
             float lZ = _position * SPACING;
             Vector2 lTilt = UIMouse.Tilt;
             Vector3 lDesired = transform.position + new Vector3(lTilt.x * 30f, 96f + lTilt.y * 12f, lZ - 210f);
-            Vector3 lLook = transform.position + new Vector3(lTilt.x * 16f, 8f + lTilt.y * 8f, lZ + 150f);
+            Vector3 lLook = transform.position + new Vector3(lTilt.x * 16f, 6f + lTilt.y * 8f, lZ + 70f);
             _cameraPosition = pDt >= 1f ? lDesired : Vector3.Lerp(_cameraPosition, lDesired, 1f - Mathf.Exp(-8f * pDt));
             _camera.transform.SetPositionAndRotation(_cameraPosition, Quaternion.LookRotation(lLook - _cameraPosition, Vector3.up));
             _camera.fieldOfView = 58f;

@@ -786,7 +786,7 @@ namespace Com.IsartDigital.Hyperspeed
             Mats.Primitive(PrimitiveType.Sphere, _lightForm, Vector3.zero, Vector3.one * 1.8f, Mats.Glow(new Color(6f, 6.5f, 6.5f), false, 0f, 0f, true));
             Mats.Primitive(PrimitiveType.Sphere, _lightForm, new Vector3(0f, 0f, -5f), new Vector3(1.3f, 1.3f, 12f), Mats.Glow(new Color(1.2f, 2.2f, 3.2f, 0.55f), true));
             _lightTrail = _lightForm.gameObject.AddComponent<TrailRenderer>();
-            _lightTrail.time = 0.7f;
+            _lightTrail.time = 0.14f;
             _lightTrail.startWidth = 1.3f;
             _lightTrail.endWidth = 0f;
             _lightTrail.sharedMaterial = Mats.Glow(new Color(1.2f, 2.2f, 3f), true);
