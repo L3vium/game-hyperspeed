@@ -48,7 +48,7 @@ namespace Com.IsartDigital.Hyperspeed
                             if (j <= i) continue;
                             SpineSample lOther = lSpine.samples[j];
                             if (lOther.s - lSpine.samples[i].s < Mathf.PI * lReach * 1.1f) continue;
-                            float lMin = lReach + lField.TotalHalfWidth(lOther.s);
+                            float lMin = lField.HalfWidth(lSpine.samples[i].s) + lField.HalfWidth(lOther.s) + lField.bermWidth * 2f;
                             Vector3 lDelta = lOther.position - lPoint;
                             lDelta.y = 0f;
                             if (lDelta.sqrMagnitude < lMin * lMin)

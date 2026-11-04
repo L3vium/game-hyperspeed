@@ -25,6 +25,8 @@ namespace Com.IsartDigital.Hyperspeed
         private RectTransform _stages;
         private UINav _mainNav;
         private UINav _settingsNav;
+        private UINav _creditsNav;
+        private RectTransform _credits;
         private TextMeshProUGUI _musicValue;
         private TextMeshProUGUI _sfxValue;
         private DevCheatBar _cheats;
@@ -74,7 +76,7 @@ namespace Com.IsartDigital.Hyperspeed
             Transform lCourseRoot = new GameObject("Course").transform;
             lCourseRoot.SetParent(_world, false);
             CourseBuilder lBuilder = new CourseBuilder(lCourseRoot, lTheme, lProfile, 17);
-            lBuilder.Start(420f, 1600f).NoPadsAnywhere().Hills(10f, 1.2f).Turn(Side.Left, 70f).Blocks(10f, 0.8f).Dive(300f).Hills(8f, 1.2f).Turn(Side.Right, 80f).Road(6f).Hills(10f, 1.2f).Finish();
+            lBuilder.Start(420f, 1600f).NoPadsAnywhere().Hills(10f, 1.2f).Turn(Side.Left, 70f).Blocks(10f, 0.8f).Dive(300f).Hills(8f, 1.2f).Turn(Side.Right, 80f).Road(6f).Dive(280f).Hills(10f, 1.2f).Finish();
             _layout = lBuilder.Build();
             RaceContext.Layout = _layout;
 
@@ -95,10 +97,11 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void Update()
         {
-            if (_player != null && _layout != null && _player.Progress > _layout.finishS - 200f && _screen != ScreenId.Stages)
+            // The attract run loops for ever, seen or not.
+            if (_player != null && _layout != null && (_player.Progress > _layout.finishS - 200f || _player.State == PlayerState.Dead))
             {
                 _player.RespawnAt(new Breadcrumb { s = 0f, lateral = 0f, speed = _layout.profile.cruise }, false);
-                _rig.Snap();
+                if (_screen != ScreenId.Stages) _rig.Snap();
             }
             if (_screen == ScreenId.Stages && HSInput.BackPressed && !SceneTransition.IsBusy) SetScreen(ScreenId.Main);
         }
@@ -174,19 +177,35 @@ namespace Com.IsartDigital.Hyperspeed
             _settingsNav.onBack = () => SetScreen(ScreenId.Main);
             BackArrow(_settings, _settingsNav, () => SetScreen(ScreenId.Main));
 
+            TextMeshProUGUI lIgnored;
+            NavTile lCreditsRow = SettingRow("CREDITS", -180f, out lIgnored);
+            _settingsNav.Add((RectTransform)lCreditsRow.transform, new Vector2(0f, -1f), () => ShowCredits(true), lCreditsRow.SetSelected);
+
+            _credits = UIFactory.Stretch(UIFactory.CreateRect(_canvas.transform, "Credits", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
+            UIKit.FullScreen(_credits, "Dim", new Color(0.04f, 0.02f, 0.06f, 0.92f));
             TextAsset lCredits = Resources.Load<TextAsset>("Credits");
-            if (lCredits != null)
-            {
-                TextMeshProUGUI lText = UIKit.Text(_settings, lCredits.text, 15f, new Color(1f, 1f, 1f, 0.6f), new Vector2(0.5f, 0f), new Vector2(0f, 150f), new Vector2(1500f, 260f), UIKit.Font.Bold, TextAlignmentOptions.Bottom, false);
-                lText.textWrappingMode = TextWrappingModes.Normal;
-                lText.overflowMode = TextOverflowModes.Truncate;
-            }
+            RectTransform lTextRect = UIFactory.Stretch(UIFactory.CreateRect(_credits, "Text", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
+            lTextRect.offsetMin = new Vector2(120f, 50f);
+            lTextRect.offsetMax = new Vector2(-120f, -110f);
+            TextMeshProUGUI lText = lTextRect.gameObject.AddComponent<TextMeshProUGUI>();
+            lText.font = GameAssets.BodyFont;
+            lText.text = lCredits != null ? lCredits.text : "";
+            lText.enableAutoSizing = true;
+            lText.fontSizeMin = 8f;
+            lText.fontSizeMax = 24f;
+            lText.alignment = TextAlignmentOptions.Center;
+            lText.color = UIKit.WHITE;
+            lText.raycastTarget = false;
+            _creditsNav = UINav.Create(_credits.gameObject);
+            _creditsNav.onBack = () => ShowCredits(false);
+            BackArrow(_credits, _creditsNav, () => ShowCredits(false));
+            _credits.gameObject.SetActive(false);
             RefreshVolumes();
         }
 
         private NavTile SettingRow(string pLabel, float pY, out TextMeshProUGUI pValue)
         {
-            RectTransform lHolder = UIFactory.CreateRect(_settings, pLabel, new Vector2(0.5f, 0.5f), new Vector2(0f, pY + 90f), new Vector2(760f, 96f));
+            RectTransform lHolder = UIFactory.CreateRect(_settings, pLabel, new Vector2(0.5f, 0.5f), new Vector2(0f, pY + 110f), new Vector2(760f, 96f));
             UIShape lFrame = UIKit.Tile(lHolder, "Frame", UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(10f, -8f), new Vector2(774f, 110f), 0.3f);
             UIShape lBack = UIKit.Tile(lHolder, "Back", UIKit.WHITE, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(760f, 96f), 0.3f);
             TextMeshProUGUI lLabel = UIKit.Text(lHolder, pLabel, 50f, UIKit.INK, new Vector2(0.5f, 0.5f), new Vector2(-150f, 0f), new Vector2(380f, 80f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
@@ -199,7 +218,15 @@ namespace Com.IsartDigital.Hyperspeed
             lTile.selectedBack = UIKit.RED;
             lTile.normalText = UIKit.INK;
             lTile.selectedText = UIKit.WHITE;
+            TextMeshProUGUI lValue = pValue;
+            lHolder.gameObject.AddComponent<UIFollowColor>().Init(lLabel, lValue);
             return lTile;
+        }
+
+        private void ShowCredits(bool pShow)
+        {
+            _credits.gameObject.SetActive(pShow);
+            _settingsNav.active = !pShow;
         }
 
         private void ChangeVolume(bool pMusic, int pDirection)
@@ -284,6 +311,24 @@ namespace Com.IsartDigital.Hyperspeed
 #else
             Application.Quit();
 #endif
+        }
+    }
+
+    // A second text copying the colour of the first (the value next to a setting's label).
+    public class UIFollowColor : MonoBehaviour
+    {
+        private TextMeshProUGUI _source;
+        private TextMeshProUGUI _target;
+
+        public void Init(TextMeshProUGUI pSource, TextMeshProUGUI pTarget)
+        {
+            _source = pSource;
+            _target = pTarget;
+        }
+
+        private void LateUpdate()
+        {
+            if (_source != null && _target != null) _target.color = _source.color;
         }
     }
 

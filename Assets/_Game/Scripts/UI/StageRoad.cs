@@ -11,7 +11,7 @@ namespace Com.IsartDigital.Hyperspeed
     {
         private const float SPACING = 120f;
         private const float DRAG_PIXELS = 14f;
-        private const float HIT_RADIUS = 46f;
+        private const float HIT_RADIUS = 44f;
 
         private class Station
         {
@@ -135,8 +135,8 @@ namespace Com.IsartDigital.Hyperspeed
 
             // The number, as tall as a building.
             Color lFace = lUnlocked ? Color.white : new Color(0.6f, 0.6f, 0.64f);
-            lStation.number = Text3D.Create(lRoot.transform, (pIndex + 1).ToString(), 58f, 70f, lFace, Color.Lerp(lPlate, Color.black, 0.45f), 14, 0.03f);
-            lStation.number.localPosition = new Vector3(-lSide * 20f, 32f, 8f);
+            lStation.number = Text3D.Create(lRoot.transform, (pIndex + 1).ToString(), 36f, 46f, lFace, Color.Lerp(lPlate, Color.black, 0.45f), 14, 0.03f);
+            lStation.number.localPosition = new Vector3(-lSide * 22f, 21f, 12f);
             lStation.number.localRotation = Quaternion.Euler(0f, -lSide * 12f, 0f);
 
             // The thing you race, for real.
@@ -144,19 +144,19 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 Transform lHolder = new GameObject("Vehicle").transform;
                 lHolder.SetParent(lRoot.transform, false);
-                lHolder.localPosition = new Vector3(lSide * 24f, 4f, -8f);
+                lHolder.localPosition = new Vector3(lSide * 20f, 4f, 0f);
                 Transform lModel = RivalFactory.Build(pLevel.rival, lHolder);
-                FitInto(lModel, 30f);
+                FitInto(lModel, 34f);
                 lStation.model = lHolder;
                 foreach (AudioSource lSource in lModel.GetComponentsInChildren<AudioSource>()) lSource.enabled = false;
             }
 
             // Name painted on the road in front of it.
             string lLine = lUnlocked ? pLevel.title : "LOCKED";
-            PaintWord(lLine, lCenter + new Vector3(0f, 4.6f, -29f), 11f, 84f, Color.white);
+            PaintWord(lLine, lCenter + new Vector3(0f, 4.6f, -27f), 14f, 86f, Color.white);
             int lRank = GameSession.GetRank(pIndex);
             if (lUnlocked && lRank > 0)
-                PaintWord("RANK " + GameSession.RankLetter(lRank) + "   " + GameSession.FormatTime(GameSession.GetBestTime(pIndex)), lCenter + new Vector3(0f, 4.6f, -18f), 6f, 80f, UIKit.GOLD);
+                PaintWord("RANK " + GameSession.RankLetter(lRank) + "   " + GameSession.FormatTime(GameSession.GetBestTime(pIndex)), lCenter + new Vector3(0f, 4.6f, -15f), 8f, 80f, UIKit.GOLD);
             _stations.Add(lStation);
         }
 
@@ -269,7 +269,7 @@ namespace Com.IsartDigital.Hyperspeed
             float lBestDistance = float.MaxValue;
             foreach (Station lStation in _stations)
             {
-                Vector3 lCenter = lStation.root.position + Vector3.up * 30f;
+                Vector3 lCenter = lStation.root.position + Vector3.up * 18f;
                 Vector3 lToCenter = lCenter - lRay.origin;
                 float lAlong = Vector3.Dot(lToCenter, lRay.direction);
                 if (lAlong < 0f) continue;
@@ -287,11 +287,11 @@ namespace Com.IsartDigital.Hyperspeed
         {
             float lZ = _position * SPACING;
             Vector2 lTilt = UIMouse.Tilt;
-            Vector3 lDesired = transform.position + new Vector3(lTilt.x * 24f, 52f + lTilt.y * 9f, lZ - 118f);
-            Vector3 lLook = transform.position + new Vector3(lTilt.x * 14f, 20f + lTilt.y * 6f, lZ + 70f);
+            Vector3 lDesired = transform.position + new Vector3(lTilt.x * 30f, 96f + lTilt.y * 12f, lZ - 210f);
+            Vector3 lLook = transform.position + new Vector3(lTilt.x * 16f, 8f + lTilt.y * 8f, lZ + 150f);
             _cameraPosition = pDt >= 1f ? lDesired : Vector3.Lerp(_cameraPosition, lDesired, 1f - Mathf.Exp(-8f * pDt));
             _camera.transform.SetPositionAndRotation(_cameraPosition, Quaternion.LookRotation(lLook - _cameraPosition, Vector3.up));
-            _camera.fieldOfView = 62f;
+            _camera.fieldOfView = 58f;
         }
 
         private void Animate(float pDt)

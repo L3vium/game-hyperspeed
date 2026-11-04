@@ -51,6 +51,7 @@ namespace Com.IsartDigital.Hyperspeed
         private float _s;
         private float _halfWidth;
         private bool _started;
+        private bool _noScatter;
         private int _dives;
         private float _maxY = float.MinValue;
 
@@ -454,6 +455,7 @@ namespace Com.IsartDigital.Hyperspeed
 
             Transform lProps = new GameObject("Props").transform;
             lProps.SetParent(_root, false);
+            Scatter();
             foreach (BlockDef lBlock in _blocks) PlaceBlock(lBlock, lProps);
             foreach (StripDef lStrip in _strips) PlaceStrip(lStrip, lProps);
             foreach (RopeDef lRope in _ropes) PlaceRope(lRope, lProps);
@@ -470,6 +472,39 @@ namespace Com.IsartDigital.Hyperspeed
             Debug.Log("[HS-GEN] length=" + _layout.finishS.ToString("F0") + "m terrain=" + ((lTerrainDone - lStart) * 1000f).ToString("F0") + "ms total=" + ((Time.realtimeSinceStartup - lStart) * 1000f).ToString("F0")
                 + "ms blocks=" + _blocks.Count + " strips=" + _strips.Count + " ropes=" + _ropes.Count + " meteors=" + _meteors.Count + " dives=" + _dives);
             return _layout;
+        }
+
+        // Blocks and pillars on both sides all along the stage, off the clear line : never in front of a lip or a rope.
+        private void Scatter()
+        {
+            if (_noScatter) return;
+            float lStep = M(0.42f);
+            TerrainField lField = _layout.field;
+            for (float lS = M(1f); lS < _layout.finishS - M(1f); lS += lStep)
+            {
+                if (!PadAllowed(lS)) continue;
+                int lSide = _random.Next(0, 2) * 2 - 1;
+                float lHalf = lField.HalfWidth(lS);
+                float lRoute = _layout.RouteLateral(lS);
+                float lClear = 55f * Scale;
+                float lFrom = lRoute + lSide * lClear;
+                float lRoom = lHalf + lField.bermWidth * 0.3f - lSide * lFrom;
+                if (lRoom < 30f) continue;
+                bool lPillar = _random.NextDouble() < 0.35;
+                float lWidth = lPillar ? Rand(10f, 22f) * Scale : Rand(26f, 90f) * Scale;
+                float lLength = lPillar ? lWidth : Mathf.Min(Rand(26f, 90f) * Scale, lStep * 0.8f);
+                float lLateral = lFrom + lSide * (lWidth * 0.5f + Rand(0f, Mathf.Max(0f, lRoom - lWidth)));
+                _blocks.Add(new BlockDef
+                {
+                    s = lS,
+                    lateral = lLateral,
+                    width = lWidth,
+                    length = lLength,
+                    height = lPillar ? Rand(70f, 200f) * Scale : Rand(14f, 90f) * Scale,
+                    taper = Rand(0f, 0.25f),
+                    palette = _random.Next(0, 3)
+                });
+            }
         }
 
         private void PlaceBlock(BlockDef pDef, Transform pParent)

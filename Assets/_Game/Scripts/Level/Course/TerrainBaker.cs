@@ -93,6 +93,7 @@ namespace Com.IsartDigital.Hyperspeed
             Spine lSpine = pField.spine;
             int lRowCount = pLast - pFirst + 1;
             Vector3[] lGrid = new Vector3[lRowCount * pColumns];
+            Vector2[] lRouteUv = new Vector2[lRowCount * pColumns];
             Vector3 lOrigin = lSpine.Point(pRows[pFirst], 0f, lSpine.Height(pRows[pFirst]));
             for (int lRow = 0; lRow < lRowCount; lRow++)
             {
@@ -106,6 +107,7 @@ namespace Com.IsartDigital.Hyperspeed
                     Vector3 lPoint = lSample.position + lSample.Right * lLateral;
                     lPoint.y = pField.Height(lS, lLateral);
                     lGrid[lRow * pColumns + lColumn] = lPoint - lOrigin;
+                    lRouteUv[lRow * pColumns + lColumn] = new Vector2(lLateral, lS);
                 }
             }
 
@@ -126,21 +128,29 @@ namespace Com.IsartDigital.Hyperspeed
                 bool lIsRoad = pField.road[lSpine.IndexOf(lMidS)] > 0.5f;
                 for (int lColumn = 0; lColumn < pColumns - 1; lColumn++)
                 {
-                    Vector3 lA = lGrid[lRow * pColumns + lColumn];
-                    Vector3 lB = lGrid[lRow * pColumns + lColumn + 1];
-                    Vector3 lC = lGrid[(lRow + 1) * pColumns + lColumn + 1];
-                    Vector3 lD = lGrid[(lRow + 1) * pColumns + lColumn];
+                    int lIa = lRow * pColumns + lColumn;
+                    int lIb = lIa + 1;
+                    int lId = (lRow + 1) * pColumns + lColumn;
+                    int lIc = lId + 1;
+                    Vector3 lA = lGrid[lIa];
+                    Vector3 lB = lGrid[lIb];
+                    Vector3 lC = lGrid[lIc];
+                    Vector3 lD = lGrid[lId];
+                    Vector2 lUa = lRouteUv[lIa];
+                    Vector2 lUb = lRouteUv[lIb];
+                    Vector2 lUc = lRouteUv[lIc];
+                    Vector2 lUd = lRouteUv[lId];
                     bool lFlip = (lRow + lColumn) % 2 == 0;
                     Color lBase = QuadColor(pTheme, lMidS, lColumn, lCenter, lPatch, lIsRoad, pColumns);
                     if (lFlip)
                     {
-                        Tri(lVertices, lNormals, lColors, lUvs, lTriangles, ref lWrite, lA, lD, lB, lBase, pTheme, lS0, lS1);
-                        Tri(lVertices, lNormals, lColors, lUvs, lTriangles, ref lWrite, lB, lD, lC, lBase, pTheme, lS0, lS1);
+                        Tri(lVertices, lNormals, lColors, lUvs, lTriangles, ref lWrite, lA, lD, lB, lUa, lUd, lUb, lBase, pTheme);
+                        Tri(lVertices, lNormals, lColors, lUvs, lTriangles, ref lWrite, lB, lD, lC, lUb, lUd, lUc, lBase, pTheme);
                     }
                     else
                     {
-                        Tri(lVertices, lNormals, lColors, lUvs, lTriangles, ref lWrite, lA, lD, lC, lBase, pTheme, lS0, lS1);
-                        Tri(lVertices, lNormals, lColors, lUvs, lTriangles, ref lWrite, lA, lC, lB, lBase, pTheme, lS0, lS1);
+                        Tri(lVertices, lNormals, lColors, lUvs, lTriangles, ref lWrite, lA, lD, lC, lUa, lUd, lUc, lBase, pTheme);
+                        Tri(lVertices, lNormals, lColors, lUvs, lTriangles, ref lWrite, lA, lC, lB, lUa, lUc, lUb, lBase, pTheme);
                     }
                 }
             }
@@ -211,7 +221,7 @@ namespace Com.IsartDigital.Hyperspeed
             return lColor;
         }
 
-        private static void Tri(Vector3[] pVertices, Vector3[] pNormals, Color[] pColors, Vector2[] pUvs, int[] pTriangles, ref int pWrite, Vector3 pA, Vector3 pB, Vector3 pC, Color pBase, Theme pTheme, float pS0, float pS1)
+        private static void Tri(Vector3[] pVertices, Vector3[] pNormals, Color[] pColors, Vector2[] pUvs, int[] pTriangles, ref int pWrite, Vector3 pA, Vector3 pB, Vector3 pC, Vector2 pUa, Vector2 pUb, Vector2 pUc, Color pBase, Theme pTheme)
         {
             Vector3 lCross = Vector3.Cross(pB - pA, pC - pA);
             Vector3 lNormal = lCross.sqrMagnitude > 1e-6f ? lCross.normalized : Vector3.up;
@@ -223,7 +233,7 @@ namespace Com.IsartDigital.Hyperspeed
                 pVertices[pWrite] = lPoint;
                 pNormals[pWrite] = lNormal;
                 pColors[pWrite] = lColor;
-                pUvs[pWrite] = new Vector2(lPoint.x * 0.01f, i == 0 ? pS0 : pS1);
+                pUvs[pWrite] = i == 0 ? pUa : i == 1 ? pUb : pUc;
                 pTriangles[pWrite] = pWrite;
                 pWrite++;
             }

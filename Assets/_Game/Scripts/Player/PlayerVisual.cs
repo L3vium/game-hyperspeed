@@ -544,14 +544,23 @@ namespace Com.IsartDigital.Hyperspeed
                     else lPitch = lVertical > 0f ? -5f : 7f;
                     break;
                 case PlayerState.Grind:
-                    lBank = Mathf.Sin(Time.time * 7f) * 4f;
+                    // Surfing the current : crouched, swaying, shaken by the voltage.
+                    lBank = Mathf.Sin(Time.time * 7f) * 9f + Mathf.Sin(Time.time * 53f) * 2f;
+                    lPitch = 14f + Mathf.Sin(Time.time * 41f) * 2f;
                     break;
                 case PlayerState.Zip:
                     lBank = Mathf.Sin(Time.time * 3f) * 8f;
                     lPitch = -8f;
                     break;
                 case PlayerState.WallRun:
-                    lBank = -_player.WallSide * 10f;
+                    // Feet on the wall : the whole body hangs off it, leaning back when climbing.
+                    if (_player.Wall == PlayerController.WallMode.Climb) lPitch = -72f;
+                    else if (_player.Wall == PlayerController.WallMode.Slide)
+                    {
+                        lBank = -_player.WallSide * 24f;
+                        lPitch = -16f;
+                    }
+                    else lBank = -_player.WallSide * 52f;
                     break;
             }
             _bank = Mathf.Lerp(_bank, lBank, 1f - Mathf.Exp(-9f * pDt));
@@ -580,11 +589,12 @@ namespace Com.IsartDigital.Hyperspeed
             _body.localPosition = lPivot - lRotation * Vector3.Scale(lScale, lPivot);
 
             // Posture targets for the rig.
-            float lArrow = lState == PlayerState.Ground || lState == PlayerState.Finished ? Mathf.Clamp01((lSpeed - 75f) / 50f) : 0f;
+            float lArrow = lState == PlayerState.Ground || lState == PlayerState.Finished ? Mathf.Clamp01((lSpeed - _player.Profile.cruise * 0.9f) / (_player.Profile.cruise * 0.4f)) : 0f;
             if (_player.Hyper && lGrounded) lArrow = 1f;
             _arrow = Mathf.Lerp(_arrow, lArrow, 1f - Mathf.Exp(-5f * pDt));
-            _swayPhase += pDt * Mathf.Lerp(5f, 9f, Mathf.Clamp01((lSpeed - 90f) / 90f));
-            _openArms = _swirlT < 1f ? Mathf.Sin(_swirlT * Mathf.PI) : Mathf.MoveTowards(_openArms, 0f, pDt * 6f);
+            _swayPhase += pDt * Mathf.Lerp(5f, 9f, _player.Speed01);
+            float lWideArms = lState == PlayerState.Grind ? 0.85f : lState == PlayerState.WallRun && _player.Wall != PlayerController.WallMode.Climb ? 0.6f : 0f;
+            _openArms = _swirlT < 1f ? Mathf.Sin(_swirlT * Mathf.PI) : Mathf.MoveTowards(_openArms, lWideArms, pDt * 6f);
             _lookTarget = _player.HasLandingPrediction && lState == PlayerState.Air ? _player.LandingPoint : transform.position + lHeading * 30f + lUp * 1.2f;
 
             UpdateAnimator(lState, lGrounded, lSpeed, lVertical, pDt);
@@ -606,7 +616,7 @@ namespace Com.IsartDigital.Hyperspeed
         private void UpdateAnimator(PlayerState pState, bool pGrounded, float pSpeed, float pVertical, float pDt)
         {
             if (!_animated) return;
-            float lSpeedParam = pState == PlayerState.Frozen ? 0f : Mathf.Clamp01(pSpeed / 55f);
+            float lSpeedParam = pState == PlayerState.Frozen ? 0f : Mathf.Clamp01(pSpeed / Mathf.Min(55f, _player.Profile.cruise * 0.6f));
             _animator.SetFloat(P_SPEED, lSpeedParam, 0.08f, pDt);
             _animator.SetFloat(P_VERTICAL, pVertical);
             _animator.SetBool(P_GROUNDED, pGrounded);
@@ -620,7 +630,7 @@ namespace Com.IsartDigital.Hyperspeed
             _animator.SetBool(P_WALLSLIDE, pState == PlayerState.WallRun && _player.Wall == PlayerController.WallMode.Slide);
             _animator.SetBool(P_PRERACE, pState == PlayerState.Frozen || _player.FreeRoam);
             // Stylized cadence : the legs keep up with speeds no human reaches.
-            _animator.speed = pGrounded && pState != PlayerState.Frozen ? 1f + Mathf.Clamp01((pSpeed - 20f) / 140f) * 0.8f : 1f;
+            _animator.speed = pGrounded && pState != PlayerState.Frozen ? 1f + _player.Speed01 * 1.1f : 1f;
         }
 
         // ---------------------------------------------------------------- procedural layer (after the Animator)
@@ -774,12 +784,12 @@ namespace Com.IsartDigital.Hyperspeed
             _lightForm.SetParent(transform, false);
             _lightForm.localPosition = new Vector3(0f, 1f, 0f);
             Mats.Primitive(PrimitiveType.Sphere, _lightForm, Vector3.zero, Vector3.one * 1.8f, Mats.Glow(new Color(6f, 6.5f, 6.5f), false, 0f, 0f, true));
-            Mats.Primitive(PrimitiveType.Sphere, _lightForm, new Vector3(0f, 0f, -5f), new Vector3(1.3f, 1.3f, 12f), Mats.Glow(new Color(2f, 3.4f, 5f, 0.8f), true));
+            Mats.Primitive(PrimitiveType.Sphere, _lightForm, new Vector3(0f, 0f, -5f), new Vector3(1.3f, 1.3f, 12f), Mats.Glow(new Color(1.2f, 2.2f, 3.2f, 0.55f), true));
             _lightTrail = _lightForm.gameObject.AddComponent<TrailRenderer>();
             _lightTrail.time = 0.7f;
-            _lightTrail.startWidth = 2.6f;
+            _lightTrail.startWidth = 1.3f;
             _lightTrail.endWidth = 0f;
-            _lightTrail.sharedMaterial = Mats.Glow(new Color(3f, 5f, 6f), true);
+            _lightTrail.sharedMaterial = Mats.Glow(new Color(1.2f, 2.2f, 3f), true);
             _lightTrail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             _lightForm.gameObject.SetActive(false);
         }

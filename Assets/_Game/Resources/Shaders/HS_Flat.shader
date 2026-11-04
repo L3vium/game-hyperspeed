@@ -93,11 +93,11 @@ Shader "Hyperspeed/Flat"
                 // Thin lines rushing along the route, denser with speed. Fade with distance : a texture-free ground.
                 if (_RoadStreaks > 0 && _HS_RoadSpeed > 0.01)
                 {
-                    float lColumn = floor(input.positionWS.x * 0.06 + input.positionWS.z * 0.06);
+                    float lColumn = floor(input.uv.x * 0.11);
                     float lRnd = frac(sin(lColumn * 91.17) * 4375.85);
-                    float lThin = step(frac(input.positionWS.x * 0.06 + input.positionWS.z * 0.06), 0.1);
-                    float lDash = frac(input.uv.y * (0.002 + lRnd * 0.003) + _HS_RoadScroll * (0.002 + lRnd * 0.002) + lRnd * 7.0);
-                    float lStreak = step(0.72 - _HS_RoadSpeed * 0.3, lDash) * lThin * step(0.45, lRnd);
+                    float lThin = step(frac(input.uv.x * 0.11), 0.09);
+                    float lDash = frac(input.uv.y * (0.002 + lRnd * 0.003) + _HS_RoadScroll * (0.0012 + lRnd * 0.0012) + lRnd * 7.0);
+                    float lStreak = step(0.72 - _HS_RoadSpeed * 0.3, lDash) * lThin * step(0.4, lRnd);
                     float lNear = saturate(1.0 - distance(input.positionWS, GetCameraPositionWS()) * 0.0025);
                     lColor = lerp(lColor, half3(1, 1, 1), lStreak * _HS_RoadSpeed * 0.7 * lNear);
                 }

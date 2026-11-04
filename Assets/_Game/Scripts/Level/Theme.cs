@@ -42,18 +42,18 @@ namespace Com.IsartDigital.Hyperspeed
             fog = Hex("BFE6FF"), fogDensity = 0.0016f, ambient = Hex("A6C8FF"),
             roadA = Hex("8FD43A"), roadB = Hex("7CC22E"), roadEdge = Hex("FFE35A"), roadSide = Hex("E89B3C"),
             wall = Hex("F2B04C"), accent = Hex("FF6A00"),
-            decorA = Hex("FF8A1E"), decorB = Hex("F3C877"), decorC = Hex("C9874A"), shade = Hex("C9A6D9"), clouds = 0.7f
+            decorA = Hex("FF7A1E"), decorB = Hex("F7D154"), decorC = Hex("E0523A"), shade = Hex("C9A6D9"), clouds = 0.7f
         };
 
         public static Theme City() => new Theme
         {
-            road = Hex("3F4470"), groundC = Hex("A2A7DA"),
+            road = Hex("24285E"), groundC = Hex("7E86F2"),
             name = "NEON AVENUE", decor = DecorKind.City,
             skyTop = Hex("5A7BFF"), skyHorizon = Hex("D9E6FF"), skyBottom = Hex("F2F0FF"), cloud = Hex("FFFFFF"), sun = new Color(1.8f, 1.7f, 1.6f),
             fog = Hex("D6DBFF"), fogDensity = 0.0018f, ambient = Hex("B7B8FF"),
-            roadA = Hex("8E92C9"), roadB = Hex("8086BD"), roadEdge = Hex("FF3B6B"), roadSide = Hex("3A3F78"),
+            roadA = Hex("5F68E6"), roadB = Hex("4C55D2"), roadEdge = Hex("FF3B6B"), roadSide = Hex("2B2F78"),
             wall = Hex("C8CCF0"), accent = Hex("FF2BD6"),
-            decorA = Hex("C9CDF2"), decorB = Hex("4BE3FF"), decorC = Hex("6A5CFF"), shade = Hex("9A8FE0")
+            decorA = Hex("FF4FA3"), decorB = Hex("2FD8FF"), decorC = Hex("FFC23D"), shade = Hex("9A8FE0")
         };
 
         public static Theme Desert() => new Theme

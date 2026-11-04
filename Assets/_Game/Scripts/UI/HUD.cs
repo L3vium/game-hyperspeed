@@ -150,7 +150,7 @@ namespace Com.IsartDigital.Hyperspeed
             _canvas3D = UIPerspective.Create("HUD3D", 9, transform, lGame);
             RectTransform lRoot3D = (RectTransform)_canvas3D.transform;
 
-            _speedo = UIFactory.CreateRect(lRoot3D, "Speed", new Vector2(0f, 0f), new Vector2(340f, 118f), new Vector2(560f, 170f));
+            _speedo = UIFactory.CreateRect(lRoot3D, "Speed", new Vector2(0f, 0f), new Vector2(390f, 160f), new Vector2(560f, 170f));
             _speedo.localRotation = Quaternion.Euler(38f, -26f, 9f);
             UIKit.Tile(_speedo, "Plate", new Color(0f, 0f, 0f, 0.42f), new Vector2(0.5f, 0.5f), new Vector2(40f, -46f), new Vector2(520f, 62f), 0.6f);
             _speedFill = UIKit.Tile(_speedo, "Fill", UIKit.WHITE, new Vector2(0f, 0.5f), new Vector2(40f, -46f), new Vector2(10f, 54f), 0.6f);
@@ -158,7 +158,7 @@ namespace Com.IsartDigital.Hyperspeed
             UIFactory.Outline(_speedText, UIKit.INK, 0.2f);
             _speedUnit = UIKit.Text(_speedo, "km/h", 34f, UIKit.WHITE, new Vector2(0f, 0.5f), new Vector2(420f, 8f), new Vector2(120f, 40f), UIKit.Font.Bold, TextAlignmentOptions.Left);
 
-            _boost = UIFactory.CreateRect(lRoot3D, "Boost", new Vector2(1f, 0f), new Vector2(-410f, 118f), new Vector2(560f, 170f));
+            _boost = UIFactory.CreateRect(lRoot3D, "Boost", new Vector2(1f, 0f), new Vector2(-480f, 160f), new Vector2(560f, 170f));
             _boost.localRotation = Quaternion.Euler(38f, 26f, -9f);
             UIKit.Tile(_boost, "Plate", new Color(0f, 0f, 0f, 0.42f), new Vector2(0.5f, 0.5f), new Vector2(-40f, -46f), new Vector2(520f, 62f), -0.6f);
             _boostFill = UIKit.Tile(_boost, "Fill", UIKit.CYAN, new Vector2(1f, 0.5f), new Vector2(-40f, -46f), new Vector2(10f, 54f), -0.6f);
@@ -268,8 +268,8 @@ namespace Com.IsartDigital.Hyperspeed
             Vector2 lTilt = UIMouse.Tilt;
             _speedo.localRotation = Quaternion.Euler(38f + lTilt.y * 3f, -26f - lTilt.x * 4f + lWave, 9f + _player.Steer * 3f);
             _boost.localRotation = Quaternion.Euler(38f + lTilt.y * 3f, 26f - lTilt.x * 4f - lWave, -9f + _player.Steer * 3f);
-            _speedo.anchoredPosition = new Vector2(340f, 118f) + (_player.Hyper ? Random.insideUnitCircle * 3f * lShake : Vector2.zero);
-            _boost.anchoredPosition = new Vector2(-410f, 118f) + (_player.Hyper ? Random.insideUnitCircle * 3f * lShake : Vector2.zero);
+            _speedo.anchoredPosition = new Vector2(390f, 160f) + (_player.Hyper ? Random.insideUnitCircle * 3f * lShake : Vector2.zero);
+            _boost.anchoredPosition = new Vector2(-480f, 160f) + (_player.Hyper ? Random.insideUnitCircle * 3f * lShake : Vector2.zero);
         }
 
         private void UpdateRail()
@@ -296,7 +296,7 @@ namespace Com.IsartDigital.Hyperspeed
         private void UpdateRivalPointer()
         {
             Camera lCamera = CameraRig.Instance != null ? CameraRig.Instance.Cam : null;
-            if (_rival == null || lCamera == null) { _rivalPointer.gameObject.SetActive(false); return; }
+            if (_rival == null || lCamera == null || (!_rival.chaser && _rival.distance < _player.Progress)) { _rivalPointer.gameObject.SetActive(false); return; }
             _rivalPointer.gameObject.SetActive(true);
             Vector3 lScreen = lCamera.WorldToScreenPoint(_rival.transform.position + Vector3.up * 6f);
             float lScale = _canvas.scaleFactor;

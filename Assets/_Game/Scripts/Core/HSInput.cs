@@ -22,6 +22,11 @@ namespace Com.IsartDigital.Hyperspeed
         public static int BotDashFrame = -1;
         public static int BotSlideFrame = -1;
         public static int BotPunchFrame = -1;
+        // Virtual mouse for the end-to-end menu tests.
+        public static bool BotMouseActive;
+        public static Vector2 BotMousePosition;
+        public static bool BotMouseHeld;
+        public static int BotMouseClickFrame = -1;
 
         private static bool Bot(int pFrame) => pFrame == Time.frameCount;
 
@@ -118,8 +123,6 @@ namespace Com.IsartDigital.Hyperspeed
         public static bool RestartPressed =>
             (Kb != null && Kb.rKey.wasPressedThisFrame) || (Pad != null && Pad.selectButton.wasPressedThisFrame);
 
-        public static bool AutopilotTogglePressed => Kb != null && Kb.f9Key.wasPressedThisFrame;
-
         public static bool PausePressed =>
             (Kb != null && Kb.escapeKey.wasPressedThisFrame) || (Pad != null && Pad.startButton.wasPressedThisFrame);
 
@@ -135,9 +138,9 @@ namespace Com.IsartDigital.Hyperspeed
             (Kb != null && Kb.anyKey.wasPressedThisFrame) || (Ms != null && Ms.leftButton.wasPressedThisFrame) ||
             (Pad != null && (Pad.buttonSouth.wasPressedThisFrame || Pad.startButton.wasPressedThisFrame || Pad.buttonEast.wasPressedThisFrame));
 
-        public static bool MouseClicked => Ms != null && Ms.leftButton.wasPressedThisFrame;
+        public static bool MouseClicked => BotMouseActive ? Bot(BotMouseClickFrame) : Ms != null && Ms.leftButton.wasPressedThisFrame;
 
-        public static bool MouseHeld => Ms != null && Ms.leftButton.isPressed;
+        public static bool MouseHeld => BotMouseActive ? BotMouseHeld : Ms != null && Ms.leftButton.isPressed;
 
         public static float MouseWheel => Ms != null ? Ms.scroll.ReadValue().y : 0f;
 
@@ -146,7 +149,7 @@ namespace Com.IsartDigital.Hyperspeed
             (Kb != null && (Kb.enterKey.wasPressedThisFrame || Kb.numpadEnterKey.wasPressedThisFrame)) ||
             (Pad != null && Pad.startButton.wasPressedThisFrame);
 
-        public static Vector2 MousePosition => Ms != null ? Ms.position.ReadValue() : Vector2.zero;
+        public static Vector2 MousePosition => BotMouseActive ? BotMousePosition : Ms != null ? Ms.position.ReadValue() : Vector2.zero;
 
         public static Vector2 MouseDelta => Ms != null ? Ms.delta.ReadValue() : Vector2.zero;
 
