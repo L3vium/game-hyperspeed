@@ -208,7 +208,8 @@ namespace Com.IsartDigital.Hyperspeed
             if (lDegrees < 5f) return this;
             // Wide enough that the inside of the ribbon never folds and both legs of a hairpin stay apart.
             float lRadius = Mathf.Max(_halfWidth + 150f * Scale, _p.cruise * _p.cruise / 200f);
-            float lLength = lRadius * lDegrees * Mathf.Deg2Rad;
+            // The eased yaw covers less ground sideways than a true arc : stretch it so the legs really end up apart.
+            float lLength = lRadius * lDegrees * Mathf.Deg2Rad * 1.2f;
             Span(lLength, -lLength * 0.01f, lSide * lDegrees, HillAmp(pHills), 0f, false);
             return this;
         }
