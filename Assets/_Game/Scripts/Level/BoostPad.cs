@@ -2,41 +2,75 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // Glowing chevrons on the road : speed burst + partial alignment with the pad direction.
+    // Huge glowing chevrons draped on the ground : run over them for a burst of speed.
     public class BoostPad : Interactable
     {
+        private const int CHEVRONS = 4;
+        private const int SEGMENTS = 8;
+
         public float boost = 26f;
 
-        private Transform _visual;
-
-        public static BoostPad Create(Transform pParent, Vector3 pPosition, Quaternion pRotation, Color pColor)
+        public static BoostPad CreateDraped(Transform pParent, LevelLayout pLayout, float pS, float pLateral, float pWidth, float pLength, Color pColor)
         {
+            TerrainField lField = pLayout.field;
+            Vector3 lPosition = lField.Point(pS, pLateral);
+            Vector3 lForward = pLayout.spine.Forward(pS);
+            Vector3 lNormal = lField.Normal(pS, pLateral, 6f);
             GameObject lObject = new GameObject("BoostPad");
             lObject.transform.SetParent(pParent, false);
-            lObject.transform.SetPositionAndRotation(pPosition, pRotation);
+            lObject.transform.SetPositionAndRotation(lPosition, Quaternion.LookRotation(Vector3.ProjectOnPlane(lForward, lNormal), lNormal));
             BoostPad lPad = lObject.AddComponent<BoostPad>();
-            lPad.halfExtents = new Vector3(2.6f, 2.2f, 3.2f);
+            float lK = pLayout.profile.k;
+            lPad.halfExtents = new Vector3(pWidth * 0.5f, 18f * Mathf.Sqrt(lK), pLength * 0.5f);
+            lPad.boost = pLayout.profile.cruise * 0.16f;
+            lPad.cooldown = 0.8f;
 
-            lPad._visual = new GameObject("Visual").transform;
-            lPad._visual.SetParent(lObject.transform, false);
-            Mats.Primitive(PrimitiveType.Cube, lPad._visual, new Vector3(0f, 0.04f, 0f), new Vector3(5f, 0.08f, 6.4f), Mats.Toon(new Color(0.1f, 0.08f, 0.15f), null, 0f));
-            Material lGlow = Mats.Glow(pColor * 2.2f, false, 0f, 0f, true);
-            for (int i = 0; i < 3; i++)
+            Quaternion lInverse = Quaternion.Inverse(lObject.transform.rotation);
+            MeshData lBack = new MeshData();
+            MeshData lFront = new MeshData();
+            float lHalf = pWidth * 0.5f;
+            float lRowDepth = pLength / CHEVRONS;
+            for (int lRow = -1; lRow < CHEVRONS; lRow++)
             {
-                for (int lSide = -1; lSide <= 1; lSide += 2)
+                for (int i = 0; i < SEGMENTS; i++)
                 {
-                    GameObject lBar = Mats.Primitive(PrimitiveType.Cube, lPad._visual, new Vector3(lSide * 0.9f, 0.12f, -1.8f + i * 1.8f), new Vector3(0.45f, 0.06f, 2.3f), lGlow);
-                    lBar.transform.localRotation = Quaternion.Euler(0f, -lSide * 45f, 0f);
+                    float lU0 = -1f + 2f * i / SEGMENTS;
+                    float lU1 = -1f + 2f * (i + 1) / SEGMENTS;
+                    float lBase = -pLength * 0.5f + lRow * lRowDepth;
+                    if (lRow < 0)
+                    {
+                        // Dark plate under the chevrons, follows the ground.
+                        for (int k = 0; k < CHEVRONS; k++)
+                        {
+                            float lV0 = -pLength * 0.5f + k * lRowDepth;
+                            Drape(lBack, lField, pS, pLateral, lU0 * lHalf, lU1 * lHalf, lV0, lV0, lRowDepth, 0.25f, lPosition, lInverse, new Color(0.08f, 0.06f, 0.12f));
+                        }
+                        continue;
+                    }
+                    float lPull0 = (1f - Mathf.Abs(lU0)) * lRowDepth * 0.55f;
+                    float lPull1 = (1f - Mathf.Abs(lU1)) * lRowDepth * 0.55f;
+                    Drape(lFront, lField, pS, pLateral, lU0 * lHalf, lU1 * lHalf, lBase + lPull0, lBase + lPull1, lRowDepth * 0.42f, 0.5f, lPosition, lInverse, Color.white);
                 }
             }
+            GameObject lPlate = new GameObject("Plate");
+            lPlate.transform.SetParent(lObject.transform, false);
+            lPlate.AddComponent<MeshFilter>().sharedMesh = lBack.ToMesh("PadPlate");
+            lPlate.AddComponent<MeshRenderer>().sharedMaterial = Mats.Flat(new Color(0.2f, 0.2f, 0.25f), true);
+            GameObject lVisual = new GameObject("Chevrons");
+            lVisual.transform.SetParent(lObject.transform, false);
+            lVisual.AddComponent<MeshFilter>().sharedMesh = lFront.ToMesh("PadChevrons");
+            lVisual.AddComponent<MeshRenderer>().sharedMaterial = Mats.Glow(pColor * 2.6f, false, 0f, 0f, true);
             return lPad;
         }
 
-        private void Update()
+        // A quad in pad space, its corners set on the terrain.
+        private static void Drape(MeshData pData, TerrainField pField, float pS, float pLateral, float pL0, float pL1, float pV0, float pV1, float pDepth, float pLift, Vector3 pOrigin, Quaternion pInverse, Color pColor)
         {
-            if (_visual == null) return;
-            float lPulse = 1f + Mathf.Sin(Time.time * 14f) * 0.04f;
-            _visual.localScale = new Vector3(lPulse, 1f, lPulse);
+            Vector3 lA = pInverse * (pField.Point(pS + pV0, pLateral + pL0) - pOrigin + Vector3.up * pLift);
+            Vector3 lB = pInverse * (pField.Point(pS + pV1, pLateral + pL1) - pOrigin + Vector3.up * pLift);
+            Vector3 lC = pInverse * (pField.Point(pS + pV1 + pDepth, pLateral + pL1) - pOrigin + Vector3.up * pLift);
+            Vector3 lD = pInverse * (pField.Point(pS + pV0 + pDepth, pLateral + pL0) - pOrigin + Vector3.up * pLift);
+            pData.Quad(lA, lB, lC, lD, Vector3.up, pColor);
         }
 
         protected override void OnTouch(PlayerController pPlayer)

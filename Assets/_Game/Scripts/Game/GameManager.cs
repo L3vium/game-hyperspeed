@@ -4,19 +4,18 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // Core scene : builds the level from its definition, then intro shots, free roam on the start plaza,
-    // slow countdown on the start arch, race, results. Every wait runs on scaled time so pausing freezes the flow.
+    // Core scene : builds the stage, then straight into the countdown (you can already move on the plaza), race, results.
+    // Every wait runs on scaled time so pausing freezes the flow.
     public class GameManager : Singleton<GameManager>
     {
-        private enum Phase { Intro, PreStart, Countdown, Racing, Ended }
+        private enum Phase { Countdown, Racing, Ended }
 
         private static readonly int ROAD_SCROLL = Shader.PropertyToID("_HS_RoadScroll");
         private static readonly int ROAD_SPEED = Shader.PropertyToID("_HS_RoadSpeed");
 
-        private const float FREE_ROAM_MAX = 5f;
-        private const float COUNT_STEP = 1f;
+        private const float COUNT_STEP = 1.5f;
 
-        [Tooltip("Dev cheats : every stage unlocked, F1 invincible, F2 boost, F3 next checkpoint, F4 win, F5 slow-mo, F6 layout debug, F9 autopilot. Forced on by the HS_CHEATS define (Dev build).")]
+        [Tooltip("Dev cheats, forced on by the HS_CHEATS define (Dev build).")]
         [SerializeField] private bool _cheatCodes;
 
         private LevelDefinition _level;
@@ -28,14 +27,15 @@ namespace Com.IsartDigital.Hyperspeed
         private HUD _hud;
         private CameraRig _rig;
         private RespawnDirector _respawn;
-        private Phase _phase = Phase.Intro;
+        private Autopilot _autopilot;
+        private DevCheatBar _cheatBar;
+        private Phase _phase = Phase.Countdown;
         private float _raceTime;
         private bool _paused;
         private GameObject _pausePanel;
         private float _roadScroll;
         private float _hyperBlend;
         private bool _slowCheat;
-        private bool _readyPressed;
 
         public bool Paused => _paused;
 
@@ -54,19 +54,22 @@ namespace Com.IsartDigital.Hyperspeed
         {
             Theme lTheme = _level.theme();
             RaceContext.Theme = lTheme;
+            SpeedProfile lProfile = LevelDatabase.Profile(_level);
+            SpeedProfile.Current = lProfile;
+            Ballistics.Scale = lProfile.gravityScale;
             Transform lRoot = new GameObject("Level").transform;
-            EnvironmentBuilder.Build(lTheme, lRoot);
+            EnvironmentBuilder.Build(lTheme, lRoot, lProfile);
 
             Random.State lState = Random.state;
             Random.InitState(_level.seed);
-            Transform lTrackRoot = new GameObject("Track").transform;
+            Transform lTrackRoot = new GameObject("Course").transform;
             lTrackRoot.SetParent(lRoot, false);
-            LevelBuilder lBuilder = new LevelBuilder(lTrackRoot, lTheme);
+            CourseBuilder lBuilder = new CourseBuilder(lTrackRoot, lTheme, lProfile, _level.seed) { pace = LevelDatabase.Pace(_levelIndex) };
             _level.build(lBuilder);
             _layout = lBuilder.Build();
             Random.state = lState;
             RaceContext.Layout = _layout;
-            EnvironmentBuilder.Decorate(lTheme, _layout, lRoot, _level.seed * 7 + 3);
+            if (_level.collapse) CourseBreak.Create(_layout);
 
             Camera lCamera = CameraRig.CreateCamera();
             _rig = lCamera.gameObject.AddComponent<CameraRig>();
@@ -79,7 +82,7 @@ namespace Com.IsartDigital.Hyperspeed
             _rig.SetTarget(_player, _layout);
             _rig.Snap();
 
-            float lStart = _level.chaser ? _level.chaserStart : 0f;
+            float lStart = _level.chaser ? _level.chaserStart * lProfile.k : _layout.spawnS + 15f;
             _rival = Rival.Create(_level.rival, _level.rivalSpeed, _level.rivalDelay, _level.chaser, lStart, lRoot);
             _respawn = RespawnDirector.Create(_player, _rig);
 
@@ -87,8 +90,9 @@ namespace Com.IsartDigital.Hyperspeed
             _hud = HUD.Create(_player, _rival, _layout, _level);
             if (GameSession.CheatsEnabled)
             {
-                gameObject.AddComponent<Autopilot>().Init(_player, _layout);
-                gameObject.AddComponent<LayoutDebugDraw>().Init(_layout, _player);
+                _autopilot = gameObject.AddComponent<Autopilot>();
+                _autopilot.Init(_player, _layout);
+                _cheatBar = DevCheatBar.Create();
             }
         }
 
@@ -101,31 +105,20 @@ namespace Com.IsartDigital.Hyperspeed
         private IEnumerator Flow()
         {
             SetCursorLocked(true);
-            _phase = Phase.Intro;
-            if (!GameSession.SkipTitleIntro)
-            {
-                IntroDirector lIntro = new IntroDirector(_layout, _level, _levelIndex, _player, _rival, _rig, _hud);
-                yield return lIntro.Play();
-            }
-            GameSession.SkipTitleIntro = false;
-            _hud.IntroClear();
-            _rig.ClearOverride(0.6f);
-
-            // Free roam on the start plaza : move, jump, look around before the countdown.
-            _phase = Phase.PreStart;
-            _player.BeginFreeRoam();
-            _rig.freeLook = true;
-            _hud.ShowReady(IntroDirector.Objective(_level, _layout));
-            _readyPressed = false;
-            for (float lTime = 0f; lTime < FREE_ROAM_MAX && !_readyPressed; lTime += Time.deltaTime)
-            {
-                if (lTime > 0.4f && !_paused && HSInput.SubmitPressed) _readyPressed = true;
-                yield return null;
-            }
-            _hud.HideReady();
-
-            // Slower countdown, shown on the start arch and in a compact top-center counter. You can still move.
             _phase = Phase.Countdown;
+
+            // The runner falls from the sky onto the plaza while the camera swoops down behind it, and the count is
+            // already running : you can move, jump and look around from the first instant.
+            _player.BeginFreeRoam(true, 55f);
+            _rig.freeLook = true;
+            _rig.Snap();
+            Vector3 lForward = _layout.Flow(_layout.spawnS);
+            Vector3 lSpot = _layout.GroundPoint(_layout.spawnS, 0f);
+            _rig.CutTo(lSpot + Vector3.up * 70f - lForward * 90f, lSpot + lForward * 120f + Vector3.up * 35f, 72f);
+            _rig.ClearOverride(1.3f);
+
+            while (SceneTransition.IsBusy) yield return null;
+
             string[] lSteps = { "3", "2", "1" };
             _player.ArmStart(Time.time + COUNT_STEP * lSteps.Length);
             for (int i = 0; i < lSteps.Length; i++)
@@ -142,7 +135,7 @@ namespace Com.IsartDigital.Hyperspeed
         private IEnumerator PushChaserBack()
         {
             yield return null;
-            _rival.distance = Mathf.Min(_rival.distance, _player.Progress - 90f);
+            _rival.distance = Mathf.Min(_rival.distance, _player.Progress - 200f * _layout.profile.k);
         }
 
         private void BeginRace()
@@ -155,38 +148,51 @@ namespace Com.IsartDigital.Hyperspeed
             _rig.freeLook = false;
             _player.StartRunning();
             AudioManager.PlayMusic(_level.music, 0.6f);
-            Juice.Shake(0.25f);
+            Juice.Shake(0.3f);
+            Juice.FovKick(8f);
         }
 
         private void Update()
         {
-            if (HSInput.PausePressed && _phase != Phase.Ended && !SceneTransition.IsBusy)
+            // Keys typed in another window must never reach a game running in the background.
+            bool lFocused = Application.isFocused;
+            if (lFocused && HSInput.PausePressed && _phase != Phase.Ended && !SceneTransition.IsBusy)
             {
                 if (_paused) Resume();
                 else Pause();
             }
             if (_paused) return;
-            if (HSInput.RestartPressed && !SceneTransition.IsBusy && _phase != Phase.Intro) Retry();
+            if (lFocused && HSInput.RestartPressed && !SceneTransition.IsBusy) Retry();
 
             DriveGlobals();
-            if (GameSession.CheatsEnabled) Cheats();
+            if (lFocused && GameSession.CheatsEnabled) Cheats();
 
             RaceContext.PlayerProgress = _player.Progress;
             if (_phase != Phase.Racing) return;
 
             _raceTime += Time.deltaTime;
             _hud.SetRaceTime(_raceTime);
-            AudioManager.SetMusicPitch(1f + Mathf.Clamp01((_player.Speed - 70f) / 130f) * 0.06f);
+            AudioManager.SetMusicPitch(1f + _player.Speed01 * 0.08f);
 
             if (_player.Progress >= _layout.finishS && _player.State != PlayerState.Dead && !_respawn.Busy)
                 StartCoroutine(EndRoutine(true, "FINISH!!"));
             else if (!_level.chaser && _rival.Finished)
                 StartCoroutine(EndRoutine(false, "TOO SLOW"));
-            else if (_level.chaser && !_player.Invulnerable && !_respawn.Busy && _rival.distance >= _player.Progress - 2f && _rival.distance > 0f)
-                StartCoroutine(EndRoutine(false, _level.rival == RivalKind.Death ? "REAPED" : "VAPORIZED"));
+            else if (_level.chaser && !_player.Invulnerable && !_player.CheatInvincible && !_respawn.Busy && _rival.distance >= _player.Progress - 2f && _rival.distance > 0f)
+                StartCoroutine(EndRoutine(false, CaughtWord()));
         }
 
-        // Feeds speed to the post process, the road speed lines and the music.
+        private string CaughtWord()
+        {
+            switch (_level.rival)
+            {
+                case RivalKind.TRex: return "EATEN";
+                case RivalKind.Death: return "REAPED";
+                default: return "VAPORIZED";
+            }
+        }
+
+        // Feeds speed to the post process, the ground speed lines and the music.
         private void DriveGlobals()
         {
             float lSpeed = _player.Speed;
@@ -195,35 +201,60 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 PostFX.Instance.speed01 = _player.Speed01;
                 PostFX.Instance.hyper01 = _hyperBlend;
+                PostFX.Instance.light01 = _player.LightForm ? 1f : 0f;
             }
-            _roadScroll += lSpeed * Time.deltaTime * 0.6f;
+            _roadScroll += lSpeed * Time.deltaTime;
             Shader.SetGlobalFloat(ROAD_SCROLL, _roadScroll);
-            Shader.SetGlobalFloat(ROAD_SPEED, Mathf.Clamp01((lSpeed - 25f) / 100f));
+            Shader.SetGlobalFloat(ROAD_SPEED, Mathf.Clamp01(_player.Speed01 + 0.25f));
         }
 
+        // Digit keys, shown bottom-right in the Dev build only.
         private void Cheats()
         {
             UnityEngine.InputSystem.Keyboard lKeyboard = UnityEngine.InputSystem.Keyboard.current;
             if (lKeyboard == null) return;
-            if (lKeyboard.f1Key.wasPressedThisFrame)
+            bool lRacing = _phase == Phase.Racing;
+            if (lKeyboard.digit1Key.wasPressedThisFrame)
             {
                 _player.CheatInvincible = !_player.CheatInvincible;
-                Juice.Popup(_player.CheatInvincible ? "INVINCIBLE ON" : "INVINCIBLE OFF", UIKit.GOLD, 1f);
+                _cheatBar.SetActive(0, _player.CheatInvincible);
             }
-            if (lKeyboard.f2Key.wasPressedThisFrame && _phase == Phase.Racing) _player.ApplyBoost(70f, _player.Heading, 0f, "CHEAT BOOST");
-            if (lKeyboard.f3Key.wasPressedThisFrame && _phase == Phase.Racing) _player.SkipToNextCheckpoint();
-            if (lKeyboard.f4Key.wasPressedThisFrame && _phase == Phase.Racing) StartCoroutine(EndRoutine(true, "FINISH!!"));
-            if (lKeyboard.f5Key.wasPressedThisFrame)
+            if (lKeyboard.digit2Key.wasPressedThisFrame && lRacing) { _player.ApplyBoost(_layout.profile.cruise * 0.6f, _player.Heading, 0f, "CHEAT BOOST"); _cheatBar.Flash(1); }
+            if (lKeyboard.digit3Key.wasPressedThisFrame && lRacing) { _player.SkipToNextCheckpoint(); _cheatBar.Flash(2); }
+            if (lKeyboard.digit4Key.wasPressedThisFrame && lRacing) { StartCoroutine(EndRoutine(true, "FINISH!!")); _cheatBar.Flash(3); }
+            if (lKeyboard.digit5Key.wasPressedThisFrame)
             {
                 _slowCheat = !_slowCheat;
                 Time.timeScale = _slowCheat ? 0.35f : 1f;
+                _cheatBar.SetActive(4, _slowCheat);
             }
+            if (lKeyboard.digit6Key.wasPressedThisFrame && _levelIndex + 1 < LevelDatabase.Count)
+            {
+                GameSession.SelectedLevel = _levelIndex + 1;
+                SceneTransition.LoadStage(_levelIndex + 1);
+                _cheatBar.Flash(5);
+            }
+            if (lKeyboard.digit7Key.wasPressedThisFrame)
+            {
+                _autopilot.Toggle();
+                _cheatBar.SetActive(6, Autopilot.Enabled);
+            }
+            if (lKeyboard.digit8Key.wasPressedThisFrame && lRacing) { _player.ApplyBoost(_layout.profile.max, _player.Heading, 0f, "MAX SPEED"); _cheatBar.Flash(7); }
+            if (lKeyboard.digit9Key.wasPressedThisFrame && lRacing)
+            {
+                MeteorDirector lDirector = FindAnyObjectByType<MeteorDirector>();
+                if (lDirector != null) Meteor.CreateIncoming(lDirector.transform, _layout, _player, _player.Progress + _player.Speed * 2.5f, 26f * Mathf.Sqrt(_layout.profile.k), RaceContext.Theme);
+                _cheatBar.Flash(8);
+            }
+            if (lKeyboard.digit0Key.wasPressedThisFrame) { Retry(); _cheatBar.Flash(9); }
+            _cheatBar.SetActive(6, Autopilot.Enabled);
         }
 
         private IEnumerator EndRoutine(bool pWin, string pHeadline)
         {
             _phase = Phase.Ended;
             RaceContext.Running = false;
+            Debug.Log("[HS-END] " + pHeadline + " stage=" + (_levelIndex + 1) + " time=" + _raceTime.ToString("F1") + " s=" + _player.Progress.ToString("F0") + "/" + _layout.finishS.ToString("F0") + " rival=" + _rival.distance.ToString("F0") + " respawns=" + _player.Respawns + " top=" + _player.TopSpeed.ToString("F0"));
             _player.Finish();
             AudioManager.SetMusicPitch(1f);
 
@@ -255,7 +286,7 @@ namespace Com.IsartDigital.Hyperspeed
             bool lRecord = false;
             if (pWin)
             {
-                float lRivalTime = _layout.finishS / _level.rivalSpeed + _level.rivalDelay;
+                float lRivalTime = _layout.finishS / _level.rivalSpeed;
                 float lRatio = _raceTime / lRivalTime;
                 lRank = lRatio < 0.8f ? 4 : lRatio < 0.88f ? 3 : lRatio < 0.96f ? 2 : 1;
                 if (_player.Respawns >= 3 && lRank > 2) lRank--;
@@ -272,8 +303,7 @@ namespace Com.IsartDigital.Hyperspeed
         private void Retry()
         {
             if (_paused) Resume();
-            GameSession.SkipTitleIntro = true;
-            SceneTransition.LoadScene(SceneName.CORE, "RETRY", 1.6f);
+            SceneTransition.LoadScene(SceneName.CORE, 1.6f);
         }
 
         private void ToStageSelect()
@@ -281,7 +311,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (_paused) Resume();
             Time.timeScale = 1f;
             TitleScreen.OpenLevelSelect = true;
-            SceneTransition.LoadScene(SceneName.TITLE_SCREEN, "STAGES");
+            SceneTransition.LoadScene(SceneName.TITLE_SCREEN);
         }
 
         private void Pause()
@@ -322,7 +352,7 @@ namespace Com.IsartDigital.Hyperspeed
             Interactable.All.Clear();
             Breakable.All.Clear();
             GrindRail.All.Clear();
-            DeckChunk.ClearAll();
+            TerrainBaker.Chunks.Clear();
             Shader.SetGlobalFloat(ROAD_SPEED, 0f);
         }
     }

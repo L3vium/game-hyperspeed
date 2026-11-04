@@ -76,10 +76,12 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3[] lNormals = pMesh.normals;
             int[] lTriangles = pMesh.triangles;
             int lOffset = vertices.Count;
+            // Normals go through the inverse transpose : non-uniform scale must not bend them.
+            Matrix4x4 lNormalMatrix = pMatrix.inverse.transpose;
             for (int i = 0; i < lVertices.Length; i++)
             {
                 vertices.Add(pMatrix.MultiplyPoint3x4(lVertices[i]));
-                normals.Add(pMatrix.MultiplyVector(lNormals[i]).normalized);
+                normals.Add(lNormalMatrix.MultiplyVector(lNormals[i]).normalized);
                 colors.Add(pColor);
                 uvs.Add(NO_UV);
             }

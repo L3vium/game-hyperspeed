@@ -66,7 +66,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
             AssetDatabase.DeleteAsset(CONTROLLER);
             AnimatorController lController = AnimatorController.CreateAnimatorControllerAtPath(CONTROLLER);
             string[] lFloats = { "Speed", "Vertical" };
-            string[] lBools = { "Grounded", "Glide", "Dive", "Slide", "Grind", "Hang", "WallRun", "Win", "Lose", "PreRace" };
+            string[] lBools = { "Grounded", "Glide", "Dive", "Slide", "Grind", "Hang", "WallRun", "WallClimb", "WallSlide", "Win", "Lose", "PreRace" };
             string[] lTriggers = { "Jump", "Flip", "Land", "LandHard", "LandRoll", "Spin", "Stumble", "Taunt" };
             foreach (string lName in lFloats) lController.AddParameter(lName, AnimatorControllerParameterType.Float);
             foreach (string lName in lBools) lController.AddParameter(lName, AnimatorControllerParameterType.Bool);
@@ -102,6 +102,8 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
             AnimatorState lGrind = AddState(lMachine, "Grind", First("grind", "slide", "run"), new Vector3(560f, 240f));
             AnimatorState lHang = AddState(lMachine, "Hang", First("hang", "fall"), new Vector3(560f, 320f));
             AnimatorState lWall = AddState(lMachine, "WallRun", First("wall_run", "sprint", "run_fast"), new Vector3(560f, 400f));
+            AnimatorState lClimb = AddState(lMachine, "WallClimb", First("wall_climb", "sprint", "run_fast"), new Vector3(760f, 400f));
+            AnimatorState lWallSlide = AddState(lMachine, "WallSlide", First("wall_slide", "fall", "hang"), new Vector3(960f, 400f));
             AnimatorState lLandSoft = AddState(lMachine, "LandSoft", Clip("land_soft"), new Vector3(300f, 480f));
             AnimatorState lLandHard = AddState(lMachine, "LandHard", First("land_hard", "land_soft"), new Vector3(520f, 480f));
             AnimatorState lLandRoll = AddState(lMachine, "LandRoll", First("land_roll", "roll"), new Vector3(740f, 480f));
@@ -118,6 +120,10 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
             if (lGrind != null) AnyTo(lMachine, lGrind, 0.08f, Cond("Grind", true));
             if (lHang != null) AnyTo(lMachine, lHang, 0.1f, Cond("Hang", true));
             if (lWall != null) AnyTo(lMachine, lWall, 0.1f, Cond("WallRun", true));
+            if (lClimb != null) AnyTo(lMachine, lClimb, 0.1f, Cond("WallClimb", true));
+            if (lWallSlide != null) AnyTo(lMachine, lWallSlide, 0.12f, Cond("WallSlide", true));
+            if (lClimb != null) To(lClimb, lLoco, 0.12f, Cond("WallClimb", false));
+            if (lWallSlide != null) To(lWallSlide, lLoco, 0.12f, Cond("WallSlide", false));
             if (lGlide != null) AnyTo(lMachine, lGlide, 0.15f, Cond("Glide", true), Cond("Grounded", false));
             if (lDive != null) AnyTo(lMachine, lDive, 0.1f, Cond("Dive", true), Cond("Grounded", false));
             if (lFlip != null) AnyTrigger(lMachine, lFlip, "Flip", 0.05f);
@@ -128,7 +134,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
             foreach (AnimatorState lFrom in new[] { lLoco, lReady, lSlide, lGrind, lHang, lWall, lGlide, lDive })
             {
                 if (lFrom == null) continue;
-                To(lFrom, lAir, 0.12f, Cond("Grounded", false), Cond("Glide", false), Cond("Dive", false), Cond("Grind", false), Cond("Hang", false), Cond("WallRun", false));
+                To(lFrom, lAir, 0.12f, Cond("Grounded", false), Cond("Glide", false), Cond("Dive", false), Cond("Grind", false), Cond("Hang", false), Cond("WallRun", false), Cond("WallClimb", false), Cond("WallSlide", false));
             }
             To(lAir, lLoco, 0.1f, Cond("Grounded", true));
             if (lLandSoft != null) TriggerTo(lAir, lLandSoft, "Land", 0.05f);

@@ -14,7 +14,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
         private static readonly string[] LOOPS =
         {
             "idle", "idle_ready", "look_around", "jog", "run", "run_fast", "sprint", "fall", "glide", "dive",
-            "slide", "wall_run", "grind", "hang", "rider_pose"
+            "slide", "wall_run", "wall_climb", "wall_slide", "grind", "hang", "rider_pose"
         };
 
         private static bool _wirePending;

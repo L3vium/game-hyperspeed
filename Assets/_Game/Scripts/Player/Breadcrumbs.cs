@@ -7,7 +7,6 @@ namespace Com.IsartDigital.Hyperspeed
         public Vector3 position;
         public Vector3 heading;
         public float s;
-        public Deck deck;
         public float lateral;
         public float speed;
         public bool safe;
@@ -26,15 +25,6 @@ namespace Com.IsartDigital.Hyperspeed
 
         public int Count => _count;
 
-        public bool HasSafe
-        {
-            get
-            {
-                for (int i = 0; i < _count; i++) if (Get(i).safe) return true;
-                return false;
-            }
-        }
-
         // i = 0 is the newest crumb.
         public Breadcrumb Get(int pIndex)
         {
@@ -49,39 +39,36 @@ namespace Com.IsartDigital.Hyperspeed
             _last = -10f;
         }
 
-        public void Record(PlayerController pPlayer, Deck pDeck, float pS, float pLateral, float pSpeed, float pTime)
+        public void Record(PlayerController pPlayer, LevelLayout pLayout, float pS, float pLateral, float pSpeed, float pTime)
         {
             if (pTime - _last < INTERVAL) return;
             _last = pTime;
-            float lHalf = pDeck.Width(pS) * 0.5f;
-            bool lSafe = pDeck.surface == DeckSurface.Solid && lHalf - Mathf.Abs(pDeck.Lateral(pPlayer.transform.position, pS)) >= 2f
-                && !(pDeck.endCap && pDeck.EndS - pS < 25f) && pS - pDeck.StartS > 4f;
             _crumbs[_head] = new Breadcrumb
             {
                 position = pPlayer.transform.position,
                 heading = pPlayer.Heading,
                 s = pS,
-                deck = pDeck,
-                lateral = pDeck.Lateral(pPlayer.transform.position, pS),
+                lateral = pLateral,
                 speed = pSpeed,
-                safe = lSafe
+                safe = pLayout.IsSafe(pS, pLateral)
             };
             _head = (_head + 1) % CAPACITY;
             _count = Mathf.Min(_count + 1, CAPACITY);
         }
 
-        // Newest safe crumb at least 60 m before the death point (about a second to read the obstacle again),
-        // else the layout safe point before it.
-        public Breadcrumb PickSafe(float pDeathS, LevelLayout pLayout)
+        // Newest safe crumb about a second and a half before the death point, else the safe ground found on the route.
+        public Breadcrumb PickSafe(float pDeathS, float pSpeed, LevelLayout pLayout)
         {
+            float lBack = Mathf.Max(100f, Mathf.Max(pSpeed, pLayout.profile.cruise) * 1.5f);
             for (int i = 0; i < _count; i++)
             {
                 Breadcrumb lCrumb = Get(i);
-                if (lCrumb.safe && lCrumb.s <= pDeathS - 60f) return lCrumb;
+                if (lCrumb.safe && lCrumb.s <= pDeathS - lBack) return lCrumb;
             }
-            SafePoint lPoint = pLayout.SafePointBefore(pDeathS - 60f);
-            Vector3 lPosition = lPoint.deck != null ? lPoint.deck.SurfacePoint(lPoint.s, 0f) : pLayout.startPosition;
-            return new Breadcrumb { position = lPosition, s = lPoint.s, deck = lPoint.deck, lateral = 0f, speed = PlayerController.RUN_SPEED, safe = true };
+            float lS = Mathf.Max(pDeathS - lBack, pLayout.startLineS + 5f);
+            for (int i = 0; i < 40 && !pLayout.IsSafe(lS, 0f) && lS > pLayout.startLineS + 5f; i++) lS -= lBack * 0.25f;
+            lS = Mathf.Max(lS, pLayout.startLineS + 5f);
+            return new Breadcrumb { position = pLayout.GroundPoint(lS, 0f), heading = pLayout.Flow(lS), s = lS, lateral = 0f, speed = pLayout.profile.cruise, safe = true };
         }
     }
 }

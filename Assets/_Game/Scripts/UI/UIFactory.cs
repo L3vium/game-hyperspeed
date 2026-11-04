@@ -33,6 +33,7 @@ namespace Com.IsartDigital.Hyperspeed
             GameObject lObject = new GameObject(pName, typeof(RectTransform));
             RectTransform lRect = (RectTransform)lObject.transform;
             lRect.SetParent(pParent, false);
+            lObject.layer = pParent.gameObject.layer;
             lRect.anchorMin = pAnchor;
             lRect.anchorMax = pAnchor;
             lRect.pivot = new Vector2(0.5f, 0.5f);

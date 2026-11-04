@@ -16,7 +16,6 @@ namespace Com.IsartDigital.Hyperspeed
 #else
         public static bool CheatsEnabled = false;
 #endif
-        public static bool SkipTitleIntro = false;
 
         public static int UnlockedCount => Mathf.Max(1, PlayerPrefs.GetInt(UNLOCKED_KEY, 1));
 

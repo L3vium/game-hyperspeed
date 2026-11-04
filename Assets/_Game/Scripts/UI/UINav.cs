@@ -24,6 +24,8 @@ namespace Com.IsartDigital.Hyperspeed
 
         public Action onBack;
         public bool active = true;
+        // Perspective canvases hit-test through their own camera.
+        public Camera eventCamera;
         public int Selected => _selected;
 
         public static UINav Create(GameObject pHost)
@@ -76,7 +78,7 @@ namespace Com.IsartDigital.Hyperspeed
             for (int i = 0; i < _items.Count; i++)
             {
                 if (!_items[i].enabled || !_items[i].rect.gameObject.activeInHierarchy) continue;
-                if (!RectTransformUtility.RectangleContainsScreenPoint(_items[i].rect, lMouse, null)) continue;
+                if (!RectTransformUtility.RectangleContainsScreenPoint(_items[i].rect, lMouse, eventCamera)) continue;
                 if (lMoved && i != _selected) Select(i, true);
                 if (HSInput.MouseClicked)
                 {
