@@ -21,6 +21,8 @@ namespace Com.IsartDigital.Hyperspeed
 
         public float speed01;
         public float hyper01;
+        public float light01;
+        private float _light;
         // Death rewind look (desaturated, scanlines) and pause backdrop (game visible but dimmed).
         public float rewind;
         public float pause;
@@ -128,16 +130,17 @@ namespace Com.IsartDigital.Hyperspeed
             _chromatic.intensity.Override(Mathf.Clamp01(0.08f + lSpeed * 0.35f + _pulse * 0.5f + hyper01 * 0.2f + _rewind * 0.6f));
             _vignette.intensity.Override(0.2f + lSpeed * 0.16f + _vignetteBoost * 0.2f + _pause * 0.25f);
             _vignette.color.Override(Color.Lerp(Color.black, _vignetteColor, Mathf.Clamp01(_vignetteBoost * 1.5f)));
-            _lens.intensity.Override(-(lSpeed * 0.12f + _pulse * 0.1f));
+            _light = Mathf.MoveTowards(_light, light01, lDt * 2f);
+            _lens.intensity.Override(-(lSpeed * 0.18f + _pulse * 0.1f + _light * 0.1f));
             _lens.scale.Override(1f);
             _panini.distance.Override(Mathf.Clamp01((lSpeed - 0.15f) * 0.7f));
             _motionBlur.intensity.Override(lSpeed * 0.12f);
-            _bloom.intensity.Override(1.1f + lSpeed * 0.4f + hyper01 * 0.7f + _pulse * 0.8f);
+            _bloom.intensity.Override(0.7f + lSpeed * 0.2f + hyper01 * 0.15f + _pulse * 0.5f + _light * 0.25f);
             _color.postExposure.Override(_pulse * 0.15f + hyper01 * 0.1f - _pause * 0.35f);
             _color.saturation.Override(22f - _pause * 40f);
 
             Shader.SetGlobalFloat(ABERRATION, 0.15f + lSpeed * 0.8f + _pulse * 1.2f + hyper01 * 0.8f + _rewind * 2f);
-            Shader.SetGlobalFloat(RADIAL_BLUR, Mathf.Min(1.2f, Mathf.Clamp01(lSpeed - 0.25f) * 0.8f + _pulse * 0.5f + hyper01 * 0.5f));
+            Shader.SetGlobalFloat(RADIAL_BLUR, Mathf.Min(1.1f, Mathf.Clamp01(lSpeed - 0.15f) * 0.8f + _pulse * 0.4f + hyper01 * 0.2f + _light * 0.2f));
             Shader.SetGlobalFloat(REWIND, _rewind);
             Shader.SetGlobalFloat(DESATURATE, _rewind * 0.75f);
             Shader.SetGlobalFloat(DITHER, 0.55f);

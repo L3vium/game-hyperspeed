@@ -35,6 +35,22 @@ namespace Com.IsartDigital.Hyperspeed
             return lMat;
         }
 
+        // Flat colours : vertex colour times pColor, one shadow step. Ground speed lines on the terrain.
+        public static Material Flat(Color pShade, bool pStreaks, Color? pColor = null)
+        {
+            Color lColor = pColor ?? Color.white;
+            string lKey = "flat" + pShade + pStreaks + lColor;
+            Material lMat;
+            if (_cache.TryGetValue(lKey, out lMat) && lMat != null) return lMat;
+            lMat = new Material(Shader.Find("Hyperspeed/Flat"));
+            lMat.SetColor(BASE_COLOR, lColor);
+            lMat.SetColor("_ShadeColor", pShade);
+            lMat.SetFloat("_RoadStreaks", pStreaks ? 1f : 0f);
+            lMat.enableInstancing = true;
+            _cache[lKey] = lMat;
+            return lMat;
+        }
+
         public static Material ToonUnique(Color pColor)
         {
             Material lMat = new Material(Toon(pColor));

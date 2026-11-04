@@ -8,8 +8,7 @@ namespace Com.IsartDigital.Hyperspeed
     {
         public static readonly List<GrindRail> All = new List<GrindRail>();
 
-        private const int TUBE_SIDES = 8;
-        private const float TUBE_RADIUS = 0.28f;
+        private const int TUBE_SIDES = 6;
 
         private readonly List<Vector3> _points = new List<Vector3>();
         private readonly List<Vector3> _ups = new List<Vector3>();
@@ -18,7 +17,7 @@ namespace Com.IsartDigital.Hyperspeed
         private Bounds _bounds;
 
         public float Length { get; private set; }
-        public bool zip;
+        public float catchRadius = 20f;
 
         private void OnEnable() => All.Add(this);
 
@@ -51,54 +50,21 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _bounds = new Bounds(_points[0], Vector3.zero);
             foreach (Vector3 lPoint in _points) _bounds.Encapsulate(lPoint);
-            _bounds.Expand(8f);
+            _bounds.Expand(catchRadius * 2f + 8f);
         }
 
-        // Floating glowing tube (no posts : rails are embedded in the deck troughs at both ends).
-        public void Finish(Color pColor)
+        // Electric rope : thick glowing tube, big enough to read from far away.
+        public void Finish(Color pColor, float pRadius)
         {
             ComputeBounds();
-            BuildTube(pColor);
-        }
-
-        // Zip line : thin cable between two sculpted towers, glowing handle markers along it.
-        public void FinishZip(Color pTowerColor, Color pAccent)
-        {
-            ComputeBounds();
-            BuildTube(pAccent, 0.09f, Mats.Toon(new Color(0.12f, 0.1f, 0.14f), null, 0f));
-            MeshData lTowers = new MeshData();
-            for (int i = 0; i < 2; i++)
-            {
-                Vector3 lTop = transform.InverseTransformPoint(i == 0 ? _points[0] : _points[_points.Count - 1]);
-                RockSculptor.Place(lTowers, RockSculptor.Shard(i), lTop - Vector3.up * 16f, Quaternion.identity, new Vector3(1.6f, 6.5f, 1.6f), pTowerColor);
-            }
-            GameObject lTowerObject = new GameObject("Towers");
-            lTowerObject.transform.SetParent(transform, false);
-            lTowerObject.AddComponent<MeshFilter>().sharedMesh = lTowers.ToMesh("ZipTowers");
-            lTowerObject.AddComponent<MeshRenderer>().sharedMaterial = Mats.Toon(Color.white, null, 0.02f, 0.35f, true);
-            Material lGlow = Mats.Glow(pAccent * 2.5f, false, 0f, 0f, true);
-            for (float lDist = 6f; lDist < Length; lDist += 9f)
-            {
-                Vector3 lPos, lTangent, lUp;
-                Evaluate(lDist, out lPos, out lTangent, out lUp);
-                GameObject lMarker = new GameObject("Handle");
-                lMarker.transform.SetParent(transform, false);
-                lMarker.transform.position = lPos;
-                lMarker.transform.rotation = Quaternion.LookRotation(lTangent);
-                lMarker.AddComponent<MeshFilter>().sharedMesh = MeshUtil.Ring(0.18f, 0.42f, 12);
-                lMarker.AddComponent<MeshRenderer>().sharedMaterial = lGlow;
-            }
-        }
-
-        private void BuildTube(Color pColor)
-        {
             if (_points.Count < 2) return;
-            Material lMaterial = Mats.GlowStripes(pColor * 2.2f, 1f, 3f);
+            Material lMaterial = Mats.GlowStripes(pColor * 2.6f, 0.08f, 9f);
             lMaterial.SetFloat("_Cull", 2f);
-            BuildTube(pColor, TUBE_RADIUS, lMaterial);
+            BuildTube(pRadius, lMaterial);
+            ElectricArcs.Attach(this, pColor);
         }
 
-        private void BuildTube(Color pColor, float pRadius, Material pMaterial)
+        private void BuildTube(float pRadius, Material pMaterial)
         {
             List<Vector3> lVertices = new List<Vector3>();
             List<Vector3> lNormals = new List<Vector3>();

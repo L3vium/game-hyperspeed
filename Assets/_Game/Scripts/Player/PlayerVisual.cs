@@ -9,7 +9,7 @@ namespace Com.IsartDigital.Hyperspeed
     // the trajectory, two verlet ribbons from the neck. Effects : aura streaming backward, shadow afterimages, hand trails.
     public class PlayerVisual : MonoBehaviour
     {
-        private const float MODEL_HEIGHT = 1.8f;
+        private const float MODEL_HEIGHT = 2.7f;
         private const float AFTERIMAGE_INTERVAL = 0.045f;
         private const float AFTERIMAGE_LIFE = 0.22f;
         private const float AFTERIMAGE_SPEED = 85f;
@@ -33,6 +33,8 @@ namespace Com.IsartDigital.Hyperspeed
         private static readonly int P_GRIND = Animator.StringToHash("Grind");
         private static readonly int P_HANG = Animator.StringToHash("Hang");
         private static readonly int P_WALLRUN = Animator.StringToHash("WallRun");
+        private static readonly int P_WALLCLIMB = Animator.StringToHash("WallClimb");
+        private static readonly int P_WALLSLIDE = Animator.StringToHash("WallSlide");
         private static readonly int P_WIN = Animator.StringToHash("Win");
         private static readonly int P_LOSE = Animator.StringToHash("Lose");
         private static readonly int P_PRERACE = Animator.StringToHash("PreRace");
@@ -265,7 +267,7 @@ namespace Com.IsartDigital.Hyperspeed
                 for (int i = 0; i < lMaterials.Length; i++)
                 {
                     Material lSource = lMaterials[i];
-                    Material lToon = new Material(Mats.Toon(Color.white, new Color(0.62f, 0.58f, 0.82f), 0.012f, 0.55f));
+                    Material lToon = new Material(Mats.Toon(Color.white, new Color(0.62f, 0.58f, 0.82f), 0.012f, 0.55f, true));
                     if (lSource != null)
                     {
                         Texture lTexture = lSource.HasProperty("_BaseMap") ? lSource.GetTexture("_BaseMap") : lSource.mainTexture;
@@ -466,6 +468,15 @@ namespace Com.IsartDigital.Hyperspeed
 
         public void Taunt() => Trigger(P_TAUNT);
 
+        // One punch connected : the fist flashes, the whole body lunges at the impact.
+        public void PunchImpact(Vector3 pPoint)
+        {
+            _punchT = 0.25f;
+            _flash = 1f;
+            _zStretchVelocity += 5f;
+            FX.Burst(transform.position + transform.up, (pPoint - transform.position).normalized, new Color(1f, 0.7f, 0.2f), 40f);
+        }
+
         private void OnDestroy()
         {
             if (_shadow != null) Destroy(_shadow.gameObject);
@@ -512,14 +523,14 @@ namespace Com.IsartDigital.Hyperspeed
             float lBank = 0f;
             float lPitch = 0f;
             float lVertical = Vector3.Dot(_player.Velocity, _player.GravityUp);
-            _teeter = Mathf.Lerp(_teeter, lState == PlayerState.Ground ? _player.EdgeTeeter01 : 0f, 1f - Mathf.Exp(-10f * pDt));
+            _teeter = 0f;
             switch (lState)
             {
                 case PlayerState.Ground:
                 case PlayerState.Finished:
                     float lCentripetal = lSpeed * _yawRate * Mathf.Deg2Rad;
                     lBank = Mathf.Clamp(Mathf.Atan2(lCentripetal, 9.81f) * Mathf.Rad2Deg * 0.5f, -26f, 26f) + _player.Steer * 4f;
-                    lBank -= _teeter * 14f * _player.EdgeTeeterSide;
+                    
                     if (_player.Drifting) lBank += _player.DriftDirection * 10f;
                     break;
                 case PlayerState.Air:
@@ -585,7 +596,7 @@ namespace Com.IsartDigital.Hyperspeed
             _block.SetFloat(FLASH, _flash > 0.3f || lBlink ? 0.85f : 0f);
             foreach (Renderer lRenderer in _bodyRenderers) if (lRenderer != null) lRenderer.SetPropertyBlock(_block);
 
-            bool lTrails = lState != PlayerState.Dead && (lSpeed > 75f || _player.Dashing || _player.Hyper);
+            bool lTrails = lState != PlayerState.Dead && (lSpeed > _player.Profile.cruise * 1.05f || _player.Dashing || _player.Hyper);
             _trailL.emitting = lTrails;
             _trailR.emitting = lTrails;
             if (lState == PlayerState.Grind) EmitFootSparks(UIFactory.YELLOW, 2);
@@ -604,7 +615,9 @@ namespace Com.IsartDigital.Hyperspeed
             _animator.SetBool(P_SLIDE, pGrounded && (_player.Sliding || _player.Drifting));
             _animator.SetBool(P_GRIND, pState == PlayerState.Grind);
             _animator.SetBool(P_HANG, pState == PlayerState.Zip);
-            _animator.SetBool(P_WALLRUN, pState == PlayerState.WallRun);
+            _animator.SetBool(P_WALLRUN, pState == PlayerState.WallRun && _player.Wall == PlayerController.WallMode.Run);
+            _animator.SetBool(P_WALLCLIMB, pState == PlayerState.WallRun && _player.Wall == PlayerController.WallMode.Climb);
+            _animator.SetBool(P_WALLSLIDE, pState == PlayerState.WallRun && _player.Wall == PlayerController.WallMode.Slide);
             _animator.SetBool(P_PRERACE, pState == PlayerState.Frozen || _player.FreeRoam);
             // Stylized cadence : the legs keep up with speeds no human reaches.
             _animator.speed = pGrounded && pState != PlayerState.Frozen ? 1f + Mathf.Clamp01((pSpeed - 20f) / 140f) * 0.8f : 1f;
@@ -616,7 +629,8 @@ namespace Com.IsartDigital.Hyperspeed
         {
             if (_player == null) return;
             float lDt = Time.deltaTime;
-            if (_hips != null) ApplyRig();
+            UpdateLightForm();
+            if (_hips != null && !_lightOn) ApplyRig();
             UpdateRibbons(lDt);
             UpdateGhosts(lDt);
         }
@@ -748,6 +762,48 @@ namespace Com.IsartDigital.Hyperspeed
             _ribbonsReset = false;
         }
 
+        // ---------------------------------------------------------------- light form
+
+        private Transform _lightForm;
+        private TrailRenderer _lightTrail;
+        private bool _lightOn;
+
+        private void BuildLightForm()
+        {
+            _lightForm = new GameObject("LightForm").transform;
+            _lightForm.SetParent(transform, false);
+            _lightForm.localPosition = new Vector3(0f, 1f, 0f);
+            Mats.Primitive(PrimitiveType.Sphere, _lightForm, Vector3.zero, Vector3.one * 1.8f, Mats.Glow(new Color(6f, 6.5f, 6.5f), false, 0f, 0f, true));
+            Mats.Primitive(PrimitiveType.Sphere, _lightForm, new Vector3(0f, 0f, -5f), new Vector3(1.3f, 1.3f, 12f), Mats.Glow(new Color(2f, 3.4f, 5f, 0.8f), true));
+            _lightTrail = _lightForm.gameObject.AddComponent<TrailRenderer>();
+            _lightTrail.time = 0.7f;
+            _lightTrail.startWidth = 2.6f;
+            _lightTrail.endWidth = 0f;
+            _lightTrail.sharedMaterial = Mats.Glow(new Color(3f, 5f, 6f), true);
+            _lightTrail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            _lightForm.gameObject.SetActive(false);
+        }
+
+        private void UpdateLightForm()
+        {
+            if (_lightForm == null) BuildLightForm();
+            bool lWant = _player.LightForm && _player.State != PlayerState.Dead;
+            if (lWant != _lightOn)
+            {
+                _lightOn = lWant;
+                _lightForm.gameObject.SetActive(lWant);
+                _lightTrail.Clear();
+                if (_model != null) _model.gameObject.SetActive(!lWant);
+                FX.Burst(transform.position + transform.up, transform.forward, Color.white, 30f);
+                FX.Shockwave(transform.position + transform.up, transform.forward, Color.white, 30f, 0.35f);
+            }
+            if (lWant)
+            {
+                float lPulse = 1f + Mathf.Sin(Time.time * 37f) * 0.15f;
+                _lightForm.localScale = new Vector3(lPulse, lPulse, lPulse * (1f + _player.Speed01 * 2f));
+            }
+        }
+
         // ---------------------------------------------------------------- aura, afterimages
 
         private void UpdateAura(float pDt, float pSpeed)
@@ -770,7 +826,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void UpdateGhosts(float pDt)
         {
-            bool lEmit = _player.State != PlayerState.Dead && _player.State != PlayerState.Frozen && (_player.Speed > AFTERIMAGE_SPEED || _player.Dashing);
+            bool lEmit = _player.State != PlayerState.Dead && _player.State != PlayerState.Frozen && (_player.Speed > _player.Profile.hyperExit || _player.Dashing);
             _ghostTimer -= pDt;
             if (lEmit && _ghostTimer <= 0f)
             {

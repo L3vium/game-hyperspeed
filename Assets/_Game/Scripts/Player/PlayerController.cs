@@ -4,36 +4,25 @@ namespace Com.IsartDigital.Hyperspeed
 {
     public enum PlayerState { Frozen, Ground, Air, WallRun, Grind, Zip, Crash, Dead, Finished }
 
-    // Kinematic runner on generated platforms : deck-relative steering, physical takeoffs that keep the slope momentum,
-    // intent-based edge guard, glide / dive / drop-through, rails caught from the ground, rewind respawn.
+    // Kinematic runner on an enormous terrain : the route gives the forward direction, you strafe across it. Speed is
+    // stage-scaled by a SpeedProfile and only ever lost to climbs and crashes. Past the hyper threshold you turn to light.
     public partial class PlayerController : MonoBehaviour, ICameraTarget
     {
         // ---------------- tuning
-        public const float RUN_SPEED = 58f;
-        private const float RUN_ACCEL = 40f;
-        public const float MAX_SPEED = 200f;
-        public const float HYPER_ENTER = 120f;
-        private const float HYPER_EXIT = 105f;
-        public const float SMASH_SPEED = 80f;
+        private const float RUN_ACCEL = 60f;
         private const float SLOPE_ACCEL = 34f;
-        private const float JUMP_VELOCITY = 18f;
-        private const float DOUBLE_JUMP_VELOCITY = 16f;
-        private const float DASH_BOOST = 25f;
+        private const float JUMP_VELOCITY = 20f;
         private const float DASH_TIME = 0.22f;
-        private const float COYOTE_TIME = 0.12f;
+        private const float COYOTE_TIME = 0.14f;
         private const float JUMP_BUFFER = 0.14f;
         private const float RADIUS = 0.45f;
         private const float HEIGHT = 1.8f;
         private const float SKIN = 0.04f;
-        private const float GROUND_MIN_DOT = 0.55f;
-        // Steepest walkable surface against world up (wall-ride banks reach 65 deg) : rolling over a rounded lip
-        // onto a vertical cap used to turn the run into a vertical launch.
-        private const float GROUND_MIN_WORLD_DOT = 0.3f;
-        private const float RAIL_RADIUS = 4.5f;
-        private const float DRIFT_SLIP = 35f;
-        private const float START_WINDOW_BEFORE = 0.25f;
-        private const float START_WINDOW_AFTER = 0.12f;
-        private const float FREE_ROAM_SPEED = 17f;
+        private const float GROUND_MIN_DOT = 0.5f;
+        private const float GROUND_MIN_WORLD_DOT = 0.42f;
+        private const float START_WINDOW_BEFORE = 0.3f;
+        private const float START_WINDOW_AFTER = 0.15f;
+        private const float FREE_ROAM_SPEED = 28f;
 
         // ---------------- state
         public PlayerState State { get; private set; } = PlayerState.Frozen;
@@ -42,14 +31,16 @@ namespace Com.IsartDigital.Hyperspeed
         public Vector3 GravityUp => _gravityUp;
         public Vector3 Heading => _heading;
         public float Speed => OnSurface ? _speed : Vector3.ProjectOnPlane(_velocity, _gravityUp).magnitude;
-        public float TotalSpeed => OnSurface ? _speed : _velocity.magnitude;
+        public float TotalSpeed => OnSurface ? Mathf.Sqrt(_speed * _speed + _slip * _slip) : _velocity.magnitude;
         private bool OnSurface => State == PlayerState.Ground || State == PlayerState.Grind || State == PlayerState.Zip || State == PlayerState.Finished;
         public Vector3 FacingDirection => _heading;
         public float BoostAmount => Mathf.Clamp01(_boostTimer / 0.6f);
+        public SpeedProfile Profile => _profile;
         public bool CheatInvincible;
         // Menus own the keyboard (title screen) : the runner idles in place.
         public bool InputLocked;
         public bool Hyper { get; private set; }
+        public bool LightForm { get; private set; }
         public bool Drifting { get; private set; }
         public int DriftDirection { get; private set; }
         public float DriftCharge { get; private set; }
@@ -57,7 +48,6 @@ namespace Com.IsartDigital.Hyperspeed
         public bool Sliding { get; private set; }
         public bool Diving { get; private set; }
         public bool Gliding { get; private set; }
-        public bool PassingThrough => _passThrough;
         public bool Dashing => _dashTimer > 0f;
         public bool Punching => _punchTimer > 0f;
         public bool HasDoubleJump { get; private set; } = true;
@@ -74,18 +64,16 @@ namespace Com.IsartDigital.Hyperspeed
         public float Lateral { get; private set; }
         public float DistanceFromPath => Mathf.Abs(Lateral);
         public bool FreeRoam => _freeRoam;
-        public Deck CurrentDeck => _deck;
         public PlayerVisual Visual => _visual;
         public float AirTime => _airTime;
 
         // Camera / visual signals.
         public float DiveTime { get; private set; }
-        public float DiveCamera01 => LevelBuilder.Smooth(Mathf.Clamp01((DiveTime - 0.25f) / 1.15f));
+        // Held for a moment, the dive swings the camera above the runner, looking down the fall.
+        public float DiveCamera01 => HSMath.Smooth(Mathf.Clamp01((DiveTime - 0.35f) / 0.7f));
         public bool HasLandingPrediction { get; private set; }
         public Vector3 LandingPoint { get; private set; }
         public float LandingTime { get; private set; }
-        public float EdgeTeeter01 { get; private set; }
-        public int EdgeTeeterSide { get; private set; }
 
         public event System.Action OnJumped;
         public event System.Action OnDoubleJumped;
@@ -96,6 +84,7 @@ namespace Com.IsartDigital.Hyperspeed
         public event System.Action OnRespawned;
         public event System.Action OnDied;
         public event System.Action OnHyper;
+        public event System.Action OnLight;
 
         private Vector3 _velocity;
         private Vector3 _up = Vector3.up;
@@ -114,8 +103,6 @@ namespace Com.IsartDigital.Hyperspeed
         private float _crashTimer;
         private float _comboTimer;
         private float _airTime;
-        private int _ringCombo;
-        private float _ringComboTimer;
         private Vector3 _smoothCameraUp = Vector3.up;
         private bool _autoRun;
         private bool _punchHit;
@@ -124,11 +111,12 @@ namespace Com.IsartDigital.Hyperspeed
         private float _startPressTime = -1f;
         private bool _freeRoam;
         private bool _barrier;
+        private bool _padFlightLocked;
 
         private LevelLayout _layout;
+        private SpeedProfile _profile = new SpeedProfile();
         private PlayerVisual _visual;
         private Breadcrumbs _crumbs;
-        private Deck _deck;
 
         // ---------------- camera target
         public Vector3 FocusPosition => (_visual != null ? _visual.Root.position : transform.position) + CameraUpRaw * 0.9f;
@@ -139,68 +127,65 @@ namespace Com.IsartDigital.Hyperspeed
             get
             {
                 if (_freeRoam) return _heading;
-                if (State == PlayerState.Ground || State == PlayerState.Finished)
-                {
-                    // Look along the route, not the instant heading : steering does not swing the view.
-                    if (_layout != null) return Vector3.ProjectOnPlane(_layout.spine.Forward(Progress + 6f), _up).normalized;
-                    return _moveDir;
-                }
-                Vector3 lFlat = Vector3.ProjectOnPlane(_velocity, CameraUpRaw);
-                if (OnSurface || lFlat.magnitude < 6f) return _heading;
-                return lFlat.normalized;
+                if (State == PlayerState.WallRun && Wall != WallMode.Climb) return _wallRunDir;
+                if (_layout == null) return _heading;
+                // Along the route, a third of the way toward where the body points : strafing never swings the view.
+                Vector3 lFlow = _layout.Flow(Progress + 6f);
+                Vector3 lFlat = Vector3.ProjectOnPlane(_heading, Vector3.up);
+                if (lFlat.sqrMagnitude > 0.01f) lFlow = Vector3.Slerp(lFlow, lFlat.normalized, 0.3f);
+                return lFlow.normalized;
             }
         }
-        public float Speed01 => Mathf.Clamp01((Speed - 45f) / 130f);
-        public float CameraRoll => -Steer * 4f - (Drifting ? DriftDirection * 7f : 0f) + (State == PlayerState.WallRun ? WallSide * 12f : 0f);
+        public float Speed01 => Mathf.Clamp01((Speed - _profile.cruise * 0.55f) / (_profile.max - _profile.cruise * 0.55f));
+        public float CameraRoll => -Steer * 7f - (Drifting ? DriftDirection * 9f : 0f) + (State == PlayerState.WallRun && Wall != WallMode.Climb ? WallSide * 16f : 0f);
         public bool HyperMode => Hyper;
 
         public void Init(LevelLayout pLayout, PlayerVisual pVisual)
         {
             _layout = pLayout;
+            _profile = pLayout.profile;
+            Ballistics.Scale = _profile.gravityScale;
             _visual = pVisual;
             _crumbs = new Breadcrumbs();
-            Vector3 lStart = pLayout.startPosition;
-            float lLateral;
-            float lS = pLayout.spine.ProjectGlobal(lStart, out lLateral);
-            Deck lDeck = pLayout.MainDeckAt(lS);
-            Place(lDeck != null ? lDeck.SurfacePoint(lS, 0f) : lStart, pLayout.spine.Forward(lS), lDeck, lS);
+            Place(pLayout.spawnS, 0f);
             State = PlayerState.Frozen;
         }
 
-        private void Place(Vector3 pPosition, Vector3 pForward, Deck pDeck, float pS)
+        private void Place(float pS, float pLateral)
         {
-            transform.position = pPosition + Vector3.up * 0.05f;
-            _deck = pDeck;
-            Vector3 lUp = Vector3.up;
-            if (pDeck != null)
-            {
-                Vector3 lC, lF, lR;
-                float lW;
-                pDeck.Frame(pS, out lC, out lF, out lR, out lUp, out lW);
-                pForward = lF;
-            }
-            _up = lUp;
-            _gravityUp = lUp;
-            _smoothCameraUp = lUp;
-            _heading = Vector3.ProjectOnPlane(pForward, lUp).normalized;
+            transform.position = _layout.GroundPoint(pS, pLateral) + Vector3.up * 0.05f;
+            Vector3 lForward = _layout.Flow(pS);
+            _up = _layout.field.Normal(pS, pLateral, 6f);
+            _gravityUp = _up;
+            _smoothCameraUp = _up;
+            _heading = Vector3.ProjectOnPlane(lForward, _up).normalized;
             _moveDir = _heading;
             _velocity = Vector3.zero;
             _speed = 0f;
-            _psi = 0f;
             _slip = 0f;
             Progress = pS;
+            Lateral = pLateral;
+            _airYaw = _layout.spine.Evaluate(pS).yaw;
             transform.rotation = Quaternion.LookRotation(_heading, _up);
         }
 
         // ================================================================ race flow
 
         // Before GO : free movement around the start plaza (camera-relative), held behind the barrier.
-        public void BeginFreeRoam(bool pBarrier = true)
+        // pDrop > 0 : the runner comes down from the sky and slams on the plaza.
+        public void BeginFreeRoam(bool pBarrier = true, float pDrop = 0f)
         {
             _freeRoam = true;
             _barrier = pBarrier;
-            SetState(PlayerState.Ground);
             _speed = 0f;
+            if (pDrop > 0f)
+            {
+                transform.position += Vector3.up * pDrop;
+                _velocity = Vector3.down * 40f;
+                _gravityUp = Vector3.up;
+                SetState(PlayerState.Air);
+            }
+            else SetState(PlayerState.Ground);
         }
 
         // Rocket start : press jump / dash / forward right on GO.
@@ -215,24 +200,21 @@ namespace Com.IsartDigital.Hyperspeed
             _freeRoam = false;
             _barrier = false;
             if (State == PlayerState.Frozen || State == PlayerState.Dead) SetState(PlayerState.Ground);
-            if (State == PlayerState.Ground && _layout != null)
-            {
-                Vector3 lForward = Vector3.ProjectOnPlane(_layout.spine.Forward(Progress), _up).normalized;
-                _psi = Mathf.Clamp(Vector3.SignedAngle(lForward, _heading, _up), -25f, 25f);
-            }
-            _speed = Mathf.Max(_speed, RUN_SPEED * 0.6f);
+            _slip = 0f;
+            if (_layout != null) _heading = Vector3.ProjectOnPlane(_layout.Flow(Progress), _up).normalized;
+            _speed = Mathf.Max(_speed, _profile.cruise * 0.8f);
             float lDelta = _startPressTime - _goTime;
             if (_startPressTime > 0f && lDelta >= -START_WINDOW_BEFORE && lDelta <= START_WINDOW_AFTER) PerfectStart();
         }
 
         private void PerfectStart()
         {
-            _speed = Mathf.Max(_speed, RUN_SPEED + 40f);
-            _boostTimer = 1.5f;
+            _speed = Mathf.Max(_speed, _profile.cruise * 1.4f);
+            _boostTimer = 3f;
             Juice.Popup("PERFECT START!!", UIFactory.YELLOW, 1.5f);
             Juice.Freeze(0.06f);
-            Juice.Rollback(8f);
-            Juice.FovKick(8f);
+            Juice.Rollback(10f);
+            Juice.FovKick(10f);
             AudioManager.Play("sfx_perfect_start", 1f);
             AddCombo();
         }
@@ -280,8 +262,7 @@ namespace Com.IsartDigital.Hyperspeed
                     case PlayerState.Air:
                     case PlayerState.Crash: AirStep(lSubDt); break;
                     case PlayerState.WallRun: WallStep(lSubDt); break;
-                    case PlayerState.Grind:
-                    case PlayerState.Zip: GrindStep(lSubDt); break;
+                    case PlayerState.Grind: GrindStep(lSubDt); break;
                 }
                 if (State == PlayerState.Dead) break;
                 TouchStuff();
@@ -295,7 +276,7 @@ namespace Com.IsartDigital.Hyperspeed
             UpdateHyper();
             TrackProgress();
             CheckFallOut();
-            if (State == PlayerState.Ground && _deck != null && !_freeRoam) _crumbs.Record(this, _deck, Progress, Lateral, _speed, Time.time);
+            if (State == PlayerState.Ground && !_freeRoam) _crumbs.Record(this, _layout, Progress, Lateral, _speed, Time.time);
             transform.rotation = Quaternion.LookRotation(_heading, OnSurface ? _up : _gravityUp);
             AudioManager.SetLoop("sfx_boost_loop", BoostAmount * 0.6f, 0.9f + BoostAmount * 0.3f);
             _smoothCameraUp = Vector3.Slerp(_smoothCameraUp, CameraUpRaw, 1f - Mathf.Exp(-10f * lDt)).normalized;
@@ -332,13 +313,11 @@ namespace Com.IsartDigital.Hyperspeed
             _invulnerable -= pDt;
             _wallCooldown -= pDt;
             _railCooldown -= pDt;
-            _ringComboTimer -= pDt;
             _boostTimer -= pDt;
-            if (_ringComboTimer <= 0f) _ringCombo = 0;
             _comboTimer -= pDt;
             if (_comboTimer <= 0f) Combo = 0;
             if (Diving) DiveTime += pDt;
-            else if (Time.time - _lastDiveLanding > 1f) DiveTime = Mathf.MoveTowards(DiveTime, 0f, pDt * 3f);
+            else if (Time.time - _lastDiveLanding > 0.6f) DiveTime = Mathf.MoveTowards(DiveTime, 0f, pDt * 3f);
 
             if (State == PlayerState.Crash)
             {
@@ -351,17 +330,16 @@ namespace Com.IsartDigital.Hyperspeed
         {
             if (State == pState) return;
             if (State == PlayerState.Grind) AudioManager.SetLoop("sfx_grind_loop", 0f);
-            if (State == PlayerState.Zip) AudioManager.SetLoop("sfx_zip_loop", 0f);
             if (State == PlayerState.WallRun) AudioManager.SetLoop("sfx_wallrun_loop", 0f);
             if (Gliding && pState != PlayerState.Air) StopGlide();
             State = pState;
             StateTime = 0f;
             if (pState != PlayerState.Ground && pState != PlayerState.Finished) EndDrift(false);
+            if (pState == PlayerState.Air && _layout != null) _airYaw = _layout.spine.Evaluate(Progress).yaw;
             if (pState == PlayerState.Ground || pState == PlayerState.Finished)
             {
                 _airTime = 0f;
                 _glideTime = 0f;
-                _assistGravity = 0f;
                 _padFlight = false;
                 HasLandingPrediction = false;
             }
@@ -379,58 +357,64 @@ namespace Com.IsartDigital.Hyperspeed
                 if (lItem.Test(lCenter)) lItem.Touch(this);
             }
 
-            bool lSmash = Speed >= SMASH_SPEED || Dashing || Hyper || Punching;
+            bool lSmash = Speed >= _profile.cruise * 1.25f || Dashing || Hyper || Punching;
             for (int i = Breakable.All.Count - 1; i >= 0; i--)
             {
                 if (i >= Breakable.All.Count) continue;
                 Breakable lBreakable = Breakable.All[i];
-                if (!lBreakable.Overlaps(lCenter, 0.7f)) continue;
+                if (!lBreakable.Overlaps(lCenter, 1.5f)) continue;
                 if (lSmash)
                 {
                     lBreakable.Smash(_heading, Speed);
-                    Juice.Hitstop(0.018f, 0.1f);
-                    Juice.Shake(0.18f);
+                    Juice.Hitstop(0.03f, 0.1f);
+                    Juice.Shake(0.4f);
                     AddCombo();
-                    if (State == PlayerState.Ground) _speed = Mathf.Min(MAX_SPEED, _speed + 1.5f);
                     if (Combo % 5 == 0) Juice.Popup("SMASH x" + Combo, UIFactory.YELLOW, 1.1f);
                 }
                 else
                 {
-                    lBreakable.Flash();
-                    Crash(lBreakable.transform.position, lBreakable.kind == BreakableKind.Car ? "HONK!" : "OUCH!");
+                    lBreakable.Smash(_heading, Speed * 0.5f);
+                    Crash(lBreakable.transform.position, "OUCH!");
                 }
             }
 
-            if (Punching && _punchTimer > 0.08f) PunchHits();
+            if (Punching) PunchHits();
         }
 
+        // One punch : wide reach, the rock explodes, time stops for a beat and you pick up speed.
         private void PunchHits()
         {
-            Vector3 lFist = transform.position + CameraUpRaw * 1f + _heading * (2.4f + Speed * 0.03f);
-            float lRadius = 2.8f;
+            Vector3 lFist = transform.position + CameraUpRaw + _heading * (8f + Speed * 0.14f);
+            float lRadius = 14f * Mathf.Sqrt(_profile.k);
             for (int i = Breakable.All.Count - 1; i >= 0; i--)
             {
                 if (i >= Breakable.All.Count) continue;
                 Breakable lBreakable = Breakable.All[i];
                 if (!lBreakable.Overlaps(lFist, lRadius)) continue;
                 lBreakable.Smash(_heading, Mathf.Max(Speed, 40f));
-                if (State == PlayerState.Ground) _speed = Mathf.Min(MAX_SPEED, _speed + 7f);
-                else _velocity += _heading * 5f;
+                float lBoost = _profile.cruise * 0.16f;
+                if (OnSurface) _speed = Mathf.Min(_profile.max, _speed + lBoost);
+                else _velocity += _heading * lBoost;
+                _boostTimer = Mathf.Max(_boostTimer, 0.8f);
                 AddCombo();
                 if (!_punchHit)
                 {
                     _punchHit = true;
-                    Juice.Hitstop(0.06f);
-                    Juice.Shake(0.3f);
+                    Juice.Hitstop(0.11f);
+                    Juice.Shake(0.8f);
+                    Juice.ImpactFrame(1f);
+                    Juice.Rollback(12f);
+                    Juice.FovKick(10f);
                     AudioManager.Play("sfx_punch_hit", 1f);
-                    Juice.Popup(Combo > 2 ? "SMASH x" + Combo : "SMASH!", UIFactory.RED, 1.3f);
+                    Juice.Popup(Combo > 2 ? "SMASH x" + Combo : "SMASH!", UIFactory.RED, 1.5f);
+                    _visual?.PunchImpact(lBreakable.transform.position);
                 }
             }
         }
 
         // ================================================================ movement
 
-        private int GroundMask => _passThrough || (Diving && _slideHeld) ? Layers.GROUND_NO_MEMBRANE : Layers.GROUND;
+        private int GroundMask => Layers.GROUND;
 
         private void Move(Vector3 pDisplacement)
         {
@@ -467,18 +451,14 @@ namespace Com.IsartDigital.Hyperspeed
                 case PlayerState.Ground:
                 case PlayerState.Finished:
                     if (Vector3.Dot(lNormal, _up) >= GROUND_MIN_DOT && lNormal.y >= GROUND_MIN_WORLD_DOT) return true;
-                    {
-                        float lImpact = -Vector3.Dot(_heading, lNormal);
-                        if (lImpact > 0.8f && _speed > 40f && !Invulnerable) { Crash(pHit.point, "BONK!"); return false; }
-                        _speed *= 1f - Mathf.Clamp01(lImpact) * 0.4f;
-                        transform.position += lNormal * 0.02f;
-                        return true;
-                    }
+                    if (State == PlayerState.Ground && !_freeRoam && EnterWall(pHit)) return State != PlayerState.WallRun;
+                    transform.position += lNormal * 0.02f;
+                    return true;
                 case PlayerState.Air:
                 case PlayerState.Crash:
                     if (Vector3.Dot(lNormal, _gravityUp) > 0.45f)
                     {
-                        Land(lNormal, pHit.point, DeckChunk.DeckOf(pHit.collider));
+                        Land(lNormal, pHit.point, pHit.collider);
                         return false;
                     }
                     if (Vector3.Dot(lNormal, _gravityUp) < -0.5f)
@@ -486,22 +466,20 @@ namespace Com.IsartDigital.Hyperspeed
                         _velocity = Vector3.ProjectOnPlane(_velocity, lNormal);
                         return true;
                     }
-                    if (State == PlayerState.Air && TryLedge(pHit)) return false;
-                    if (State == PlayerState.Air)
-                    {
-                        TryWallRun();
-                        if (State == PlayerState.WallRun) return false;
-                    }
-                    // Sliding along a slanted rock face must never turn forward speed into a launch
-                    // (a jagged deck cap at 100 m/s used to throw the runner 80 m up).
+                    if (State == PlayerState.Air && EnterWall(pHit)) return State != PlayerState.WallRun;
+                    // Sliding along a slanted face must never turn forward speed into a launch.
                     float lRise = Mathf.Max(0f, Vector3.Dot(_velocity, _gravityUp));
                     _velocity = Vector3.ProjectOnPlane(_velocity, lNormal);
                     float lExtra = Vector3.Dot(_velocity, _gravityUp) - lRise;
                     if (lExtra > 0f) _velocity -= _gravityUp * lExtra;
                     return true;
                 case PlayerState.WallRun:
-                    if (Vector3.Dot(lNormal, _gravityUp) > 0.5f) { Land(lNormal, pHit.point, DeckChunk.DeckOf(pHit.collider)); return false; }
-                    if (Vector3.Dot(lNormal, _wallRunDir) < -0.6f) { LeaveWall(0.2f); _velocity = Vector3.ProjectOnPlane(_velocity, lNormal); return false; }
+                    if (Vector3.Dot(lNormal, _gravityUp) > 0.5f)
+                    {
+                        _velocity = _wallRunDir * _wallSpeed;
+                        Land(lNormal, pHit.point, pHit.collider);
+                        return false;
+                    }
                     return true;
             }
             return true;
@@ -510,7 +488,7 @@ namespace Com.IsartDigital.Hyperspeed
         private void UpdateHyper()
         {
             float lSpeed = Speed;
-            if (!Hyper && lSpeed >= HYPER_ENTER && !_freeRoam)
+            if (!Hyper && lSpeed >= _profile.hyperEnter && !_freeRoam)
             {
                 Hyper = true;
                 AudioManager.Play("sfx_hyper", 1f);
@@ -521,12 +499,30 @@ namespace Com.IsartDigital.Hyperspeed
                 Juice.SlowMo(0.3f, 0.3f);
                 OnHyper?.Invoke();
             }
-            else if (Hyper && lSpeed < HYPER_EXIT)
+            else if (Hyper && lSpeed < _profile.hyperExit)
             {
                 Hyper = false;
                 AudioManager.Play("sfx_hyper_out", 0.7f);
             }
-            AudioManager.SetLoop("sfx_wind_loop", Mathf.Clamp01((lSpeed - 30f) / 140f) * 0.7f, 0.8f + Mathf.Clamp01(lSpeed / 200f) * 0.6f);
+
+            // Past this, there is no runner left : only light.
+            if (!LightForm && lSpeed >= _profile.lightEnter && !_freeRoam)
+            {
+                LightForm = true;
+                Juice.Popup("LIGHT SPEED!!", Color.white, 2f);
+                Juice.Flash(Color.white, 0.8f);
+                Juice.Shake(0.7f);
+                Juice.Rollback(12f);
+                Juice.ImpactFrame(1f);
+                AudioManager.Play("sfx_hyper", 1f, 1.3f);
+                OnLight?.Invoke();
+            }
+            else if (LightForm && lSpeed < _profile.lightExit)
+            {
+                LightForm = false;
+                AudioManager.Play("sfx_hyper_out", 0.7f, 1.2f);
+            }
+            AudioManager.SetLoop("sfx_wind_loop", Mathf.Clamp01(Speed01 + 0.25f) * 0.7f, 0.8f + Speed01 * 0.6f);
         }
 
         // ================================================================ progress, death, respawn
@@ -535,50 +531,50 @@ namespace Com.IsartDigital.Hyperspeed
         {
             if (_layout == null) return;
             float lLateral;
-            if ((State == PlayerState.Grind || State == PlayerState.Zip) && _rail != null)
+            if (State == PlayerState.Grind && _rail != null)
             {
                 Progress = _rail.SpineS(_railDistance);
-                _layout.spine.Project(transform.position, Progress, out lLateral);
+                _layout.spine.ProjectNear(transform.position, Progress, out lLateral);
             }
             else Progress = _layout.spine.Project(transform.position, Progress, out lLateral);
             Lateral = lLateral;
-            if (_barrier && _layout != null)
+
+            if (_barrier)
             {
-                // Energy barrier at the start line : held in the plaza until GO.
-                float lLimit = _layout.startLineS - 1.5f;
+                // Energy barrier at the start line : held in the plaza until GO. The plaza's back is closed too.
+                float lLimit = _layout.startLineS - 3f;
                 if (Progress > lLimit)
                 {
                     Vector3 lForward = _layout.spine.Forward(Progress);
                     transform.position -= lForward * (Progress - lLimit);
                     _velocity -= lForward * Mathf.Max(0f, Vector3.Dot(_velocity, lForward));
-                    if (Vector3.Dot(_heading, lForward) > 0f) _speed *= 0.5f;
                     Progress = lLimit;
+                }
+                float lBack = _layout.spine.StartS + 60f;
+                if (Progress < lBack)
+                {
+                    transform.position += _layout.spine.Forward(Progress) * (lBack - Progress);
+                    Progress = lBack;
                 }
             }
         }
 
-        // Falling with nothing below : the layout knows within ~0.65 s.
-        private float _lostTime;
+        private float _noGroundTime;
 
+        // Far below the ground, or 2 s falling with no ground under you : gone. Nothing else ever kills you.
         private void CheckFallOut()
         {
             if (_layout == null || State == PlayerState.Finished || State == PlayerState.Dead || _autoRun) return;
             if (State != PlayerState.Air && State != PlayerState.Crash)
             {
-                _lostTime = 0f;
+                _noGroundTime = 0f;
                 return;
             }
-            // A predicted landing always wins : long plunges and dives fall far below the route line on purpose.
-            // Without one, the verdict waits 0.15 s so a single frame of doubt never kills.
-            _lostTime = HasLandingPrediction ? 0f : _lostTime + Time.deltaTime;
-            bool lLost = _lostTime > 0.15f;
-            bool lNoLanding = lLost && transform.position.y < _takeoffY - 12f;
-            bool lBelow = lLost && transform.position.y < _layout.FloorY(Progress) - 14f;
-            if (lNoLanding || lBelow || _airTime > (HasLandingPrediction ? 14f : 7f))
+            bool lOver = _layout.field.OverGround(Progress, Lateral);
+            _noGroundTime = !lOver && _velocity.y < 0f ? _noGroundTime + Time.deltaTime : 0f;
+            if (_noGroundTime > 2f || transform.position.y < _layout.KillY(Progress, Speed))
             {
-                if (Autopilot.Enabled)
-                    Debug.Log("[HS-LD] fall-out " + (lNoLanding ? "noLanding" : lBelow ? "belowFloor" : "airTime") + " y=" + transform.position.y.ToString("F1") + " takeoffY=" + _takeoffY.ToString("F1")
-                        + " floor=" + _layout.FloorY(Progress).ToString("F1") + " vel=" + _velocity.ToString("F0") + " state=" + State);
+                if (Autopilot.Enabled) Debug.Log("[HS-LD] fall-out s=" + Progress.ToString("F0") + " lat=" + Lateral.ToString("F0") + " y=" + transform.position.y.ToString("F0") + " vel=" + _velocity.ToString("F0") + " state=" + State);
                 Die();
             }
         }
@@ -586,33 +582,30 @@ namespace Com.IsartDigital.Hyperspeed
         public void Die()
         {
             if (State == PlayerState.Dead) return;
-            if (CheatInvincible && _crumbs.HasSafe)
+            if (CheatInvincible)
             {
-                RespawnAt(_crumbs.PickSafe(Progress, _layout), false);
+                RespawnAt(_crumbs.PickSafe(Progress, Speed, _layout), false);
                 return;
             }
             Diving = false;
             StopGlide();
             EndDrift(false);
-            _passThrough = false;
             SetState(PlayerState.Dead);
             Combo = 0;
             OnDied?.Invoke();
         }
 
-        public Breadcrumb PickRespawn() => _crumbs.PickSafe(Progress, _layout);
+        public Breadcrumb PickRespawn() => _crumbs.PickSafe(Progress, Speed, _layout);
 
         public Breadcrumbs Crumbs => _crumbs;
 
         // Called by the respawn director at the end of the rewind.
         public void RespawnAt(Breadcrumb pCrumb, bool pCount = true)
         {
-            Deck lDeck = pCrumb.deck;
-            float lLateral = lDeck != null ? Mathf.Clamp(pCrumb.lateral, -(lDeck.Width(pCrumb.s) * 0.5f - 3f), lDeck.Width(pCrumb.s) * 0.5f - 3f) : 0f;
-            Vector3 lPosition = lDeck != null ? lDeck.SurfacePoint(pCrumb.s, lLateral) : pCrumb.position;
-            Place(lPosition, _layout.spine.Forward(pCrumb.s), lDeck, pCrumb.s);
-            // Back in the race at a controllable pace : never relaunched at hyper speed right before the danger.
-            _speed = Mathf.Clamp(pCrumb.speed * 0.9f, RUN_SPEED, RUN_SPEED + 20f);
+            float lHalf = _layout.field.HalfWidth(pCrumb.s) * 0.8f;
+            float lLateral = Mathf.Clamp(pCrumb.lateral, -lHalf, lHalf);
+            Place(pCrumb.s, lLateral);
+            _speed = Mathf.Max(pCrumb.speed * 0.9f, _profile.cruise);
             _velocity = _heading * _speed;
             _invulnerable = 1.5f;
             _airTime = 0f;
@@ -620,7 +613,6 @@ namespace Com.IsartDigital.Hyperspeed
             HasAirDash = true;
             Combo = 0;
             if (pCount) Respawns++;
-            _moveDir = _heading;
             SetState(_autoRun ? PlayerState.Finished : PlayerState.Ground);
             _crumbs.Clear();
             OnRespawned?.Invoke();
@@ -628,13 +620,9 @@ namespace Com.IsartDigital.Hyperspeed
 
         public void SkipToNextCheckpoint()
         {
-            foreach (SafePoint lPoint in _layout.safePoints)
-            {
-                if (lPoint.s <= Progress + 60f) continue;
-                RespawnAt(new Breadcrumb { s = lPoint.s, deck = lPoint.deck, lateral = 0f, speed = RUN_SPEED, position = lPoint.deck.SurfacePoint(lPoint.s, 0f) }, false);
-                CameraRig.Instance?.Snap();
-                return;
-            }
+            float lS = Mathf.Min(Progress + _profile.cruise * 10f, _layout.finishS - 10f);
+            RespawnAt(new Breadcrumb { s = lS, lateral = 0f, speed = _profile.cruise }, false);
+            CameraRig.Instance?.Snap();
         }
     }
 }

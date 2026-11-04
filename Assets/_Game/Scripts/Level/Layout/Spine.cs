@@ -86,6 +86,28 @@ namespace Com.IsartDigital.Hyperspeed
             return ProjectFrom(pPosition, lBest, out pLateral);
         }
 
+        // Narrow search for the movement substeps.
+        public float ProjectNear(Vector3 pPosition, float pHintS, out float pLateral)
+        {
+            int lHint = IndexOf(pHintS);
+            int lStart = Mathf.Max(0, lHint - 4);
+            int lEnd = Mathf.Min(samples.Count - 1, lHint + 8);
+            int lBest = lHint;
+            float lBestSqr = float.MaxValue;
+            for (int i = lStart; i <= lEnd; i++)
+            {
+                float lDx = pPosition.x - samples[i].position.x;
+                float lDz = pPosition.z - samples[i].position.z;
+                float lSqr = lDx * lDx + lDz * lDz;
+                if (lSqr < lBestSqr)
+                {
+                    lBestSqr = lSqr;
+                    lBest = i;
+                }
+            }
+            return ProjectFrom(pPosition, lBest, out pLateral);
+        }
+
         // Same projection with a global coarse search (spawn, teleports).
         public float ProjectGlobal(Vector3 pPosition, out float pLateral)
         {

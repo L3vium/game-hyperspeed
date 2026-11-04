@@ -7,26 +7,25 @@ using UnityEngine.UI;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // Persistent scene wipe : one oversized slanted panel sweeps in from the right and leaves to the left, revealing
-    // the next scene from the right. Everything that moves lives inside the panel mask (nothing can peek out).
-    // Stage loads show a stage card (world, stage, rival portrait, objective) on the panel while loading.
+    // Persistent scene wipe tied to speed : streaks close in from the edges until the screen is covered, the stage name
+    // hits on it while loading, then the center opens onto the next scene.
     public class SceneTransition : MonoBehaviour
     {
-        private const float WIDTH = 3400f;
-        private const float HEIGHT = 1700f;
-        private const float SKEW = 0.22f;
+        private const float CLOSE_TIME = 0.26f;
+        private const float OPEN_TIME = 0.34f;
+
+        private static readonly int PROGRESS = Shader.PropertyToID("_Progress");
+        private static readonly int OPENING = Shader.PropertyToID("_Opening");
+        private static readonly int STREAK = Shader.PropertyToID("_Streak");
 
         private static SceneTransition _instance;
 
-        private RectTransform _panel;
-        private RectTransform _lines;
-        private TextMeshProUGUI _bigWord;
+        private RawImage _wipe;
+        private Material _material;
         private RectTransform _card;
-        private RawImage _cardImage;
-        private TextMeshProUGUI _cardStage;
-        private TextMeshProUGUI _cardTitle;
-        private TextMeshProUGUI _cardTag;
-        private RectTransform _loading;
+        private TextMeshProUGUI _number;
+        private TextMeshProUGUI _title;
+        private TextMeshProUGUI _tag;
         private bool _busy;
 
         public static bool IsBusy => _instance != null && _instance._busy;
@@ -49,119 +48,94 @@ namespace Com.IsartDigital.Hyperspeed
         private void Build()
         {
             Canvas lCanvas = UIFactory.CreateCanvas("TransitionCanvas", 1000, transform);
-            UIShape lPanel = UIKit.Tile(lCanvas.transform, "Panel", UIKit.INK, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(WIDTH, HEIGHT), SKEW);
-            lPanel.gameObject.AddComponent<Mask>().showMaskGraphic = true;
-            _panel = lPanel.rectTransform;
+            RectTransform lRect = UIFactory.Stretch(UIFactory.CreateRect(lCanvas.transform, "Wipe", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
+            _wipe = lRect.gameObject.AddComponent<RawImage>();
+            _material = new Material(Shader.Find("Hyperspeed/Wipe"));
+            _wipe.material = _material;
+            _wipe.raycastTarget = false;
+            _wipe.enabled = false;
 
-            // Leading edge : red band + thin white line, inside the mask.
-            UIKit.Tile(_panel, "EdgeRed", UIKit.RED, new Vector2(0.5f, 0.5f), new Vector2(-WIDTH * 0.5f + 260f, 0f), new Vector2(420f, HEIGHT), SKEW);
-            UIKit.Tile(_panel, "EdgeWhite", UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(-WIDTH * 0.5f + 500f, 0f), new Vector2(26f, HEIGHT), SKEW);
-            _lines = UIFactory.CreateRect(_panel, "SpeedLines", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(WIDTH, HEIGHT));
-            for (int i = 0; i < 26; i++)
-            {
-                float lY = Random.Range(-HEIGHT * 0.45f, HEIGHT * 0.45f);
-                float lLength = Random.Range(200f, 900f);
-                Color lColor = i % 5 == 0 ? new Color(UIKit.RED.r, UIKit.RED.g, UIKit.RED.b, 0.7f) : new Color(1f, 1f, 1f, Random.Range(0.05f, 0.2f));
-                UIShape lLine = UIKit.Tile(_lines, "Line", lColor, new Vector2(0.5f, 0.5f), new Vector2(0f, lY), new Vector2(lLength, Random.Range(3f, 9f)), 0f);
-                UIScrollLoop lLoop = lLine.gameObject.AddComponent<UIScrollLoop>();
-                lLoop.speed = -Random.Range(2000f, 3400f);
-                lLoop.wrap = WIDTH;
-                lLoop.phase = Random.Range(0f, WIDTH);
-            }
-
-            _bigWord = UIKit.OutlineText(_panel, "", 360f, new Color(1f, 1f, 1f, 0.18f), new Vector2(0.5f, 0.5f), new Vector2(0f, 230f), new Vector2(3000f, 420f), 0f, 0.05f);
-
-            _card = UIFactory.CreateRect(_panel, "StageCard", new Vector2(0.5f, 0.5f), new Vector2(0f, -40f), new Vector2(1500f, 560f));
-            UIShape lFrame = UIKit.Tile(_card, "Frame", UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(380f, 10f), new Vector2(760f, 470f), SKEW);
-            UIShape lInner = UIKit.Tile(_card, "Inner", UIKit.RED_DEEP, new Vector2(0.5f, 0.5f), new Vector2(380f, 10f), new Vector2(720f, 430f), SKEW);
-            _cardImage = UIKit.MaskedImage(lInner, null);
-            _cardStage = UIKit.Text(_card, "", 40f, UIKit.RED, new Vector2(0.5f, 0.5f), new Vector2(-380f, 170f), new Vector2(720f, 50f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
-            _cardTitle = UIKit.Text(_card, "", 92f, UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(-380f, 70f), new Vector2(760f, 120f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
-            _cardTitle.enableAutoSizing = true;
-            _cardTitle.fontSizeMin = 40f;
-            _cardTitle.fontSizeMax = 92f;
-            _cardTag = UIKit.Text(_card, "", 30f, UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(-380f, -10f), new Vector2(720f, 44f), UIKit.Font.Bold, TextAlignmentOptions.Left);
-            _loading = UIFactory.CreateRect(_card, "Loading", new Vector2(0.5f, 0.5f), new Vector2(-380f, -110f), new Vector2(720f, 30f));
-            UIKit.Tile(_loading, "Track", new Color(1f, 1f, 1f, 0.15f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(720f, 14f), 0.6f);
-            RectTransform lChevrons = UIFactory.CreateRect(_loading, "Chevrons", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(720f, 30f));
-            for (int i = 0; i < 6; i++) UIFactory.CreateShape(lChevrons, "C", UIShape.ShapeKind.Chevron, UIKit.GOLD, new Vector2(0.5f, 0.5f), new Vector2(-300f + i * 120f, 0f), new Vector2(60f, 24f));
-            UIScrollLoop lChevronLoop = lChevrons.gameObject.AddComponent<UIScrollLoop>();
-            lChevronLoop.speed = 400f;
-            lChevronLoop.wrap = 120f;
-            SetX(WIDTH);
+            _card = UIFactory.CreateRect(lCanvas.transform, "Card", new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1500f, 420f));
+            _number = UIKit.Text(_card, "", 170f, UIKit.GOLD, new Vector2(0f, 0.5f), new Vector2(160f, 40f), new Vector2(320f, 240f), UIKit.Font.Heavy, TextAlignmentOptions.Right);
+            _title = UIKit.Text(_card, "", 112f, UIKit.WHITE, new Vector2(0f, 0.5f), new Vector2(820f, 40f), new Vector2(980f, 160f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
+            _title.enableAutoSizing = true;
+            _title.fontSizeMin = 40f;
+            _title.fontSizeMax = 112f;
+            _tag = UIKit.Text(_card, "", 34f, new Color(1f, 1f, 1f, 0.75f), new Vector2(0f, 0.5f), new Vector2(820f, -60f), new Vector2(980f, 50f), UIKit.Font.Bold, TextAlignmentOptions.Left);
+            _tag.enableAutoSizing = true;
+            _tag.fontSizeMin = 18f;
+            _tag.fontSizeMax = 34f;
+            _card.gameObject.SetActive(false);
         }
 
-        private void SetX(float pX)
+        public static void LoadScene(SceneName pScene, float pSpeed = 1f)
         {
-            _panel.anchoredPosition = new Vector2(pX, 0f);
-            _bigWord.rectTransform.anchoredPosition = new Vector2(-pX * 0.35f, 230f);
+            SceneTransition lTransition = Instance;
+            if (lTransition._busy) return;
+            lTransition._card.gameObject.SetActive(false);
+            lTransition.StartCoroutine(lTransition.LoadRoutine(EnumUtils.EnumToString(pScene), pSpeed, 0.05f, UIKit.WHITE));
         }
 
-        public static void LoadScene(SceneName pScene, string pLabel = "", float pSpeed = 1f)
+        public static void LoadStage(int pLevel)
         {
-            if (Instance._busy) return;
-            Instance._card.gameObject.SetActive(false);
-            Instance.StartCoroutine(Instance.LoadRoutine(EnumUtils.EnumToString(pScene), string.IsNullOrEmpty(pLabel) ? "HYPER SPEED" : pLabel, pSpeed, 0.15f));
+            SceneTransition lTransition = Instance;
+            if (lTransition._busy) return;
+            LevelDefinition lLevel = LevelDatabase.Get(pLevel);
+            lTransition._number.text = (pLevel + 1).ToString("00");
+            lTransition._title.text = lLevel.title;
+            lTransition._tag.text = lLevel.tagline;
+            lTransition._card.gameObject.SetActive(true);
+            Color lAccent = lLevel.theme().accent;
+            lTransition.StartCoroutine(lTransition.LoadRoutine(EnumUtils.EnumToString(SceneName.CORE), 1f, 0.45f, lAccent));
         }
 
-        // Stage card while loading : the next stage sweeps in from the right.
-        public static void LoadStage(int pIndex, float pSpeed = 1f)
-        {
-            if (Instance._busy) return;
-            LevelDefinition lLevel = LevelDatabase.Get(pIndex);
-            Instance._card.gameObject.SetActive(true);
-            Instance._cardImage.texture = RivalThumbnails.Get(pIndex);
-            Instance._cardStage.text = LevelDatabase.WORLDS[lLevel.world] + "  //  STAGE " + (pIndex + 1).ToString("00");
-            Instance._cardTitle.text = lLevel.title;
-            Instance._cardTag.text = lLevel.tagline;
-            Instance.StartCoroutine(Instance.LoadRoutine(EnumUtils.EnumToString(SceneName.CORE), "STAGE " + (pIndex + 1).ToString("00"), pSpeed, 0.8f));
-        }
-
-        private IEnumerator LoadRoutine(string pScene, string pWord, float pSpeed, float pHold)
+        private IEnumerator LoadRoutine(string pScene, float pSpeed, float pHold, Color pStreak)
         {
             _busy = true;
-            _bigWord.text = pWord;
-            AudioManager.Play("ui_transition_in", 0.9f);
-            float lDuration = 0.42f / pSpeed;
-            for (float lTime = 0f; lTime < lDuration; lTime += Time.unscaledDeltaTime)
+            _material.SetColor(STREAK, pStreak);
+            _wipe.enabled = true;
+            bool lShowCard = _card.gameObject.activeSelf;
+            _card.gameObject.SetActive(false);
+            AudioManager.Play("ui_whoosh", 0.9f);
+
+            _material.SetFloat(OPENING, 0f);
+            for (float lTime = 0f; lTime < CLOSE_TIME / pSpeed; lTime += Time.unscaledDeltaTime)
             {
-                SetX(Mathf.Lerp(WIDTH, 0f, UITween.Evaluate(Ease.OutExpo, lTime / lDuration)));
+                float lT = lTime / (CLOSE_TIME / pSpeed);
+                _material.SetFloat(PROGRESS, lT * lT);
                 yield return null;
             }
-            SetX(0f);
-            Time.timeScale = 1f;
+            _material.SetFloat(PROGRESS, 1f);
 
+            if (lShowCard)
+            {
+                _card.gameObject.SetActive(true);
+                _card.localScale = Vector3.one * 1.5f;
+            }
+            float lCardTime = 0f;
             AsyncOperation lLoad = SceneManager.LoadSceneAsync(pScene);
-            while (!lLoad.isDone) yield return null;
-            yield return new WaitForSecondsRealtime(pHold / pSpeed);
-
-            AudioManager.Play("ui_transition_out", 0.8f);
-            for (float lTime = 0f; lTime < lDuration; lTime += Time.unscaledDeltaTime)
+            lLoad.allowSceneActivation = false;
+            while (lCardTime < pHold / pSpeed || lLoad.progress < 0.9f)
             {
-                SetX(Mathf.Lerp(0f, -WIDTH, UITween.Evaluate(Ease.InCubic, lTime / lDuration)));
+                lCardTime += Time.unscaledDeltaTime;
+                if (lShowCard) _card.localScale = Vector3.Lerp(_card.localScale, Vector3.one, 1f - Mathf.Exp(-18f * Time.unscaledDeltaTime));
                 yield return null;
             }
-            SetX(WIDTH);
+            lLoad.allowSceneActivation = true;
+            yield return lLoad;
+            yield return null;
+
+            _card.gameObject.SetActive(false);
+            AudioManager.Play("ui_whoosh", 0.7f, 1.3f);
+            _material.SetFloat(OPENING, 1f);
+            for (float lTime = 0f; lTime < OPEN_TIME / pSpeed; lTime += Time.unscaledDeltaTime)
+            {
+                float lT = lTime / (OPEN_TIME / pSpeed);
+                _material.SetFloat(PROGRESS, 1f - (1f - lT) * (1f - lT));
+                yield return null;
+            }
+            _wipe.enabled = false;
             _busy = false;
-        }
-    }
-
-    // Scrolls a rect horizontally and wraps it around its start (speed lines, chevron rows).
-    public class UIScrollLoop : MonoBehaviour
-    {
-        public float speed = 100f;
-        public float wrap = 240f;
-        public float phase;
-        private float _offset;
-        private Vector2 _base;
-        private bool _init;
-
-        private void Update()
-        {
-            RectTransform lRect = (RectTransform)transform;
-            if (!_init) { _base = lRect.anchoredPosition; _offset = phase; _init = true; }
-            _offset = Mathf.Repeat(_offset + speed * Time.unscaledDeltaTime, wrap);
-            lRect.anchoredPosition = _base + new Vector2(_offset - wrap * 0.5f, 0f);
         }
     }
 }

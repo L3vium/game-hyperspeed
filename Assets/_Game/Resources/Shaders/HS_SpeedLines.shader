@@ -59,11 +59,11 @@ Shader "Hyperspeed/SpeedLines"
                 float lCell = floor(lAngle * pDensity);
                 float lLocal = frac(lAngle * pDensity);
                 float lRnd = Hash(lCell + pSeed);
-                float lAlive = step(1.0 - _Intensity * (pColored ? 0.65 : 0.9), lRnd);
+                float lAlive = step(1.0 - _Intensity * (pColored ? 0.3 : 0.62), lRnd);
                 float lWidth = pWidth * (0.4 + Hash(lCell * 1.7 + pSeed) * 0.8);
                 float lShape = smoothstep(lWidth, 0.0, abs(lLocal - 0.5));
                 // Each streak is a dash travelling outward ; inner start gets closer to the center with intensity.
-                float lStart = lerp(0.55, pReach, _Intensity) + Hash(lCell * 3.1 + pSeed) * 0.12;
+                float lStart = lerp(0.42, pReach, _Intensity) + Hash(lCell * 3.1 + pSeed) * 0.12;
                 float lPhase = frac(lRadius * (1.2 + Hash(lCell + 5.0)) - _Time.y * pSpeed * (0.7 + lRnd) + Hash(lCell * 7.3));
                 float lDash = smoothstep(0.0, 0.08, lPhase) * smoothstep(0.75, 0.35, lPhase);
                 float lAlpha = lAlive * lShape * lDash * smoothstep(lStart, lStart + 0.15, lRadius);
@@ -77,13 +77,13 @@ Shader "Hyperspeed/SpeedLines"
                 float lRadius = length(lDelta);
                 float lAngle = atan2(lDelta.y, lDelta.x) / 6.2831853 + 0.5;
 
-                half4 lThin = Layer(lAngle, lRadius, _Density, 0.0, 3.2, 0.18, 0.06, false);
-                half4 lThick = Layer(lAngle, lRadius, _Density * 0.35, 31.0, 2.4, 0.42, 0.1, true);
-                lThick.a *= saturate(_Intensity * 1.3 + _Boost);
+                half4 lThin = Layer(lAngle, lRadius, _Density, 0.0, 3.6, 0.18, 0.015, false);
+                half4 lThick = Layer(lAngle, lRadius, _Density * 0.35, 31.0, 2.8, 0.3, 0.3, true);
+                lThick.a *= saturate(_Intensity * 0.45 + _Boost * 0.35);
 
                 half4 lColor = lThick;
                 lColor.rgb = lerp(lThick.rgb, lThin.rgb, saturate(lThin.a));
-                lColor.a = saturate(lThick.a * 0.85 + lThin.a * 0.9);
+                lColor.a = saturate(lThick.a * 0.6 + lThin.a * 0.8) * smoothstep(0.02, 0.22, lRadius);
                 return half4(lColor.rgb, lColor.a * _LineColor.a * input.color.a);
             }
             ENDHLSL

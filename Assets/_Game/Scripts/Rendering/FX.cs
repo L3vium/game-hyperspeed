@@ -126,6 +126,29 @@ namespace Com.IsartDigital.Hyperspeed
             Object.Destroy(lSystem.gameObject, pLifetime + 0.5f);
         }
 
+        // Flames dragged behind a falling meteor.
+        public static ParticleSystem FireTrail(Transform pParent, float pRadius)
+        {
+            ParticleSystem lSystem = CreateSystem("FireTrail", pParent.position, Mats.Glow(new Color(3.4f, 1.3f, 0.2f), true, 1f), false);
+            lSystem.transform.SetParent(pParent, true);
+            ParticleSystem.MainModule lMain = lSystem.main;
+            lMain.loop = true;
+            lMain.startLifetime = new ParticleSystem.MinMaxCurve(0.5f, 1.1f);
+            lMain.startSpeed = 0f;
+            lMain.startSize = new ParticleSystem.MinMaxCurve(pRadius * 0.8f, pRadius * 1.5f);
+            lMain.maxParticles = 200;
+            ParticleSystem.EmissionModule lEmission = lSystem.emission;
+            lEmission.rateOverTime = 70f;
+            ParticleSystem.ShapeModule lShape = lSystem.shape;
+            lShape.shapeType = ParticleSystemShapeType.Sphere;
+            lShape.radius = pRadius * 0.7f;
+            ParticleSystem.SizeOverLifetimeModule lSize = lSystem.sizeOverLifetime;
+            lSize.enabled = true;
+            lSize.size = new ParticleSystem.MinMaxCurve(1f, AnimationCurve.Linear(0f, 1f, 1f, 0f));
+            lSystem.Play();
+            return lSystem;
+        }
+
         public static void Puff(Vector3 pPosition, Color pColor, int pCount, float pSize, float pSpeed = 4f)
         {
             Color lColor = pColor;

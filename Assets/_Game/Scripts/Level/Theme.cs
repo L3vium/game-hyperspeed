@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    public enum DecorKind { Islands, City, Desert, Industrial, Ice, Space, Void, Night }
+    public enum DecorKind { Islands, City, Desert, Industrial, Ice, Space, Void, Night, Prehistoric }
 
     // Palette + decor style of a level.
     public class Theme
@@ -17,6 +17,8 @@ namespace Com.IsartDigital.Hyperspeed
         public Vector3 sunDirection = new Vector3(0.35f, 0.4f, 0.85f);
         public Color ambient;
         public Color roadA, roadB, roadEdge, roadSide;
+        public Color road;
+        public Color groundC;
         public Color wall;
         public Color accent;
         public Color decorA, decorB, decorC;
@@ -34,6 +36,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         public static Theme Islands() => new Theme
         {
+            road = Hex("5E5A6B"), groundC = Hex("B7E04F"),
             name = "SUNNY ISLES", decor = DecorKind.Islands,
             skyTop = Hex("1E6BFF"), skyHorizon = Hex("9ED8FF"), skyBottom = Hex("E8F6FF"), cloud = Color.white, sun = new Color(2f, 1.8f, 1.4f),
             fog = Hex("BFE6FF"), fogDensity = 0.0016f, ambient = Hex("A6C8FF"),
@@ -44,6 +47,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         public static Theme City() => new Theme
         {
+            road = Hex("3F4470"), groundC = Hex("A2A7DA"),
             name = "NEON AVENUE", decor = DecorKind.City,
             skyTop = Hex("5A7BFF"), skyHorizon = Hex("D9E6FF"), skyBottom = Hex("F2F0FF"), cloud = Hex("FFFFFF"), sun = new Color(1.8f, 1.7f, 1.6f),
             fog = Hex("D6DBFF"), fogDensity = 0.0018f, ambient = Hex("B7B8FF"),
@@ -54,6 +58,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         public static Theme Desert() => new Theme
         {
+            road = Hex("B83A7A"), groundC = Hex("FF9ACD"),
             name = "PINK DUNES", decor = DecorKind.Desert,
             skyTop = Hex("5FA8FF"), skyHorizon = Hex("FFC3E8"), skyBottom = Hex("FF9FD0"), cloud = Hex("FFFFFF"), sun = new Color(2f, 1.6f, 1.7f),
             fog = Hex("FFB3DD"), fogDensity = 0.002f, ambient = Hex("FFB0D8"),
@@ -64,6 +69,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         public static Theme Industrial() => new Theme
         {
+            road = Hex("4A1B12"), groundC = Hex("F28A4C"),
             name = "FURNACE LINE", decor = DecorKind.Industrial,
             skyTop = Hex("FF3D1F"), skyHorizon = Hex("FF9A3D"), skyBottom = Hex("FFC36B"), cloud = Hex("FFD9A0"), sun = new Color(2.2f, 1.3f, 0.6f),
             fog = Hex("FF8A4A"), fogDensity = 0.0026f, ambient = Hex("FF9E6E"), light = Hex("FFD2A6"),
@@ -74,6 +80,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         public static Theme Ice() => new Theme
         {
+            road = Hex("7C6CE0"), groundC = Hex("FFFFFF"),
             name = "CRYSTAL PEAKS", decor = DecorKind.Ice,
             skyTop = Hex("3B2A8F"), skyHorizon = Hex("B8A8FF"), skyBottom = Hex("E9E6FF"), cloud = Hex("F2EEFF"), sun = new Color(1.6f, 1.5f, 2f),
             fog = Hex("CFC8FF"), fogDensity = 0.0022f, ambient = Hex("B8B0FF"),
@@ -84,6 +91,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         public static Theme Space() => new Theme
         {
+            road = Hex("1A1F44"), groundC = Hex("4A4F85"),
             name = "HYPER TUNNEL", decor = DecorKind.Space,
             skyTop = Hex("050A3A"), skyHorizon = Hex("1D4BFF"), skyBottom = Hex("0A1460"), cloud = Hex("3FD0FF"), sun = new Color(1.2f, 1.6f, 2.2f),
             fog = Hex("0E2A8A"), fogDensity = 0.0018f, ambient = Hex("4A6BFF"), light = Hex("BFD6FF"),
@@ -94,6 +102,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         public static Theme Void() => new Theme
         {
+            road = Hex("C9A8FF"), groundC = Hex("FFE3F0"),
             name = "WHITE LIGHT", decor = DecorKind.Void,
             skyTop = Hex("FFB6D9"), skyHorizon = Hex("FFF2E8"), skyBottom = Hex("FFFFFF"), cloud = Hex("FFD6EC"), sun = new Color(2.5f, 2.3f, 2.2f),
             fog = Hex("FFE9F3"), fogDensity = 0.0024f, ambient = Hex("FFE0F0"),
@@ -102,8 +111,20 @@ namespace Com.IsartDigital.Hyperspeed
             decorA = Hex("FFC2DD"), decorB = Hex("FFFFFF"), decorC = Hex("C9A8FF"), shade = Hex("D8B8F0"), rays = 1f
         };
 
+        public static Theme Prehistoric() => new Theme
+        {
+            road = Hex("5B4632"), groundC = Hex("9CCB3B"),
+            name = "66 MILLION BC", decor = DecorKind.Prehistoric,
+            skyTop = Hex("E8622C"), skyHorizon = Hex("FFC36B"), skyBottom = Hex("FFE2A8"), cloud = Hex("FFE9C9"), sun = new Color(2.4f, 1.5f, 0.8f),
+            fog = Hex("FFB870"), fogDensity = 0.0018f, ambient = Hex("FFC98E"), light = Hex("FFE0B0"),
+            roadA = Hex("6FAA2C"), roadB = Hex("588F22"), roadEdge = Hex("FFE066"), roadSide = Hex("6B3E22"),
+            wall = Hex("8A5A32"), accent = Hex("FF3D1F"),
+            decorA = Hex("7A4A28"), decorB = Hex("3F6E23"), decorC = Hex("C25B22"), shade = Hex("B0605A"), rays = 0.6f
+        };
+
         public static Theme Night() => new Theme
         {
+            road = Hex("120E16"), groundC = Hex("3A3344"),
             name = "GRAVEYARD SHIFT", decor = DecorKind.Night,
             skyTop = Hex("0B0410"), skyHorizon = Hex("5A0A1E"), skyBottom = Hex("1A0710"), cloud = Hex("8A1030"), sun = new Color(2.5f, 0.4f, 0.4f),
             fog = Hex("3A0816"), fogDensity = 0.0028f, ambient = Hex("6A2A44"), light = Hex("FF8A9A"), lightIntensity = 1.1f,

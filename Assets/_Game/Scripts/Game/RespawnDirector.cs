@@ -3,13 +3,13 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // Readable death : the camera holds and watches the fall, then the runner is rewound along the path it ran
-    // (camera chasing the rewind) back to the last safe spot, the world is restored, and control comes back.
+    // Quick death : a glance at the fall, then the runner is rewound along the path it ran back to safe ground,
+    // the world is restored, and control comes back. Never a long wait.
     public class RespawnDirector : MonoBehaviour
     {
-        private const float FALL_VIEW = 0.45f;
-        private const float REWIND = 0.75f;
-        private const float SETTLE = 0.25f;
+        private const float FALL_VIEW = 0.25f;
+        private const float REWIND = 0.5f;
+        private const float SETTLE = 0.2f;
 
         private PlayerController _player;
         private CameraRig _rig;
@@ -56,19 +56,19 @@ namespace Com.IsartDigital.Hyperspeed
                 if (lCrumbs.Get(i).s <= lSafe.s + 0.5f) { lSafeIndex = i; break; }
                 lSafeIndex = i;
             }
-            if (BreakDirector.Instance != null) BreakDirector.Instance.RewindTo(lSafe.s);
+            if (CourseBreak.Instance != null) CourseBreak.Instance.RewindTo(lSafe.s);
             if (PostFX.Instance != null) PostFX.Instance.rewind = 1f;
             AudioManager.Play("sfx_rewind", 0.8f);
             Vector3 lStart = _player.transform.position;
             for (float lTime = 0f; lTime < REWIND; lTime += Time.unscaledDeltaTime)
             {
-                float lT = LevelBuilder.Smooth(Mathf.Clamp01(lTime / REWIND));
+                float lT = HSMath.Smooth(Mathf.Clamp01(lTime / REWIND));
                 Vector3 lPosition;
                 Vector3 lForward;
                 if (lCrumbs.Count == 0 || lSafeIndex == 0)
                 {
                     lPosition = Vector3.Lerp(lStart, lSafe.position, lT);
-                    lForward = lSafe.deck != null ? lSafe.deck.fwd[0] : Vector3.forward;
+                    lForward = lSafe.heading.sqrMagnitude > 0.1f ? lSafe.heading : Vector3.forward;
                 }
                 else
                 {
@@ -83,7 +83,7 @@ namespace Com.IsartDigital.Hyperspeed
                 }
                 _player.transform.position = lPosition;
                 Vector3 lFlat = Vector3.ProjectOnPlane(lForward, Vector3.up).normalized;
-                _rig.SetOverride(lPosition + Vector3.up * 4.5f - lFlat * 11f, lPosition + Vector3.up * 1.2f + lFlat * 6f);
+                _rig.SetOverride(lPosition + Vector3.up * 6f - lFlat * 14f, lPosition + Vector3.up * 1.2f + lFlat * 6f);
                 yield return null;
             }
 
