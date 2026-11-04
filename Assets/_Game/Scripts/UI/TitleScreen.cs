@@ -50,6 +50,21 @@ namespace Com.IsartDigital.Hyperspeed
         private void Start()
         {
             AudioManager.PlayMusic("music_title", 0.5f);
+            // Dev build test hook : -hsStage N goes straight into a stage on autopilot.
+            if (GameSession.CheatsEnabled)
+            {
+                string[] lArgs = System.Environment.GetCommandLineArgs();
+                for (int i = 0; i < lArgs.Length - 1; i++)
+                {
+                    int lStage;
+                    if (lArgs[i] == "-hsStage" && int.TryParse(lArgs[i + 1], out lStage))
+                    {
+                        Autopilot.Enabled = true;
+                        GameSession.SelectedLevel = lStage;
+                        SceneTransition.LoadStage(lStage);
+                    }
+                }
+            }
         }
 
         private void OnDestroy()
