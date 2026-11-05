@@ -177,7 +177,7 @@ namespace Com.IsartDigital.Hyperspeed
         public static LevelDefinition Get(int pIndex) => Levels[UnityEngine.Mathf.Clamp(pIndex, 0, Levels.Length - 1)];
 
         // Later stages run through their open modules for longer : they last as long as the early ones despite their speed.
-        public static float Pace(int pIndex) => 1.5f + 0.4f * pIndex / (Levels.Length - 1);
+        public static float Pace(int pIndex) => 1.8f + 0.4f * pIndex / (Levels.Length - 1);
 
         public static SpeedProfile Profile(LevelDefinition pLevel) => SpeedProfile.For(pLevel.cruise, pLevel.worldBreaker);
     }

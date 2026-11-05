@@ -31,6 +31,9 @@ namespace Com.IsartDigital.Hyperspeed
         public Camera Cam { get; private set; }
         public ICameraTarget target;
         public bool freeLook;
+        // Title : frames the runner off centre (projection shift), and closer.
+        public float lensShiftX;
+        public float distanceScale = 1f;
 
         private PlayerController _player;
         private LevelLayout _layout;
@@ -153,7 +156,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         private Vector3 DesiredPosition(float pSpeed)
         {
-            float lDistance = freeLook ? 9f : Mathf.Lerp(8f, 30f, Mathf.Sqrt(pSpeed)) + _lightBlend * 12f + _lag;
+            float lDistance = (freeLook ? 9f : Mathf.Lerp(8f, 30f, Mathf.Sqrt(pSpeed)) + _lightBlend * 12f + _lag) * distanceScale;
             float lHeight = freeLook ? 2f : Mathf.Lerp(2.4f, 5f, pSpeed);
             return target.FocusPosition + _up * lHeight - _look * lDistance;
         }
@@ -231,6 +234,13 @@ namespace Com.IsartDigital.Hyperspeed
             }
             transform.SetPositionAndRotation(lPosition, lRotation);
             Cam.fieldOfView = Mathf.Clamp(_fov, 40f, 150f);
+            if (lensShiftX != 0f)
+            {
+                Cam.ResetProjectionMatrix();
+                Matrix4x4 lProjection = Cam.projectionMatrix;
+                lProjection[0, 2] = lensShiftX;
+                Cam.projectionMatrix = lProjection;
+            }
         }
 
         // Anything solid between the runner and the camera pulls it in fast and lets it out slowly.

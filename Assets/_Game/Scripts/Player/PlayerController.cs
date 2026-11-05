@@ -25,7 +25,7 @@ namespace Com.IsartDigital.Hyperspeed
         private const float FREE_ROAM_SPEED = 34f;
         // Above cruise : half of the extra speed is gone after about 5 s, sooner the further above you are.
         private const float DRAG = 0.14f;
-        private const float DRAG_OVER = 0.05f;
+        private const float DRAG_OVER = 0.085f;
         private const float DRAG_LIGHT = 0.05f;
         private const float LIGHT_HOLD = 0.5f;
         private const float AIM_PITCH_MIN = -80f;

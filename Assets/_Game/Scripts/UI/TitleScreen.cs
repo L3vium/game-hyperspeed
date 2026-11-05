@@ -3,8 +3,8 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // One title screen : the name of the game in real 3D letters leaning with the mouse, three buttons, the runner flying
-    // through the world behind. Settings slide over it. Play goes to the stage road.
+    // Title screen : one panel swinging with the mouse. Red slash and the name on the left, big diagonal slashes on the
+    // right around the runner, who keeps flying through the world behind it all. Play goes to the stage select.
     public class TitleScreen : MonoBehaviour
     {
         private enum ScreenId { Main, Settings, Stages }
@@ -16,7 +16,7 @@ namespace Com.IsartDigital.Hyperspeed
         private CameraRig _rig;
         private PlayerController _player;
         private LevelLayout _layout;
-        private StageRoad _road;
+        private StageSelect _select;
 
         private Canvas _canvas;
         private Canvas _canvas3D;
@@ -108,7 +108,8 @@ namespace Com.IsartDigital.Hyperspeed
             _rig.Snap();
             _player.StartRunning();
 
-            _road = StageRoad.Create(_camera, new Vector3(0f, 9000f, 0f), Mathf.Clamp(GameSession.UnlockedCount - 1, 0, LevelDatabase.Count - 1), Launch);
+            _rig.lensShiftX = -0.42f;
+            _rig.distanceScale = 0.55f;
         }
 
         private void Update()
@@ -117,9 +118,13 @@ namespace Com.IsartDigital.Hyperspeed
             if (_player != null && _layout != null && (_player.Progress > _layout.finishS - 200f || _player.State == PlayerState.Dead))
             {
                 _player.RespawnAt(new Breadcrumb { s = 0f, lateral = 0f, speed = _layout.profile.cruise }, false);
-                if (_screen != ScreenId.Stages) _rig.Snap();
+                _rig.Snap();
             }
-            if (_screen == ScreenId.Stages && HSInput.BackPressed && !SceneTransition.IsBusy) SetScreen(ScreenId.Main);
+            if (_screen == ScreenId.Stages && HSInput.BackPressed && !SceneTransition.IsBusy)
+            {
+                AudioManager.Play("ui_back", 0.7f);
+                SetScreen(ScreenId.Main);
+            }
         }
 
         // ================================================================ UI
@@ -130,6 +135,7 @@ namespace Com.IsartDigital.Hyperspeed
             _canvas3D = UIPerspective.Create("Title3D", 19, transform, _camera);
             BuildMain();
             BuildSettings();
+            _select = StageSelect.Create(UIPerspective.Create("Stages3D", 21, transform, _camera), Launch, () => SetScreen(ScreenId.Main));
             BuildStages();
             if (GameSession.CheatsEnabled) _cheats = DevCheatBar.Create();
         }
@@ -138,27 +144,55 @@ namespace Com.IsartDigital.Hyperspeed
         {
             RectTransform lRoot3D = (RectTransform)_canvas3D.transform;
             _main = UIFactory.Stretch(UIFactory.CreateRect(lRoot3D, "Main", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
+            PerspectivePanel lPanel = _main.gameObject.AddComponent<PerspectivePanel>();
+            lPanel.baseEuler = new Vector3(0f, 7f, 0f);
 
-            // The name of the game, top left, always inside the screen.
-            UI3DText lHyper = UI3DText.Create(_main, "HYPER", 250f, new Vector2(0f, 1f), new Vector2(490f, -160f), new Vector2(860f, 220f), UIKit.WHITE, UIKit.RED, 16, 3.2f, TextAlignmentOptions.Left, 2f);
-            UI3DText lSpeed = UI3DText.Create(_main, "SPEED", 250f, new Vector2(0f, 1f), new Vector2(560f, -360f), new Vector2(860f, 220f), UIKit.RED, UIKit.RED_DEEP, 16, 3.2f, TextAlignmentOptions.Left, 2f);
-            lHyper.tiltX = 16f;
-            lSpeed.tiltX = 16f;
+            // Right side : long slashes cutting across the corners, leaving the runner in the open between them.
+            Slash("Slash1", UIKit.RED, new Vector2(640f, 450f), new Vector2(1700f, 190f), -20f);
+            Slash("Slash2", UIKit.WHITE, new Vector2(640f, 330f), new Vector2(1700f, 18f), -20f);
+            Slash("Slash3", UIKit.RED_DEEP, new Vector2(860f, 240f), new Vector2(1000f, 56f), -20f);
+            Slash("Slash4", UIKit.RED, new Vector2(1000f, -560f), new Vector2(1500f, 150f), -20f);
+            Slash("Slash5", UIKit.INK, new Vector2(1000f, -450f), new Vector2(1500f, 26f), -20f);
+            Slash("Slash6", UIKit.GOLD, new Vector2(1160f, -385f), new Vector2(760f, 12f), -20f);
+            UIKit.OutlineText(_main, "HYPER", 300f, new Color(1f, 1f, 1f, 0.75f), new Vector2(0.5f, 0.5f), new Vector2(640f, 430f), new Vector2(1200f, 340f), -20f, 0.05f).raycastTarget = false;
+
+            // Left side : the red slash carrying the name, chevrons running in it.
+            UIShape lRed = UIKit.Tile(_main, "RedPanel", UIKit.RED, new Vector2(0.5f, 0.5f), new Vector2(-640f, 40f), new Vector2(1260f, 1500f), 0.26f, 0f);
+            UIKit.Chevrons(lRed.transform, "Chevrons", UIKit.RED, UIKit.RED_DARK, 60f);
+            lRed.gameObject.AddComponent<UnityEngine.UI.Mask>().showMaskGraphic = true;
+            UIKit.Tile(_main, "RedEdge", UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(0f, 40f), new Vector2(10f, 1500f), 0.26f, 0f);
+            UIKit.Tile(_main, "RedEdge2", UIKit.RED_DEEP, new Vector2(0.5f, 0.5f), new Vector2(28f, 40f), new Vector2(26f, 1500f), 0.26f, 0f);
+
+            // The name of the game : extruded, but it only ever moves with the panel.
+            UI3DText lHyper = UI3DText.Create(_main, "HYPER", 250f, new Vector2(0f, 1f), new Vector2(480f, -170f), new Vector2(820f, 220f), UIKit.WHITE, UIKit.RED_DEEP, 12, 3f, TextAlignmentOptions.Left, 2f);
+            UI3DText lSpeed = UI3DText.Create(_main, "SPEED", 250f, new Vector2(0f, 1f), new Vector2(540f, -360f), new Vector2(820f, 220f), UIKit.WHITE, UIKit.RED_DEEP, 12, 3f, TextAlignmentOptions.Left, 2f);
+            lHyper.tiltX = 0f;
+            lHyper.tiltY = 0f;
+            lSpeed.tiltX = 0f;
+            lSpeed.tiltY = 0f;
+            UIKit.Tile(_main, "TitleBar", UIKit.WHITE, new Vector2(0f, 1f), new Vector2(520f, -490f), new Vector2(760f, 12f), 0.5f, 2f);
 
             _mainNav = UINav.Create(_main.gameObject);
             _mainNav.eventCamera = _canvas3D.worldCamera;
-            MenuButton("PLAY", 92f, 330f, 420f, new Vector2(0f, 2f), () => SetScreen(ScreenId.Stages));
-            MenuButton("SETTINGS", 62f, 195f, 400f, new Vector2(0f, 1f), () => SetScreen(ScreenId.Settings));
-            MenuButton("EXIT", 62f, 85f, 380f, new Vector2(0f, 0f), Quit);
+            MenuButton("PLAY", 96f, 330f, 560f, 130f, new Vector2(0f, 2f), () => SetScreen(ScreenId.Stages));
+            MenuButton("SETTINGS", 54f, 200f, 420f, 90f, new Vector2(0f, 1f), () => SetScreen(ScreenId.Settings));
+            MenuButton("EXIT", 54f, 102f, 340f, 60f, new Vector2(0f, 0f), Quit);
             _mainNav.Select(0);
+
+            UICheckerStrip lChecker = UIKit.Checker(_main, "Checker", new Vector2(0.5f, 0f), new Vector2(-300f, 26f), new Vector2(2600f, 34f), UIKit.WHITE, UIKit.RED_DARK);
+            lChecker.speed = 60f;
         }
 
-        // Slanted plate with a word, standing in perspective on the left of the screen.
-        private void MenuButton(string pLabel, float pSize, float pY, float pWidth, Vector2 pNav, System.Action pAction)
+        private void Slash(string pName, Color pColor, Vector2 pPosition, Vector2 pSize, float pRotation)
         {
-            RectTransform lHolder = UIFactory.CreateRect(_main, pLabel, new Vector2(0f, 0f), new Vector2(110f + pWidth * 0.5f, pY), new Vector2(pWidth, pSize * 1.45f));
-            lHolder.gameObject.AddComponent<UITiltBlock>().baseEuler = new Vector3(0f, -14f, 0f);
-            UIShape lFrame = UIKit.Tile(lHolder, "Frame", UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(10f, -8f), new Vector2(pWidth + 14f, pSize * 1.45f + 14f), 0.3f);
+            UIKit.Tile(_main, pName, pColor, new Vector2(0.5f, 0.5f), pPosition, pSize, 0.6f, pRotation);
+        }
+
+        // Slanted plate with a word, lying on the red slash.
+        private void MenuButton(string pLabel, float pSize, float pY, float pWidth, float pX, Vector2 pNav, System.Action pAction)
+        {
+            RectTransform lHolder = UIFactory.CreateRect(_main, pLabel, new Vector2(0f, 0f), new Vector2(pX + pWidth * 0.5f, pY), new Vector2(pWidth, pSize * 1.45f));
+            UIShape lFrame = UIKit.Tile(lHolder, "Frame", UIKit.RED_DEEP, new Vector2(0.5f, 0.5f), new Vector2(10f, -8f), new Vector2(pWidth + 14f, pSize * 1.45f + 14f), 0.3f);
             UIShape lBack = UIKit.Tile(lHolder, "Back", UIKit.WHITE, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(pWidth, pSize * 1.45f), 0.3f);
             TextMeshProUGUI lLabel = UIKit.Text(lHolder, pLabel, pSize, UIKit.INK, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(pWidth - 50f, pSize * 1.3f), UIKit.Font.Heavy);
             lLabel.enableAutoSizing = true;
@@ -169,10 +203,10 @@ namespace Com.IsartDigital.Hyperspeed
             lTile.frame = lFrame;
             lTile.label = lLabel;
             lTile.normalBack = UIKit.WHITE;
-            lTile.selectedBack = UIKit.RED;
+            lTile.selectedBack = UIKit.INK;
             lTile.normalText = UIKit.INK;
             lTile.selectedText = UIKit.WHITE;
-            lTile.selectedScale = 1.1f;
+            lTile.selectedScale = 1.08f;
             _mainNav.Add(lHolder, pNav, pAction, lTile.SetSelected);
         }
 
@@ -291,16 +325,10 @@ namespace Com.IsartDigital.Hyperspeed
             _stages.gameObject.SetActive(pScreen == ScreenId.Stages);
             if (pScreen == ScreenId.Stages)
             {
-                _rig.enabled = false;
-                _road.Show(Mathf.Clamp(GameSession.UnlockedCount - 1, 0, LevelDatabase.Count - 1));
+                _select.Show(Mathf.Clamp(GameSession.UnlockedCount - 1, 0, LevelDatabase.Count - 1));
                 AudioManager.Play("ui_whoosh", 0.8f);
             }
-            else
-            {
-                _road.Hide();
-                _rig.enabled = true;
-                _rig.Snap();
-            }
+            else _select.Hide();
             if (pScreen == ScreenId.Main) _mainNav.Select(0);
             if (pScreen == ScreenId.Settings) _settingsNav.Select(0);
         }

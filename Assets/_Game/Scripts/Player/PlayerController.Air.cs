@@ -29,6 +29,7 @@ namespace Com.IsartDigital.Hyperspeed
             _velocity -= _gravityUp * lGravity * pDt;
 
             if (State == PlayerState.Air) AirControl(pDt);
+            AirDrag(pDt);
 
             Vector3 lFlat = Vector3.ProjectOnPlane(_velocity, _gravityUp);
             if (lFlat.sqrMagnitude > 1f) _heading = lFlat.normalized;
@@ -84,6 +85,18 @@ namespace Com.IsartDigital.Hyperspeed
                 _velocity = Vector3.RotateTowards(_velocity, lDirection * lSpeed, (1.2f + lDepth * 2.4f) * pDt, 0f);
                 _velocity += lDirection * (60f + lDepth * 150f) * pDt;
             }
+        }
+
+        // The air slows you as the ground does : extra speed fades the same way, only what you add keeps you up there.
+        private void AirDrag(float pDt)
+        {
+            Vector3 lFlat = Vector3.ProjectOnPlane(_velocity, _gravityUp);
+            float lSpeed = lFlat.magnitude;
+            float lCruise = _profile.cruise;
+            if (lSpeed <= lCruise) return;
+            float lDrag = LightForm ? DRAG_LIGHT : DRAG + DRAG_OVER * (lSpeed / lCruise - 1f);
+            float lNew = lSpeed - (lSpeed - lCruise) * (1f - Mathf.Exp(-lDrag * pDt));
+            _velocity += lFlat / lSpeed * (lNew - lSpeed);
         }
 
         // Once per frame : does this arc meet anything ? Feeds the fall-out check.

@@ -28,11 +28,11 @@ namespace Com.IsartDigital.Hyperspeed
             return new SpeedProfile
             {
                 cruise = pCruise,
-                max = pCruise * 3.4f,
+                max = pCruise * 3.8f,
                 hyperEnter = pCruise * 1.9f,
                 hyperExit = pCruise * 1.6f,
-                lightEnter = pCruise * 3f,
-                lightExit = pCruise * 2.2f,
+                lightEnter = pCruise * 3.3f,
+                lightExit = pCruise * 2.4f,
                 k = Mathf.Clamp(pCruise / 120f, 1f, 1.5f),
                 worldBreaker = pWorldBreaker
             };
