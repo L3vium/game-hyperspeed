@@ -98,6 +98,7 @@ namespace Com.IsartDigital.Hyperspeed
             _camera = CameraRig.CreateCamera();
             _rig = _camera.gameObject.AddComponent<CameraRig>();
             new GameObject("PostFX").AddComponent<PostFX>();
+            new GameObject("Wind").AddComponent<WindField>();
             _player = new GameObject("Player").AddComponent<PlayerController>();
             PlayerVisual lVisual = PlayerVisual.Create(_player);
             _player.Init(_layout, lVisual);

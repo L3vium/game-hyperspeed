@@ -34,6 +34,8 @@ namespace Com.IsartDigital.Hyperspeed
         // ---------------- state
         public PlayerState State { get; private set; } = PlayerState.Frozen;
         public Vector3 Velocity => _velocity;
+        // The real motion, on a surface as well as in the air.
+        public Vector3 OnGroundVelocity => OnSurface ? _moveDir * _speed + Vector3.Cross(_up, _moveDir).normalized * _slip : _velocity;
         public Vector3 Up => _up;
         public Vector3 GravityUp => _gravityUp;
         public Vector3 Heading => _heading;

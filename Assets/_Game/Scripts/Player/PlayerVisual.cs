@@ -14,11 +14,11 @@ namespace Com.IsartDigital.Hyperspeed
         private const float AFTERIMAGE_LIFE = 0.22f;
         private const float AFTERIMAGE_SPEED = 85f;
         private const int AFTERIMAGE_POOL = 48;
-        private const float SWIRL_TIME = 0.45f;
+        private const float SWIRL_TIME = 0.42f;
         private const float FLIP_TIME = 0.55f;
         private const float TUMBLE_TIME = 0.7f;
         private const float PUNCH_TIME = 0.28f;
-        private const int RIBBON_POINTS = 10;
+        private const int RIBBON_POINTS = 16;
 
         private static readonly int FLASH = Shader.PropertyToID("_Flash");
         private static readonly int AURA_INTENSITY = Shader.PropertyToID("_Intensity");
@@ -63,6 +63,15 @@ namespace Com.IsartDigital.Hyperspeed
         private ParticleSystem _dust;
         private ParticleSystem _sparks;
         private TrailRenderer _trailL, _trailR;
+        private Transform _wingL, _wingR;
+        private TrailRenderer _helixA, _helixB;
+        private Transform _helixAnchorA, _helixAnchorB;
+        private TrailRenderer _skidL, _skidR;
+        private LightTrail _lightWake;
+        private LineRenderer[] _lightArcs;
+        private float _arcTimer;
+        private float _windPhase;
+        private float _smokeTimer;
 
         // Humanoid bones (null on the placeholder).
         private Transform _hips, _spine, _chest, _neck, _head;
@@ -245,7 +254,7 @@ namespace Com.IsartDigital.Hyperspeed
                 _handR = _animator.GetBoneTransform(HumanBodyBones.RightHand);
                 if (_hips != null) _comHeight = Mathf.Clamp(Vector3.Dot(_hips.position - transform.position, transform.up), 0.6f, 1.3f);
                 if (_head != null) _headForward = Quaternion.Inverse(_head.rotation) * transform.forward;
-                AddSuitDetails();
+                PlayerOutfit.Dress(transform, _animator);
             }
             return true;
         }
@@ -281,35 +290,6 @@ namespace Com.IsartDigital.Hyperspeed
                 lRenderer.sharedMaterials = lMaterials;
                 lRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.On;
             }
-        }
-
-        // Futuristic details on the rig : emissive visor, light strips on forearms and shins.
-        private void AddSuitDetails()
-        {
-            Color lCyan = new Color(0.4f, 2.4f, 3f);
-            if (_head != null && _neck != null)
-            {
-                float lHead = Mathf.Clamp(Vector3.Distance(_head.position, _neck.position), 0.06f, 0.2f);
-                GameObject lVisor = Mats.Primitive(PrimitiveType.Sphere, null, Vector3.zero, new Vector3(lHead * 1.9f, lHead * 0.55f, lHead * 0.9f), Mats.Glow(lCyan), "Visor");
-                lVisor.transform.SetPositionAndRotation(_head.position + transform.up * lHead * 0.65f + transform.forward * lHead * 0.75f, transform.rotation);
-                lVisor.transform.SetParent(_head, true);
-            }
-            Strip(_lowerArmL, _handL, lCyan);
-            Strip(_lowerArmR, _handR, lCyan);
-            Strip(_animator.GetBoneTransform(HumanBodyBones.LeftLowerLeg), _animator.GetBoneTransform(HumanBodyBones.LeftFoot), lCyan);
-            Strip(_animator.GetBoneTransform(HumanBodyBones.RightLowerLeg), _animator.GetBoneTransform(HumanBodyBones.RightFoot), lCyan);
-        }
-
-        private void Strip(Transform pFrom, Transform pTo, Color pColor)
-        {
-            if (pFrom == null || pTo == null) return;
-            Vector3 lAxis = pTo.position - pFrom.position;
-            float lLength = lAxis.magnitude;
-            if (lLength < 0.05f) return;
-            GameObject lStrip = Mats.Primitive(PrimitiveType.Cube, null, Vector3.zero, new Vector3(0.025f, lLength * 0.7f, 0.025f), Mats.Glow(pColor), "LightStrip");
-            Vector3 lOut = Vector3.ProjectOnPlane(transform.forward, lAxis).normalized;
-            lStrip.transform.SetPositionAndRotation(pFrom.position + lAxis * 0.5f + lOut * 0.055f, Quaternion.LookRotation(lOut, lAxis));
-            lStrip.transform.SetParent(pFrom, true);
         }
 
         // ---------------------------------------------------------------- effects setup
@@ -375,21 +355,59 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void BuildTrails()
         {
-            Transform lLeft = _handL != null ? _handL : Pivot("HandL", _model, new Vector3(-0.42f, 1f, 0f));
-            Transform lRight = _handR != null ? _handR : Pivot("HandR", _model, new Vector3(0.42f, 1f, 0f));
-            _trailL = CreateTrail(lLeft, new Color(0.4f, 1.8f, 2.4f, 0.9f));
-            _trailR = CreateTrail(lRight, new Color(2.4f, 0.5f, 1.9f, 0.9f));
+            // Two long streaks far out on each side of the body, swaying with the movement : never down the middle.
+            _wingL = Pivot("WingL", _body, new Vector3(-1.6f, 1.2f, -0.2f));
+            _wingR = Pivot("WingR", _body, new Vector3(1.6f, 1.2f, -0.2f));
+            _trailL = CreateTrail(_wingL, new Color(0.4f, 1.6f, 3f, 0.95f), 0.75f, 0.42f);
+            _trailR = CreateTrail(_wingR, new Color(2.8f, 0.5f, 2.2f, 0.95f), 0.75f, 0.42f);
+
+            _helixAnchorA = Pivot("HelixA", _body, Vector3.zero);
+            _helixAnchorB = Pivot("HelixB", _body, Vector3.zero);
+            _helixA = CreateTrail(_helixAnchorA, new Color(2.8f, 2.8f, 3f, 1f), 0.5f, 0.4f);
+            _helixB = CreateTrail(_helixAnchorB, new Color(3f, 0.8f, 0.5f, 1f), 0.5f, 0.4f);
+
+            // Marks the drift leaves on the ground, wide enough to read from far back.
+            Color lMark = RaceContext.Theme != null ? Color.Lerp(RaceContext.Theme.roadSide, Color.black, 0.4f) : new Color(0.1f, 0.1f, 0.12f);
+            lMark.a = 0.8f;
+            Transform lSkidL = Pivot("SkidL", transform, new Vector3(-0.4f, 0.14f, 0f));
+            Transform lSkidR = Pivot("SkidR", transform, new Vector3(0.4f, 0.14f, 0f));
+            _skidL = CreateTrail(lSkidL, lMark, 2.2f, 0.7f, false);
+            _skidR = CreateTrail(lSkidR, lMark, 2.2f, 0.7f, false);
         }
 
-        private TrailRenderer CreateTrail(Transform pParent, Color pColor)
+        private void UpdateWings(float pSpeed)
         {
-            Transform lAnchor = Pivot("HandTrail", pParent, Vector3.zero);
+            float lLevel = _player.Speed01;
+            _windPhase += Time.deltaTime * Mathf.Lerp(3f, 7f, lLevel);
+            float lSpread = 1.5f + lLevel * 2.2f;
+            float lSwing = _player.Steer * 1.4f + _player.LateralSpeed * 0.02f;
+            _wingL.localPosition = new Vector3(-lSpread + lSwing + Mathf.Sin(_windPhase) * 0.8f, 1.1f + Mathf.Sin(_windPhase * 1.3f) * 0.5f, -0.3f);
+            _wingR.localPosition = new Vector3(lSpread + lSwing + Mathf.Sin(_windPhase + 2.2f) * 0.8f, 1.1f + Mathf.Sin(_windPhase * 1.3f + 1.4f) * 0.5f, -0.3f);
+            _trailL.time = _trailR.time = Mathf.Lerp(0.35f, 1f, lLevel);
+            _trailL.startWidth = _trailR.startWidth = Mathf.Lerp(0.22f, 0.6f, lLevel);
+        }
+
+        private void UpdateHelix()
+        {
+            bool lOn = _swirlT < 1f && !_lightOn;
+            _helixA.emitting = lOn;
+            _helixB.emitting = lOn;
+            if (!lOn) return;
+            float lAngle = _swirlT * Mathf.PI * 5f;
+            float lRadius = Mathf.Lerp(0.6f, 2f, Mathf.Sin(_swirlT * Mathf.PI));
+            _helixAnchorA.localPosition = new Vector3(Mathf.Cos(lAngle) * lRadius, 1f + Mathf.Sin(lAngle) * lRadius, 0f);
+            _helixAnchorB.localPosition = new Vector3(-Mathf.Cos(lAngle) * lRadius, 1f - Mathf.Sin(lAngle) * lRadius, 0f);
+        }
+
+        private TrailRenderer CreateTrail(Transform pParent, Color pColor, float pTime, float pWidth, bool pAdditive = true)
+        {
+            Transform lAnchor = Pivot("Trail", pParent, Vector3.zero);
             TrailRenderer lTrail = lAnchor.gameObject.AddComponent<TrailRenderer>();
-            lTrail.time = 0.16f;
-            lTrail.startWidth = 0.05f;
+            lTrail.time = pTime;
+            lTrail.startWidth = pWidth;
             lTrail.endWidth = 0f;
-            lTrail.minVertexDistance = 0.05f;
-            lTrail.sharedMaterial = Mats.Glow(pColor, true);
+            lTrail.minVertexDistance = 0.2f;
+            lTrail.sharedMaterial = Mats.Glow(pColor, pAdditive);
             lTrail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             lTrail.numCapVertices = 2;
             lTrail.emitting = false;
@@ -403,13 +421,13 @@ namespace Com.IsartDigital.Hyperspeed
             _ribbons = new Ribbon[2];
             for (int i = 0; i < 2; i++)
             {
-                Ribbon lRibbon = new Ribbon { offset = new Vector3(i == 0 ? -0.06f : 0.06f, -0.02f, -0.11f), segment = i == 0 ? 0.13f : 0.11f };
+                Ribbon lRibbon = new Ribbon { offset = new Vector3(i == 0 ? -0.12f : 0.12f, 0.02f, -0.2f), segment = i == 0 ? 0.3f : 0.24f };
                 GameObject lObject = new GameObject("Ribbon");
                 lObject.transform.SetParent(transform, false);
                 lRibbon.line = lObject.AddComponent<LineRenderer>();
                 lRibbon.line.positionCount = RIBBON_POINTS;
                 lRibbon.line.useWorldSpace = true;
-                lRibbon.line.widthCurve = new AnimationCurve(new Keyframe(0f, 0.07f), new Keyframe(0.7f, 0.05f), new Keyframe(1f, 0.01f));
+                lRibbon.line.widthCurve = new AnimationCurve(new Keyframe(0f, 0.34f), new Keyframe(0.75f, 0.22f), new Keyframe(1f, 0.02f));
                 lRibbon.line.sharedMaterial = Mats.Glow(lColors[i], false, 0f, 0f, true);
                 lRibbon.line.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 lRibbon.line.numCornerVertices = 2;
@@ -435,9 +453,11 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void OnDashed()
         {
-            bool lAir = _player.State == PlayerState.Air;
+            // A corkscrew along the way you are going, on the ground as in the air, with two ribbons coiling around it.
             _swirlT = 0f;
-            _swirlAir = lAir;
+            _swirlAir = true;
+            _helixA.Clear();
+            _helixB.Clear();
             _swirlDir = _player.Steer < -0.1f ? -1f : 1f;
             _zStretchVelocity += 2.6f;
             _flash = 0.4f;
@@ -514,6 +534,8 @@ namespace Com.IsartDigital.Hyperspeed
             _yawRate = Mathf.Lerp(_yawRate, Mathf.Clamp(lYaw, -400f, 400f), 1f - Mathf.Exp(-10f * pDt));
 
             _swirlT = Mathf.MoveTowards(_swirlT, 1f, pDt / SWIRL_TIME);
+            UpdateWings(lSpeed);
+            UpdateHelix();
             _flipT = Mathf.MoveTowards(_flipT, 1f, pDt / FLIP_TIME);
             _tumbleT = Mathf.MoveTowards(_tumbleT, 1f, pDt / TUMBLE_TIME);
             _punchT = Mathf.MoveTowards(_punchT, 1f, pDt / PUNCH_TIME);
@@ -558,6 +580,9 @@ namespace Com.IsartDigital.Hyperspeed
                     lPitch = -8f;
                     break;
             }
+            // Thrown forward : the faster, the more the whole body leans over its feet.
+            if (lGrounded) lPitch += _player.Speed01 * 16f + _player.BoostAmount * 12f + (_player.Dashing ? 14f : 0f);
+            if (_swirlT < 1f) lPitch = Mathf.Max(lPitch, Mathf.Sin(_swirlT * Mathf.PI) * 52f);
             _bank = Mathf.Lerp(_bank, lBank, 1f - Mathf.Exp(-9f * pDt));
             _pitch = Mathf.Lerp(_pitch, lPitch, 1f - Mathf.Exp(-9f * pDt));
 
@@ -601,9 +626,12 @@ namespace Com.IsartDigital.Hyperspeed
             _block.SetFloat(FLASH, _flash > 0.3f || lBlink ? 0.85f : 0f);
             foreach (Renderer lRenderer in _bodyRenderers) if (lRenderer != null) lRenderer.SetPropertyBlock(_block);
 
-            bool lTrails = lState != PlayerState.Dead && (lSpeed > _player.Profile.cruise * 1.05f || _player.Dashing || _player.Hyper);
+            bool lTrails = lState != PlayerState.Dead && !_lightOn && (lSpeed > _player.Profile.cruise * 0.9f || _player.Dashing);
             _trailL.emitting = lTrails;
             _trailR.emitting = lTrails;
+            bool lSkid = _player.Drifting && lState == PlayerState.Ground;
+            _skidL.emitting = lSkid;
+            _skidR.emitting = lSkid;
             if (lState == PlayerState.Grind) EmitFootSparks(UIFactory.YELLOW, 2);
             if (_player.Drifting) EmitDriftSparks();
         }
@@ -636,6 +664,8 @@ namespace Com.IsartDigital.Hyperspeed
             float lDt = Time.deltaTime;
             UpdateLightForm();
             if (_hips != null && !_lightOn) ApplyRig();
+            if (_ribbons != null)
+                foreach (Ribbon lRibbon in _ribbons) lRibbon.line.enabled = !_lightOn;
             UpdateRibbons(lDt);
             UpdateGhosts(lDt);
         }
@@ -653,7 +683,7 @@ namespace Com.IsartDigital.Hyperspeed
             Rotate(_head, lUp, lLead * 0.3f);
 
             // Arrow posture : the spine folds forward, the neck brings the eyes back to the horizon.
-            float lBend = _arrow * 26f;
+            float lBend = _arrow * 38f;
             Rotate(_spine, lRight, lBend * 0.5f);
             Rotate(_chest, lRight, lBend * 0.5f);
             Rotate(_neck, lRight, -lBend * 0.65f);
@@ -730,7 +760,7 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lShift = transform.position - _lastRootPosition;
             _lastRootPosition = transform.position;
             float lSpeed = _player.Speed;
-            Vector3 lWind = -transform.forward * Mathf.Min(lSpeed, 120f) * 0.6f + Vector3.down * 9f;
+            Vector3 lWind = -transform.forward * Mathf.Min(lSpeed, 160f) * 1.2f - transform.up * 7f;
             float lDt2 = pDt * pDt;
             foreach (Ribbon lRibbon in _ribbons)
             {
@@ -777,16 +807,31 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _lightForm = new GameObject("LightForm").transform;
             _lightForm.SetParent(transform, false);
-            _lightForm.localPosition = new Vector3(0f, 1f, 0f);
-            Mats.Primitive(PrimitiveType.Sphere, _lightForm, Vector3.zero, Vector3.one * 1.8f, Mats.Glow(new Color(6f, 6.5f, 6.5f), false, 0f, 0f, true));
-            Mats.Primitive(PrimitiveType.Sphere, _lightForm, new Vector3(0f, 0f, -5f), new Vector3(1.3f, 1.3f, 12f), Mats.Glow(new Color(1.2f, 2.2f, 3.2f, 0.55f), true));
+            _lightForm.localPosition = new Vector3(0f, 1.2f, 0f);
+            Mats.Primitive(PrimitiveType.Sphere, _lightForm, Vector3.zero, Vector3.one * 2.6f, Mats.Glow(new Color(8f, 8f, 9f), false, 0f, 0f, true));
+            Mats.Primitive(PrimitiveType.Sphere, _lightForm, Vector3.zero, Vector3.one * 5.4f, Mats.Glow(new Color(0.7f, 1.3f, 3f, 0.55f), true, 1f));
+            _lightArcs = new LineRenderer[7];
+            Material lArc = Mats.Glow(new Color(2.4f, 3.4f, 6f), true);
+            for (int i = 0; i < _lightArcs.Length; i++)
+            {
+                LineRenderer lLine = new GameObject("Arc").AddComponent<LineRenderer>();
+                lLine.transform.SetParent(_lightForm, false);
+                lLine.useWorldSpace = false;
+                lLine.positionCount = 8;
+                lLine.sharedMaterial = lArc;
+                lLine.startWidth = 0.34f;
+                lLine.endWidth = 0.05f;
+                lLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                _lightArcs[i] = lLine;
+            }
             _lightTrail = _lightForm.gameObject.AddComponent<TrailRenderer>();
-            _lightTrail.time = 0.14f;
-            _lightTrail.startWidth = 1.3f;
+            _lightTrail.time = 0.4f;
+            _lightTrail.startWidth = 2.6f;
             _lightTrail.endWidth = 0f;
             _lightTrail.sharedMaterial = Mats.Glow(new Color(1.2f, 2.2f, 3f), true);
             _lightTrail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             _lightForm.gameObject.SetActive(false);
+            _lightWake = LightTrail.Create();
         }
 
         private void UpdateLightForm()
@@ -799,13 +844,29 @@ namespace Com.IsartDigital.Hyperspeed
                 _lightForm.gameObject.SetActive(lWant);
                 _lightTrail.Clear();
                 if (_model != null) _model.gameObject.SetActive(!lWant);
-                FX.Burst(transform.position + transform.up, transform.forward, Color.white, 30f);
-                FX.Shockwave(transform.position + transform.up, transform.forward, Color.white, 30f, 0.35f);
+                FX.Burst(transform.position + transform.up, transform.forward, Color.white, 40f);
+                FX.Shockwave(transform.position + transform.up, transform.forward, Color.white, 44f, 0.4f);
+                _trailL.Clear();
+                _trailR.Clear();
             }
-            if (lWant)
+            if (!lWant) return;
+            _lightWake.Add(transform.position, transform.right, transform.up);
+            float lPulse = 1f + Mathf.Sin(Time.time * 37f) * 0.14f;
+            _lightForm.localScale = new Vector3(lPulse, lPulse, lPulse * (1f + _player.Speed01 * 0.5f));
+            // New lightning every few frames, out from the core.
+            _arcTimer -= Time.deltaTime;
+            if (_arcTimer > 0f) return;
+            _arcTimer = 0.035f;
+            foreach (LineRenderer lLine in _lightArcs)
             {
-                float lPulse = 1f + Mathf.Sin(Time.time * 37f) * 0.15f;
-                _lightForm.localScale = new Vector3(lPulse, lPulse, lPulse * (1f + _player.Speed01 * 2f));
+                Vector3 lDir = Random.onUnitSphere;
+                Vector3 lSide = Vector3.Cross(lDir, Random.onUnitSphere).normalized;
+                float lReach = Random.Range(2.4f, 5.2f);
+                for (int i = 0; i < lLine.positionCount; i++)
+                {
+                    float lT = i / (lLine.positionCount - 1f);
+                    lLine.SetPosition(i, lDir * lReach * lT + lSide * Mathf.Sin(lT * Mathf.PI) * Random.Range(-1.1f, 1.1f));
+                }
             }
         }
 
@@ -924,21 +985,32 @@ namespace Com.IsartDigital.Hyperspeed
             }
         }
 
+        // The camera sits far back at speed : everything scales with the view so it still reads.
+        private float ViewScale => CameraRig.Instance != null ? Mathf.Clamp(Vector3.Distance(CameraRig.Instance.transform.position, transform.position) / 8f, 1f, 4.5f) : 1f;
+
         private void EmitDriftSparks()
         {
-            Color[] lColors = { Color.white, new Color(0.3f, 0.8f, 3f), new Color(3f, 1.5f, 0.2f), new Color(3f, 0.4f, 2.5f) };
+            Color[] lColors = { Color.white, new Color(0.3f, 0.9f, 3.4f), new Color(3.4f, 1.6f, 0.2f), new Color(3.4f, 0.4f, 2.8f) };
+            float lScale = ViewScale;
             ParticleSystem.EmitParams lParams = new ParticleSystem.EmitParams();
             lParams.startColor = lColors[_player.DriftTier];
-            int lCount = 3 + _player.DriftTier * 2;
+            int lCount = 6 + _player.DriftTier * 4;
+            float lFlow = Mathf.Min(_player.Speed, 300f);
             for (int i = 0; i < lCount; i++)
             {
-                float lSide = (i % 2 == 0 ? -1f : 1f) * 0.25f;
-                lParams.position = transform.position + transform.right * lSide - transform.forward * 0.2f + transform.up * 0.05f;
-                lParams.velocity = -transform.forward * Random.Range(6f, 16f) + transform.up * Random.Range(1f, 6f) + transform.right * Random.Range(-5f, 5f);
-                lParams.startSize = Random.Range(0.08f, 0.2f);
-                lParams.startLifetime = Random.Range(0.15f, 0.35f);
+                float lSide = (i % 2 == 0 ? -1f : 1f) * 0.4f;
+                lParams.position = transform.position + transform.right * lSide - transform.forward * 0.3f + transform.up * 0.1f;
+                lParams.velocity = transform.forward * lFlow * 0.5f + transform.right * Random.Range(-1f, 1f) * lFlow * 0.22f + transform.up * Random.Range(3f, 26f);
+                lParams.startSize = Random.Range(0.18f, 0.42f) * lScale;
+                lParams.startLifetime = Random.Range(0.25f, 0.6f);
                 _sparks.Emit(lParams, 1);
             }
+            // Ground thrown up in clouds, the colour of the ground.
+            _smokeTimer -= Time.deltaTime;
+            if (_smokeTimer > 0f) return;
+            _smokeTimer = 0.05f;
+            Color lDust = RaceContext.Theme != null ? Color.Lerp(RaceContext.Theme.roadA, Color.white, 0.2f) : Color.white;
+            FX.Puff(transform.position + transform.up * 0.4f, lDust, 3, 1.4f * lScale, 6f);
         }
 
         private void EmitFootSparks(Color pColor, int pCount)

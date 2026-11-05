@@ -119,12 +119,14 @@ namespace Com.IsartDigital.Hyperspeed
         {
             float lImpact = Mathf.Max(0f, -Vector3.Dot(_velocity, pNormal));
             Vector3 lTangent = Vector3.ProjectOnPlane(_velocity, pNormal);
+            Vector3 lForward = lTangent.sqrMagnitude > 1f ? lTangent.normalized : Vector3.ProjectOnPlane(_heading, pNormal).normalized;
+            // A dive feeds the run, but falling alone can never carry you to light speed.
+            float lFlatNow = Vector3.ProjectOnPlane(_velocity, _gravityUp).magnitude;
+            float lLanding = Mathf.Min(lTangent.magnitude, Mathf.Max(_profile.cruise * 2.2f, Diving ? 0f : lFlatNow));
             _up = pNormal;
             _gravityUp = pNormal;
             transform.position = pPoint;
-
-            Vector3 lForward = lTangent.sqrMagnitude > 1f ? lTangent.normalized : Vector3.ProjectOnPlane(_heading, pNormal).normalized;
-            _speed = _freeRoam ? 0f : Mathf.Max(lTangent.magnitude, _profile.cruise * 0.55f);
+            _speed = _freeRoam ? 0f : Mathf.Max(lLanding, _profile.cruise * 0.55f);
             _slip = 0f;
             if (!_freeRoam) _heading = lForward;
             _moveDir = lForward;
