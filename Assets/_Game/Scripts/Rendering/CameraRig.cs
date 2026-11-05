@@ -8,24 +8,23 @@ namespace Com.IsartDigital.Hyperspeed
         Vector3 FocusPosition { get; }
         Vector3 CameraUp { get; }
         Vector3 CameraForward { get; }
+        Vector3 AimDirection { get; }
         float Speed01 { get; }
         float CameraRoll { get; }
         bool HyperMode { get; }
     }
 
-    // Third person chase camera. Every change is smoothed : FOV follows speed through a critically damped spring,
-    // kicks have an attack / release envelope, the rollback eases out over a second. It keeps above the ground and off
-    // the blocks, anticipates turns, swings above the runner in long dives. Shake never feeds back into the position,
-    // and a paused game freezes it completely.
+    // Free third person camera : it always orbits where the mouse looks, behind the runner, in the frame of the surface
+    // it runs on. It falls far back as speed builds, gets thrown back by every kick and catches up on a spring, and rolls
+    // hard. Every change is smoothed. Shake never feeds back into the position, and a paused game freezes it completely.
     public class CameraRig : MonoBehaviour
     {
-        private const float FOV_MIN = 88f;
-        private const float FOV_MAX = 128f;
-        private const float FOV_HYPER = 8f;
-        private const float FOV_RATE = 110f;
-        private const float KICK_MAX = 12f;
-        private const float LAG_MAX = 14f;
-        private const float GROUND_CLEARANCE = 2.2f;
+        private const float FOV_MIN = 90f;
+        private const float FOV_MAX = 135f;
+        private const float FOV_HYPER = 4f;
+        private const float FOV_RATE = 140f;
+        private const float KICK_MAX = 16f;
+        private const float LAG_MAX = 26f;
 
         public static CameraRig Instance { get; private set; }
 
@@ -36,21 +35,19 @@ namespace Com.IsartDigital.Hyperspeed
         private PlayerController _player;
         private LevelLayout _layout;
         private Vector3 _up = Vector3.up;
-        private Vector3 _forward = Vector3.forward;
+        private Vector3 _look = Vector3.forward;
         private Vector3 _velocity;
         private Vector3 _base;
         private float _lag;
+        private float _lagVelocity;
         private float _kick;
         private float _kickTarget;
-        private float _fov = 88f;
+        private float _fov = 90f;
         private float _fovVelocity;
         private float _trauma;
         private float _roll;
         private float _hyperBlend;
-        private float _dive;
-        private float _freeYaw;
-        private float _freePitch = 8f;
-        private float _lookIdle;
+        private float _lightBlend;
         private bool _finishMode;
         private Vector3 _finishPosition;
         private float _blockDistance = 1f;
@@ -104,8 +101,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             if (target == null) return;
             _up = target.CameraUp;
-            _forward = target.CameraForward;
-            _freeYaw = Mathf.Atan2(_forward.x, _forward.z) * Mathf.Rad2Deg;
+            _look = target.AimDirection;
             _base = DesiredPosition(target.Speed01);
             transform.position = _base;
             transform.rotation = Quaternion.LookRotation(LookPoint(target.Speed01) - _base, _up);
@@ -152,34 +148,19 @@ namespace Com.IsartDigital.Hyperspeed
         // Additive FOV kick with an envelope : never a sudden in / out pump.
         public void FovKick(float pAmount) => _kickTarget = Mathf.Min(KICK_MAX, Mathf.Max(_kickTarget, pAmount) + pAmount * 0.2f);
 
-        public void Rollback(float pAmount) => _lag = Mathf.Min(LAG_MAX, Mathf.Max(_lag, pAmount) + pAmount * 0.2f);
+        // Thrown back : the camera falls behind, then the spring brings it home.
+        public void Rollback(float pAmount) => _lag = Mathf.Min(LAG_MAX, Mathf.Max(_lag, pAmount) + pAmount * 0.3f);
 
         private Vector3 DesiredPosition(float pSpeed)
         {
-            if (freeLook)
-            {
-                Quaternion lOrbit = Quaternion.Euler(_freePitch, _freeYaw, 0f);
-                return target.FocusPosition + lOrbit * new Vector3(0f, 0.6f, -9f);
-            }
-            float lDistance = Mathf.Lerp(7f, 19f, pSpeed) + _hyperBlend * 7f + _lag;
-            float lHeight = Mathf.Lerp(2.4f, 4.4f, pSpeed) + _hyperBlend;
-            // In a long dive the camera rises above the runner, looking down the fall.
-            lDistance = Mathf.Lerp(lDistance, lDistance * 0.45f, _dive);
-            lHeight = Mathf.Lerp(lHeight, lDistance + 14f, _dive);
-            return target.FocusPosition + _up * lHeight - _forward * lDistance;
+            float lDistance = freeLook ? 9f : Mathf.Lerp(8f, 30f, Mathf.Sqrt(pSpeed)) + _lightBlend * 12f + _lag;
+            float lHeight = freeLook ? 2f : Mathf.Lerp(2.4f, 5f, pSpeed);
+            return target.FocusPosition + _up * lHeight - _look * lDistance;
         }
 
         private Vector3 LookPoint(float pSpeed)
         {
-            if (freeLook) return target.FocusPosition + Vector3.up * 2.2f;
-            Vector3 lLook = target.FocusPosition + _up * Mathf.Lerp(2.2f, 3.4f, pSpeed) + _forward * (Mathf.Lerp(8f, 26f, pSpeed) + _hyperBlend * 8f);
-            if (_dive > 0f)
-            {
-                Vector3 lDown = target.FocusPosition + _forward * 16f - Vector3.up * 24f;
-                if (_player != null && _player.HasLandingPrediction) lDown = Vector3.Lerp(lDown, _player.LandingPoint, 0.25f);
-                lLook = Vector3.Lerp(lLook, lDown, _dive);
-            }
-            return lLook;
+            return target.FocusPosition + _up * Mathf.Lerp(1.6f, 2.8f, pSpeed) + _look * Mathf.Lerp(8f, 26f, pSpeed);
         }
 
         private void LateUpdate()
@@ -201,28 +182,17 @@ namespace Com.IsartDigital.Hyperspeed
             if (lFrozen) return;
 
             float lSpeed = target.Speed01;
-            Vector3 lTargetUp = Vector3.Slerp(target.CameraUp, Vector3.up, 0.6f);
-            _up = Vector3.Slerp(_up, lTargetUp, 1f - Mathf.Exp(-5f * lDt)).normalized;
-            Vector3 lTargetForward = target.CameraForward;
-            // Anticipation : lean the view toward where the route goes one second from now.
-            if (_player != null && _layout != null && !freeLook && _player.State != PlayerState.Dead && _player.State != PlayerState.WallRun)
-            {
-                Vector3 lAhead = _layout.spine.Forward(_player.Progress + Mathf.Max(20f, _player.Speed) * 0.6f);
-                lTargetForward = Vector3.Slerp(lTargetForward, lAhead, 0.4f);
-            }
-            lTargetForward = Vector3.ProjectOnPlane(lTargetForward, _up);
-            if (lTargetForward.sqrMagnitude > 0.001f) _forward = Vector3.Slerp(_forward, lTargetForward.normalized, 1f - Mathf.Exp(-6f * lDt));
-            _forward = Vector3.ProjectOnPlane(_forward, _up).normalized;
+            _up = Vector3.Slerp(_up, target.CameraUp, 1f - Mathf.Exp(-9f * lDt)).normalized;
+            // The mouse answers almost at once.
+            _look = Vector3.Slerp(_look, target.AimDirection, 1f - Mathf.Exp(-34f * lDt)).normalized;
 
-            UpdateFreeLook(lUnscaled);
             _hyperBlend = Mathf.MoveTowards(_hyperBlend, target.HyperMode ? 1f : 0f, lDt * 1.5f);
-            _lag = Mathf.Lerp(_lag, 0f, 1f - Mathf.Exp(-0.8f * lDt));
-            _kick = Mathf.MoveTowards(_kick, _kickTarget, lUnscaled * KICK_MAX / 0.1f);
-            _kickTarget = Mathf.MoveTowards(_kickTarget, 0f, lUnscaled * KICK_MAX / 0.8f);
+            _lightBlend = Mathf.MoveTowards(_lightBlend, _player != null && _player.LightForm ? 1f : 0f, lDt * 1.2f);
+            _lag = Mathf.SmoothDamp(_lag, 0f, ref _lagVelocity, 0.55f, Mathf.Infinity, lDt);
+            _kick = Mathf.MoveTowards(_kick, _kickTarget, lUnscaled * KICK_MAX / 0.08f);
+            _kickTarget = Mathf.MoveTowards(_kickTarget, 0f, lUnscaled * KICK_MAX / 0.7f);
             _trauma = Mathf.MoveTowards(_trauma, 0f, lUnscaled * 1.4f);
-            _roll = Mathf.Lerp(_roll, target.CameraRoll, 1f - Mathf.Exp(-5f * lDt));
-            float lDiveTarget = _player != null ? _player.DiveCamera01 : 0f;
-            _dive = Mathf.MoveTowards(_dive, lDiveTarget, lDt * (lDiveTarget > _dive ? 1.4f : 2.4f));
+            _roll = Mathf.Lerp(_roll, target.CameraRoll, 1f - Mathf.Exp(-6f * lDt));
 
             Vector3 lDesired = DesiredPosition(lSpeed);
             Vector3 lLook = LookPoint(lSpeed);
@@ -233,20 +203,20 @@ namespace Com.IsartDigital.Hyperspeed
             }
             lDesired = AvoidWorld(lDesired, lDt);
 
-            _base = Vector3.SmoothDamp(_base, lDesired, ref _velocity, _finishMode ? 0.6f : freeLook ? 0.08f : 0.035f, Mathf.Infinity, lDt);
-            _base = ClampAboveGround(_base);
-            Quaternion lRotation = Quaternion.LookRotation(lLook - _base, freeLook ? Vector3.up : _up) * Quaternion.Euler(0f, 0f, freeLook ? 0f : _roll);
+            _base = Vector3.SmoothDamp(_base, lDesired, ref _velocity, _finishMode ? 0.6f : freeLook ? 0.08f : 0.028f, Mathf.Infinity, lDt);
+            Quaternion lRotation = Quaternion.LookRotation(lLook - _base, _up) * Quaternion.Euler(0f, 0f, freeLook ? 0f : _roll);
 
-            float lShake = _trauma * _trauma + lSpeed * lSpeed * 0.02f + _hyperBlend * 0.02f;
-            float lTime = Time.unscaledTime * 22f;
-            Vector3 lShakeOffset = new Vector3(Mathf.PerlinNoise(lTime, 0.1f) - 0.5f, Mathf.PerlinNoise(0.3f, lTime) - 0.5f, 0f) * lShake * 1.2f;
+            // Rumble grows with speed : at full speed the frame never rests.
+            float lShake = _trauma * _trauma + lSpeed * lSpeed * 0.06f + _hyperBlend * 0.02f + _lightBlend * 0.04f;
+            float lTime = Time.unscaledTime * 24f;
+            Vector3 lShakeOffset = new Vector3(Mathf.PerlinNoise(lTime, 0.1f) - 0.5f, Mathf.PerlinNoise(0.3f, lTime) - 0.5f, 0f) * lShake * 1.4f;
             Quaternion lShakeRot = Quaternion.Euler((Mathf.PerlinNoise(lTime, 5.2f) - 0.5f) * lShake * 5f, (Mathf.PerlinNoise(7.1f, lTime) - 0.5f) * lShake * 5f, (Mathf.PerlinNoise(lTime, 9.4f) - 0.5f) * lShake * 8f);
             Vector3 lPosition = _base + lRotation * lShakeOffset;
             lRotation *= lShakeRot;
 
-            float lFovTarget = Mathf.Lerp(FOV_MIN, FOV_MAX, lSpeed) + _hyperBlend * FOV_HYPER + _kick;
+            float lFovTarget = Mathf.Lerp(FOV_MIN, FOV_MAX, Mathf.Sqrt(lSpeed)) + _hyperBlend * FOV_HYPER + _kick;
             if (freeLook) lFovTarget = 74f;
-            _fov = Mathf.SmoothDamp(_fov, lFovTarget, ref _fovVelocity, 0.3f, FOV_RATE, lDt);
+            _fov = Mathf.SmoothDamp(_fov, lFovTarget, ref _fovVelocity, 0.22f, FOV_RATE, lDt);
 
             if (_overrideBlend > 0f)
             {
@@ -260,10 +230,10 @@ namespace Com.IsartDigital.Hyperspeed
                 return;
             }
             transform.SetPositionAndRotation(lPosition, lRotation);
-            Cam.fieldOfView = Mathf.Clamp(_fov, 40f, 140f);
+            Cam.fieldOfView = Mathf.Clamp(_fov, 40f, 150f);
         }
 
-        // Blocks between the runner and the camera pull it in fast and let it out slowly.
+        // Anything solid between the runner and the camera pulls it in fast and lets it out slowly.
         private Vector3 AvoidWorld(Vector3 pDesired, float pDt)
         {
             Vector3 lFocus = target.FocusPosition;
@@ -272,25 +242,10 @@ namespace Com.IsartDigital.Hyperspeed
             if (lLength < 0.01f) return pDesired;
             float lWanted = 1f;
             RaycastHit lHit;
-            if (Physics.SphereCast(lFocus, 0.6f, lDelta / lLength, out lHit, lLength, 1 << Layers.PROP, QueryTriggerInteraction.Ignore))
+            if (Physics.SphereCast(lFocus, 0.6f, lDelta / lLength, out lHit, lLength, (1 << Layers.PROP) | (1 << Layers.DECK), QueryTriggerInteraction.Ignore))
                 lWanted = Mathf.Clamp01((lHit.distance - 0.2f) / lLength);
-            _blockDistance = lWanted < _blockDistance ? Mathf.Lerp(_blockDistance, lWanted, 1f - Mathf.Exp(-30f * pDt)) : Mathf.Lerp(_blockDistance, lWanted, 1f - Mathf.Exp(-2.5f * pDt));
+            _blockDistance = lWanted < _blockDistance ? Mathf.Lerp(_blockDistance, lWanted, 1f - Mathf.Exp(-40f * pDt)) : Mathf.Lerp(_blockDistance, lWanted, 1f - Mathf.Exp(-3f * pDt));
             return lFocus + lDelta * _blockDistance;
-        }
-
-        private Vector3 ClampAboveGround(Vector3 pPosition)
-        {
-            if (_layout == null || _player == null) return pPosition;
-            float lLateral;
-            float lS = _layout.spine.Project(pPosition, _player.Progress, out lLateral);
-            if (!_layout.field.OverGround(lS, lLateral)) return pPosition;
-            float lGround = _layout.Ground(lS, lLateral) + GROUND_CLEARANCE;
-            if (pPosition.y < lGround)
-            {
-                pPosition.y = lGround;
-                if (_velocity.y < 0f) _velocity.y = 0f;
-            }
-            return pPosition;
         }
 
         private void ApplyShot(float pDt)
@@ -298,27 +253,6 @@ namespace Com.IsartDigital.Hyperspeed
             _shotPosition = Vector3.Lerp(_shotPosition, _overridePosition, 1f - Mathf.Exp(-14f * pDt));
             Quaternion lLook = Quaternion.LookRotation(_overrideLook - _shotPosition, Vector3.up);
             _shotRotation = Quaternion.Slerp(_shotRotation, lLook, 1f - Mathf.Exp(-14f * pDt));
-        }
-
-        // Mouse (locked cursor) or right stick orbit while free roaming ; recenters behind the runner when idle.
-        private void UpdateFreeLook(float pDt)
-        {
-            if (!freeLook)
-            {
-                _freeYaw = Mathf.Atan2(_forward.x, _forward.z) * Mathf.Rad2Deg;
-                _freePitch = 8f;
-                return;
-            }
-            Vector2 lLook = HSInput.LookDelta;
-            _freeYaw += lLook.x;
-            _freePitch = Mathf.Clamp(_freePitch - lLook.y, -6f, 45f);
-            if (lLook.sqrMagnitude > 0.0001f) _lookIdle = 0f;
-            else _lookIdle += pDt;
-            if (_lookIdle > 1.5f && _player != null && _player.Speed > 3f)
-            {
-                float lHeadingYaw = Mathf.Atan2(_player.Heading.x, _player.Heading.z) * Mathf.Rad2Deg;
-                _freeYaw = Mathf.MoveTowardsAngle(_freeYaw, lHeadingYaw, pDt * 60f);
-            }
         }
     }
 }

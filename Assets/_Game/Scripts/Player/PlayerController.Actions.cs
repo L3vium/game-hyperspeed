@@ -2,10 +2,20 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // Player actions and external impulses : jumps, dash, punch, pads, rings, boosts, crashes, combo.
+    // Player actions and external impulses : jumps, dash and held thrust, punch, launches, boosts, crashes.
     public partial class PlayerController
     {
-        private float JumpSpeed => JUMP_VELOCITY * Mathf.Sqrt(Ballistics.Scale);
+        // Dash energy : a press costs one, holding burns it. Rings and bursts give some back.
+        private const float DASH_ENERGY = 3f;
+        private const float DASH_RECHARGE = 0.5f;
+        private const float DASH_KICK = 0.36f;
+        private const float AIR_DASH_KICK = 0.55f;
+        private const float THRUST_DELAY = 0.2f;
+        private const float THRUST_BURN = 1.3f;
+        private const float THRUST_POWER = 0.75f;
+        private const float LIFT_PITCH = 13f;
+
+        private float JumpSpeed => JUMP_VELOCITY;
 
         private void TryJump()
         {
@@ -14,35 +24,13 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 Vector3 lRight = Vector3.Cross(_up, _moveDir).normalized;
                 _velocity = _moveDir * _speed + lRight * _slip + _up * JumpSpeed;
-                _gravityUp = Vector3.Dot(_up, Vector3.up) > 0.85f ? Vector3.up : _up;
+                _gravityUp = _up;
                 _jumpBufferedAt = -10f;
                 _lastGrounded = -10f;
-                _jumpRising = true;
                 if (Drifting) EndDrift(true);
                 SetState(PlayerState.Air);
-                _airYaw = _layout != null ? _layout.spine.Evaluate(Progress).yaw : 0f;
                 AudioManager.Play("sfx_jump", 0.8f);
                 FX.Puff(transform.position, Color.white, 5, 1.8f, 5f);
-                OnJumped?.Invoke();
-            }
-            else if (State == PlayerState.WallRun)
-            {
-                bool lGood = StateTime > 0.1f && StateTime < 0.9f;
-                float lBonus = (lGood ? 0.12f : 0.04f) * _profile.cruise;
-                Vector3 lFlow = _layout != null ? _layout.Flow(Progress) : _heading;
-                Vector3 lAlong = Wall == WallMode.Climb ? lFlow : _wallRunDir;
-                float lSpeed = Wall == WallMode.Climb ? Mathf.Max(_wallTopSpeed, _profile.cruise) : _wallSpeed;
-                _velocity = lAlong * (lSpeed + lBonus) + _wallNormal * (18f + 10f * _profile.k) + _gravityUp * JumpSpeed;
-                _jumpBufferedAt = -10f;
-                _jumpRising = true;
-                LeaveWall(0.25f);
-                _airYaw = _layout != null ? _layout.spine.Evaluate(Progress).yaw : 0f;
-                HasDoubleJump = true;
-                HasAirDash = true;
-                AudioManager.Play("sfx_walljump", 0.9f);
-                FX.Sparks(transform.position + _gravityUp, Color.white, 16, 14f);
-                Juice.Popup(lGood ? "WALL JUMP!" : "wall jump", lGood ? UIFactory.CYAN : Color.white, lGood ? 1.1f : 0.8f);
-                if (lGood) { Juice.FovKick(5f); AddCombo(); }
                 OnJumped?.Invoke();
             }
             else if (State == PlayerState.Grind)
@@ -50,9 +38,7 @@ namespace Com.IsartDigital.Hyperspeed
                 _velocity = _heading * (_speed + 4f) + _up * JumpSpeed;
                 _railCooldown = 0.5f;
                 _jumpBufferedAt = -10f;
-                _jumpRising = true;
                 SetState(PlayerState.Air);
-                _airYaw = _layout != null ? _layout.spine.Evaluate(Progress).yaw : 0f;
                 AudioManager.Play("sfx_jump", 0.8f, 1.1f);
                 OnJumped?.Invoke();
             }
@@ -61,44 +47,68 @@ namespace Com.IsartDigital.Hyperspeed
                 HasDoubleJump = false;
                 Vector3 lFlat = Vector3.ProjectOnPlane(_velocity, _gravityUp);
                 _velocity = lFlat + _gravityUp * JumpSpeed * 0.9f;
-                Diving = false;
-                StopGlide();
-                _jumpRising = true;
                 _jumpBufferedAt = -10f;
                 AudioManager.Play("sfx_doublejump", 0.85f);
-                FX.Shockwave(transform.position, _gravityUp, Color.white, 8f, 0.25f);
+                FX.Shockwave(transform.position, _gravityUp, Color.white, 10f, 0.25f);
                 OnDoubleJumped?.Invoke();
             }
         }
 
+        // Press : a big kick along the look direction. On the ground it stays on the ground unless you look up.
         private void Dash()
         {
-            if (State == PlayerState.Crash || State == PlayerState.Frozen || State == PlayerState.Dead) return;
-            bool lAir = State == PlayerState.Air;
-            if (lAir && !HasAirDash) return;
-            if (lAir) HasAirDash = false;
+            if (State == PlayerState.Crash || State == PlayerState.Frozen || State == PlayerState.Dead || State == PlayerState.Finished) return;
+            if (_dashEnergy < 1f) return;
+            _dashEnergy -= 1f;
             _dashTimer = DASH_TIME;
-            _dashCooldown = 0.55f;
+            _dashCooldown = 0.3f;
 
-            float lBoost = _profile.cruise * 0.16f;
-            if (State == PlayerState.Ground || State == PlayerState.Grind) _speed = Mathf.Min(_profile.max, _speed + lBoost);
-            else if (State == PlayerState.WallRun) _wallSpeed = Mathf.Min(_profile.max, _wallSpeed + lBoost);
+            float lCruise = _profile.cruise;
+            if (State == PlayerState.Ground || State == PlayerState.Grind)
+            {
+                _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + lCruise * DASH_KICK);
+                if (State == PlayerState.Ground && AimPitch > LIFT_PITCH) LiftOff();
+            }
             else
             {
-                Vector3 lFlat = Vector3.ProjectOnPlane(_velocity, _gravityUp);
-                Vector3 lDir = lFlat.sqrMagnitude > 1f ? lFlat.normalized : _heading;
-                float lNew = Mathf.Min(_profile.max, lFlat.magnitude + lBoost);
-                _velocity = lDir * lNew + _gravityUp * Mathf.Max(2f, Vector3.Dot(_velocity, _gravityUp) * 0.2f);
-                Diving = false;
-                StopGlide();
+                float lNew = _velocity.magnitude + lCruise * AIR_DASH_KICK;
+                _velocity = AimDirection * Mathf.Min(SpeedProfile.SAFETY_MAX, lNew);
             }
             AudioManager.Play("sfx_dash", 0.85f);
-            Juice.FovKick(7f);
-            Juice.Rollback(5f);
+            Juice.FovKick(9f);
+            Juice.Rollback(9f);
             Juice.Pulse(0.5f);
-            Juice.Shake(0.15f);
-            FX.Sparks(transform.position + CameraUpRaw, Color.white, 18, 22f);
+            Juice.Shake(0.18f);
+            FX.Sparks(transform.position + CameraUpRaw, Color.white, 22, 30f);
             OnDashed?.Invoke();
+        }
+
+        // Looking up while dashing : the ground lets go and you fly along your aim.
+        private void LiftOff()
+        {
+            float lSpeed = _speed;
+            TakeOff(TakeoffReason.Aim);
+            _velocity = AimDirection * lSpeed;
+            AudioManager.Play("sfx_launch", 0.7f);
+        }
+
+        // Hold : a continuous push along the look direction, far stronger than a press, for as long as the energy lasts.
+        private void UpdateThrust(float pDt)
+        {
+            _dashHeldTime = _dashHeld ? _dashHeldTime + pDt : 0f;
+            bool lWant = _dashHeld && _dashHeldTime > THRUST_DELAY && _dashEnergy > 0f && State != PlayerState.Crash;
+            if (lWant && !Thrusting) AudioManager.Play("sfx_boost_small", 0.6f);
+            Thrusting = lWant;
+            if (!Thrusting) return;
+            _dashEnergy = Mathf.Max(0f, _dashEnergy - THRUST_BURN * pDt);
+            float lPush = _profile.cruise * THRUST_POWER * pDt;
+            if (State == PlayerState.Ground || State == PlayerState.Grind)
+            {
+                _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + lPush);
+                if (State == PlayerState.Ground && AimPitch > LIFT_PITCH) LiftOff();
+            }
+            else _velocity += AimDirection * lPush * (Diving ? 2f : 1.3f);
+            _boostTimer = Mathf.Max(_boostTimer, 0.3f);
         }
 
         private void Punch()
@@ -110,73 +120,63 @@ namespace Com.IsartDigital.Hyperspeed
             OnPunched?.Invoke();
         }
 
-        // Launch strip : keeps your forward speed and your side, the height comes from the strip.
-        public void Launch(float pAlong, float pSide, float pVertical)
+        // Launch strip : a high jump. Your speed and your line stay yours.
+        public void Launch(float pUp)
         {
-            SpineSample lSample = _layout.spine.Evaluate(Progress);
-            _velocity = lSample.Forward * pAlong + lSample.Right * pSide + Vector3.up * pVertical;
-            _gravityUp = Vector3.up;
-            _airYaw = lSample.yaw;
-            _padFlight = true;
-            Diving = false;
-            StopGlide();
+            Vector3 lUp = OnSurface ? _up : _gravityUp;
+            Vector3 lVelocity = OnSurface ? _moveDir * _speed + Vector3.Cross(_up, _moveDir).normalized * _slip : _velocity;
+            _velocity = Vector3.ProjectOnPlane(lVelocity, lUp) + lUp * pUp;
+            _gravityUp = lUp;
             EndDrift(false);
-            _heading = lSample.Forward;
             SetState(PlayerState.Air);
-            _padFlight = true;
-            _jumpRising = false;
             HasDoubleJump = true;
-            HasAirDash = true;
-            _glideTime = 0f;
             _boostTimer = Mathf.Max(_boostTimer, 0.5f);
             AudioManager.Play("sfx_launch", 0.9f);
-            Juice.Popup("LAUNCH!", UIFactory.YELLOW, 1.1f);
-            Juice.FovKick(8f);
-            Juice.Rollback(5f);
-            Juice.Shake(0.25f);
-            AddCombo();
-        }
-
-        public void ApplyBoost(float pBoost, Vector3 pDirection, float pAlign, string pLabel)
-        {
-            if (OnSurface) _speed = Mathf.Min(_profile.max, _speed + pBoost);
-            else if (State == PlayerState.WallRun) _wallSpeed = Mathf.Min(_profile.max, _wallSpeed + pBoost);
-            else _velocity += pDirection.normalized * pBoost;
-
-            _boostTimer = Mathf.Max(_boostTimer, 1.2f);
-            AudioManager.Play("sfx_boost", 0.95f);
             Juice.FovKick(8f);
             Juice.Rollback(7f);
-            Juice.Pulse(0.6f);
-            Juice.Shake(0.22f);
-            Juice.Vignette(UIFactory.CYAN, 0.6f);
-            if (!string.IsNullOrEmpty(pLabel)) Juice.Popup(pLabel, UIFactory.CYAN, 1.1f);
-            FX.Sparks(transform.position + CameraUpRaw * 0.5f, UIFactory.CYAN, 50, 40f, 0.7f, 0.5f);
+            Juice.Shake(0.25f);
+        }
+
+        // One instant kick. It fades on its own : see the drag in SpeedStep. pRefill also gives dash energy back.
+        public void ApplyBoost(float pBoost, Vector3 pDirection, float pAlign, string pLabel, bool pRefill = false)
+        {
+            if (OnSurface) _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + pBoost);
+            else _velocity += pDirection.normalized * pBoost;
+            if (pRefill) _dashEnergy = Mathf.Min(DASH_ENERGY, _dashEnergy + 0.7f);
+
+            float lAmount = Mathf.Clamp01(pBoost / (_profile.cruise * 0.3f));
+            _boostTimer = Mathf.Max(_boostTimer, 0.5f + lAmount * 0.6f);
+            AudioManager.Play("sfx_boost", 0.95f);
+            Juice.FovKick(5f + lAmount * 6f);
+            Juice.Rollback(6f + lAmount * 8f);
+            Juice.Pulse(0.35f + lAmount * 0.4f);
+            Juice.Shake(0.1f + lAmount * 0.16f);
+            Juice.Vignette(UIFactory.CYAN, 0.5f);
+            if (!string.IsNullOrEmpty(pLabel)) Juice.Popup(pLabel, UIFactory.CYAN, 1f);
+            FX.Sparks(transform.position + CameraUpRaw * 0.5f, UIFactory.CYAN, 50, 50f, 0.9f, 0.5f);
             FX.Burst(transform.position + CameraUpRaw, _heading, UIFactory.CYAN, 22f);
             AddCombo();
         }
 
-        public void Crash(Vector3 pPoint, string pLabel = "OUCH!")
+        // Touching a hazard : most of your speed is gone. That is the whole punishment, and it is enough.
+        public void Crash(Vector3 pPoint, string pLabel = null)
         {
             if (Invulnerable || CheatInvincible || State == PlayerState.Crash || State == PlayerState.Frozen || State == PlayerState.Finished || State == PlayerState.Dead) return;
-            Vector3 lAway = transform.position - pPoint;
-            lAway = Vector3.ProjectOnPlane(lAway, _gravityUp).normalized;
-            float lSpeed = Mathf.Max(Speed * 0.6f, _profile.cruise * 0.55f);
-            if (OnSurface) _gravityUp = _up;
-            _velocity = _heading * lSpeed + lAway * 8f + _gravityUp * 16f * Mathf.Sqrt(Ballistics.Scale);
-            _airYaw = _layout != null ? _layout.spine.Evaluate(Progress).yaw : 0f;
-            _crashTimer = 0.55f;
-            _invulnerable = 1.4f;
+            Vector3 lUp = OnSurface ? _up : _gravityUp;
+            Vector3 lAway = Vector3.ProjectOnPlane(transform.position - pPoint, lUp).normalized;
+            float lSpeed = Mathf.Max(Speed * 0.4f, _profile.cruise * 0.55f);
+            _gravityUp = lUp;
+            _velocity = _heading * lSpeed + lAway * 10f + lUp * 18f;
+            _crashTimer = 0.45f;
+            _invulnerable = 1.2f;
             Diving = false;
-            StopGlide();
             SetState(PlayerState.Crash);
             Combo = 0;
             AudioManager.Play("sfx_crash", 1f);
-            Juice.Shake(0.7f);
+            Juice.Shake(0.8f);
             Juice.Flash(UIFactory.RED, 0.3f);
-            Juice.Hitstop(0.08f);
-            Juice.Popup(pLabel, UIFactory.RED, 1.3f);
-            FX.Sparks(pPoint, Color.white, 20, 15f);
+            Juice.Hitstop(0.06f);
+            FX.Sparks(pPoint, Color.white, 30, 30f);
             OnCrashed?.Invoke();
         }
 

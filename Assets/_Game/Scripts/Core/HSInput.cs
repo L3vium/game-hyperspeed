@@ -17,7 +17,10 @@ namespace Com.IsartDigital.Hyperspeed
         // Virtual inputs written by the autopilot (attract / test mode).
         public static float BotSteer;
         public static bool BotSlideHeld;
-        public static bool BotGlideHeld;
+        public static bool BotDashHeld;
+        public static bool BotAimActive;
+        public static Vector3 BotAimDirection;
+        public static float BotAimPitch;
         public static int BotJumpFrame = -1;
         public static int BotDashFrame = -1;
         public static int BotSlideFrame = -1;
@@ -81,13 +84,13 @@ namespace Com.IsartDigital.Hyperspeed
             (Kb != null && (Kb.wKey.wasPressedThisFrame || Kb.zKey.wasPressedThisFrame || Kb.upArrowKey.wasPressedThisFrame)) ||
             (Pad != null && (Pad.rightTrigger.wasPressedThisFrame || Pad.dpad.up.wasPressedThisFrame));
 
-        public static bool JumpHeld => BotGlideHeld ||
+        public static bool JumpHeld =>
             (Kb != null && Kb.spaceKey.isPressed) || (Pad != null && Pad.buttonSouth.isPressed);
 
-        public static bool DashHeld =>
-            (Kb != null && Kb.leftShiftKey.isPressed) || (Pad != null && (Pad.rightShoulder.isPressed || Pad.buttonEast.isPressed));
+        public static bool DashHeld => BotDashHeld ||
+            (Kb != null && Kb.leftShiftKey.isPressed) || (Ms != null && Ms.rightButton.isPressed) || (Pad != null && (Pad.rightShoulder.isPressed || Pad.buttonEast.isPressed));
 
-        // Camera orbit while free roaming : mouse (cursor locked) or right stick, in degrees this frame.
+        // Where you look, and so where you go : mouse (cursor locked) or right stick, in degrees this frame.
         public static Vector2 LookDelta
         {
             get
@@ -107,14 +110,14 @@ namespace Com.IsartDigital.Hyperspeed
             (Kb != null && Kb.leftShiftKey.wasPressedThisFrame) || (Ms != null && Ms.rightButton.wasPressedThisFrame) ||
             (Pad != null && (Pad.rightShoulder.wasPressedThisFrame || Pad.buttonEast.wasPressedThisFrame));
 
-        // Crouch. Ground : slide / drift, drop through cracked floors. Air : dive to the platform below.
+        // Ground only : slide, and drift with A / D. Diving is done by looking down.
         public static bool SlidePressed => Bot(BotSlideFrame) ||
-            (Kb != null && (Kb.leftCtrlKey.wasPressedThisFrame || Kb.cKey.wasPressedThisFrame || Kb.sKey.wasPressedThisFrame || Kb.downArrowKey.wasPressedThisFrame)) ||
-            (Pad != null && (Pad.leftTrigger.wasPressedThisFrame || Pad.leftShoulder.wasPressedThisFrame || Pad.dpad.down.wasPressedThisFrame));
+            (Kb != null && (Kb.leftCtrlKey.wasPressedThisFrame || Kb.cKey.wasPressedThisFrame)) ||
+            (Pad != null && (Pad.leftTrigger.wasPressedThisFrame || Pad.leftShoulder.wasPressedThisFrame));
 
         public static bool SlideHeld => BotSlideHeld ||
-            (Kb != null && (Kb.leftCtrlKey.isPressed || Kb.cKey.isPressed || Kb.sKey.isPressed || Kb.downArrowKey.isPressed)) ||
-            (Pad != null && (Pad.leftTrigger.isPressed || Pad.leftShoulder.isPressed || Pad.dpad.down.isPressed));
+            (Kb != null && (Kb.leftCtrlKey.isPressed || Kb.cKey.isPressed)) ||
+            (Pad != null && (Pad.leftTrigger.isPressed || Pad.leftShoulder.isPressed));
 
         public static bool PunchPressed => Bot(BotPunchFrame) ||
             (Kb != null && (Kb.eKey.wasPressedThisFrame || Kb.fKey.wasPressedThisFrame)) || (Ms != null && Ms.leftButton.wasPressedThisFrame) ||

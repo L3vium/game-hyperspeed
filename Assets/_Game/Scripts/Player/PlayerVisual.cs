@@ -495,7 +495,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (_player == null || pDt <= 0f) return;
             PlayerState lState = _player.State;
             bool lGrounded = lState == PlayerState.Ground || lState == PlayerState.Finished || lState == PlayerState.Frozen;
-            bool lOnSurface = lGrounded || lState == PlayerState.Grind || lState == PlayerState.WallRun;
+            bool lOnSurface = lGrounded || lState == PlayerState.Grind;
             Vector3 lUp = lOnSurface ? _player.Up : _player.GravityUp;
             Vector3 lHeading = Vector3.ProjectOnPlane(_player.FacingDirection, lUp);
             if (lHeading.sqrMagnitude < 1e-4f) lHeading = _facing * Vector3.forward;
@@ -532,15 +532,20 @@ namespace Com.IsartDigital.Hyperspeed
                     lBank = Mathf.Clamp(Mathf.Atan2(lCentripetal, 9.81f) * Mathf.Rad2Deg * 0.5f, -26f, 26f) + _player.Steer * 4f;
                     
                     if (_player.Drifting) lBank += _player.DriftDirection * 10f;
+                    // Sliding on a leaning wall : the body lies back against it.
+                    if (_player.WallRiding)
+                    {
+                        lBank -= _player.WallSide * 26f;
+                        lPitch = -10f;
+                    }
                     break;
                 case PlayerState.Air:
-                    lBank = _player.Steer * (_player.Gliding ? 18f : 10f);
+                    lBank = _player.Steer * 10f;
                     if (_player.Diving)
                     {
                         float lHorizontal = Vector3.ProjectOnPlane(_player.Velocity, _player.GravityUp).magnitude;
                         lPitch = Mathf.Clamp(Mathf.Atan2(-lVertical, Mathf.Max(1f, lHorizontal)) * Mathf.Rad2Deg * 0.85f, 0f, 80f);
                     }
-                    else if (_player.Gliding) lPitch = 12f;
                     else lPitch = lVertical > 0f ? -5f : 7f;
                     break;
                 case PlayerState.Grind:
@@ -551,16 +556,6 @@ namespace Com.IsartDigital.Hyperspeed
                 case PlayerState.Zip:
                     lBank = Mathf.Sin(Time.time * 3f) * 8f;
                     lPitch = -8f;
-                    break;
-                case PlayerState.WallRun:
-                    // Feet on the wall : the whole body hangs off it, leaning back when climbing.
-                    if (_player.Wall == PlayerController.WallMode.Climb) lPitch = -72f;
-                    else if (_player.Wall == PlayerController.WallMode.Slide)
-                    {
-                        lBank = -_player.WallSide * 24f;
-                        lPitch = -16f;
-                    }
-                    else lBank = -_player.WallSide * 52f;
                     break;
             }
             _bank = Mathf.Lerp(_bank, lBank, 1f - Mathf.Exp(-9f * pDt));
@@ -593,7 +588,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (_player.Hyper && lGrounded) lArrow = 1f;
             _arrow = Mathf.Lerp(_arrow, lArrow, 1f - Mathf.Exp(-5f * pDt));
             _swayPhase += pDt * Mathf.Lerp(5f, 9f, _player.Speed01);
-            float lWideArms = lState == PlayerState.Grind ? 0.85f : lState == PlayerState.WallRun && _player.Wall != PlayerController.WallMode.Climb ? 0.6f : 0f;
+            float lWideArms = lState == PlayerState.Grind ? 0.85f : _player.WallRiding ? 0.6f : 0f;
             _openArms = _swirlT < 1f ? Mathf.Sin(_swirlT * Mathf.PI) : Mathf.MoveTowards(_openArms, lWideArms, pDt * 6f);
             _lookTarget = _player.HasLandingPrediction && lState == PlayerState.Air ? _player.LandingPoint : transform.position + lHeading * 30f + lUp * 1.2f;
 
@@ -620,14 +615,14 @@ namespace Com.IsartDigital.Hyperspeed
             _animator.SetFloat(P_SPEED, lSpeedParam, 0.08f, pDt);
             _animator.SetFloat(P_VERTICAL, pVertical);
             _animator.SetBool(P_GROUNDED, pGrounded);
-            _animator.SetBool(P_GLIDE, _player.Gliding);
+            _animator.SetBool(P_GLIDE, false);
             _animator.SetBool(P_DIVE, _player.Diving);
-            _animator.SetBool(P_SLIDE, pGrounded && (_player.Sliding || _player.Drifting));
+            _animator.SetBool(P_SLIDE, pGrounded && (_player.Sliding || _player.Drifting || _player.WallRiding));
             _animator.SetBool(P_GRIND, pState == PlayerState.Grind);
             _animator.SetBool(P_HANG, pState == PlayerState.Zip);
-            _animator.SetBool(P_WALLRUN, pState == PlayerState.WallRun && _player.Wall == PlayerController.WallMode.Run);
-            _animator.SetBool(P_WALLCLIMB, pState == PlayerState.WallRun && _player.Wall == PlayerController.WallMode.Climb);
-            _animator.SetBool(P_WALLSLIDE, pState == PlayerState.WallRun && _player.Wall == PlayerController.WallMode.Slide);
+            _animator.SetBool(P_WALLRUN, false);
+            _animator.SetBool(P_WALLCLIMB, false);
+            _animator.SetBool(P_WALLSLIDE, false);
             _animator.SetBool(P_PRERACE, pState == PlayerState.Frozen || _player.FreeRoam);
             // Stylized cadence : the legs keep up with speeds no human reaches.
             _animator.speed = pGrounded && pState != PlayerState.Frozen ? 1f + _player.Speed01 * 1.1f : 1f;

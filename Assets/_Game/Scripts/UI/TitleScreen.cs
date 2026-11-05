@@ -75,7 +75,7 @@ namespace Com.IsartDigital.Hyperspeed
             Interactable.All.Clear();
             Breakable.All.Clear();
             GrindRail.All.Clear();
-            TerrainBaker.Chunks.Clear();
+            TrackBaker.Chunks.Clear();
         }
 
         // ================================================================ backdrop
@@ -84,14 +84,14 @@ namespace Com.IsartDigital.Hyperspeed
         {
             Theme lTheme = Theme.Islands();
             RaceContext.Theme = lTheme;
-            SpeedProfile lProfile = SpeedProfile.For(110f);
+            SpeedProfile lProfile = SpeedProfile.For(150f);
             SpeedProfile.Current = lProfile;
             _world = new GameObject("TitleWorld").transform;
             EnvironmentBuilder.Build(lTheme, _world, lProfile);
             Transform lCourseRoot = new GameObject("Course").transform;
             lCourseRoot.SetParent(_world, false);
             CourseBuilder lBuilder = new CourseBuilder(lCourseRoot, lTheme, lProfile, 17);
-            lBuilder.Start(420f, 1600f).NoPadsAnywhere().Hills(10f, 1.2f).Turn(Side.Left, 70f).Blocks(10f, 0.8f).Dive(300f).Hills(8f, 1.2f).Turn(Side.Right, 80f).Road(6f).Dive(280f).Hills(10f, 1.2f).Finish();
+            lBuilder.Start(90f, 1600f).NoItems().Hills(8f, 12f).Sweeps(4).Road(5f).Hills(8f, 12f).Sweeps(4).Road(5f).Hills(8f, 12f).Sweeps(4).Road(5f).Hills(8f, 12f).Sweeps(4).Road(5f).Finish();
             _layout = lBuilder.Build();
             RaceContext.Layout = _layout;
 

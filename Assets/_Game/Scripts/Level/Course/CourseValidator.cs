@@ -17,7 +17,7 @@ namespace Com.IsartDigital.Hyperspeed
             _layout = pLayout;
             _grid.Clear();
             Spine lSpine = pLayout.spine;
-            TerrainField lField = pLayout.field;
+            TrackField lField = pLayout.field;
             const int STRIDE = 20;
             for (int i = 0; i < lSpine.Count; i += STRIDE)
             {
@@ -28,6 +28,7 @@ namespace Com.IsartDigital.Hyperspeed
                 lList.Add(i);
             }
 
+            // Two pieces of track through the same space, in 3D : a body-sized margin around each.
             int lOverlaps = 0;
             float lFirst = float.NaN;
             string lDetail = "";
@@ -48,17 +49,16 @@ namespace Com.IsartDigital.Hyperspeed
                         {
                             if (j <= i) continue;
                             SpineSample lOther = lSpine.samples[j];
-                            if (lOther.s - lSpine.samples[i].s < Mathf.PI * lReach * 1.1f) continue;
-                            float lMin = lField.HalfWidth(lSpine.samples[i].s) + lField.HalfWidth(lOther.s) + lField.bermWidth * 2f;
+                            if (lOther.s - lSpine.samples[i].s < Mathf.PI * lReach * 2.5f) continue;
+                            float lMin = lField.TotalHalfWidth(lSpine.samples[i].s) + lField.TotalHalfWidth(lOther.s);
                             Vector3 lDelta = lOther.position - lPoint;
-                            lDelta.y = 0f;
                             if (lDelta.sqrMagnitude < lMin * lMin)
                             {
                                 lOverlaps++;
                                 if (float.IsNaN(lFirst))
                                 {
                                     lFirst = lSpine.samples[i].s;
-                                    lDetail = " with s=" + lOther.s.ToString("F0") + " dist=" + lDelta.magnitude.ToString("F0") + " min=" + lMin.ToString("F0") + " yaw " + lSpine.samples[i].yaw.ToString("F0") + "/" + lOther.yaw.ToString("F0");
+                                    lDetail = " with s=" + lOther.s.ToString("F0") + " dist=" + lDelta.magnitude.ToString("F0") + " min=" + lMin.ToString("F0");
                                 }
                             }
                         }
@@ -66,19 +66,28 @@ namespace Com.IsartDigital.Hyperspeed
                 }
             }
             if (lOverlaps > 0) Debug.LogWarning("[HS-GEN] route overlaps itself " + lOverlaps + "x, first at s=" + lFirst.ToString("F0") + lDetail);
-            if (pDives < 2) Debug.LogWarning("[HS-GEN] only " + pDives + " dive zones");
+
+            // Pacing : never a long stretch of nothing.
+            float lLongest = 0f;
+            float lLast = pLayout.startLineS;
+            foreach (RouteAct lAct in pLayout.acts)
+            {
+                lLongest = Mathf.Max(lLongest, lAct.s - lLast);
+                lLast = lAct.s;
+            }
+            Debug.Log("[HS-GEN] longest act-free stretch " + (lLongest / pLayout.profile.cruise).ToString("F1") + "s, dives=" + pDives);
         }
 
         // Scenery must stay clear of every leg of the route.
         public static bool IsClear(Vector3 pPosition, float pRadius)
         {
             if (_layout == null) return true;
-            float lReach = pRadius + 450f * Mathf.Max(1f, _layout.profile.k);
+            float lReach = pRadius + 200f;
             int lCells = Mathf.CeilToInt(lReach / CELL);
             int lX = Mathf.FloorToInt(pPosition.x / CELL);
             int lZ = Mathf.FloorToInt(pPosition.z / CELL);
             Spine lSpine = _layout.spine;
-            TerrainField lField = _layout.field;
+            TrackField lField = _layout.field;
             for (int lDx = -lCells; lDx <= lCells; lDx++)
             {
                 for (int lDz = -lCells; lDz <= lCells; lDz++)
@@ -88,10 +97,8 @@ namespace Com.IsartDigital.Hyperspeed
                     foreach (int i in lList)
                     {
                         SpineSample lSample = lSpine.samples[i];
-                        Vector3 lDelta = lSample.position - pPosition;
-                        lDelta.y = 0f;
-                        float lMin = pRadius + lField.TotalHalfWidth(lSample.s) + 20f;
-                        if (lDelta.sqrMagnitude < lMin * lMin) return false;
+                        float lMin = pRadius + lField.TotalHalfWidth(lSample.s) + 40f;
+                        if ((lSample.position - pPosition).sqrMagnitude < lMin * lMin) return false;
                     }
                 }
             }

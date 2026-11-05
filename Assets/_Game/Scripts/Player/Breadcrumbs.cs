@@ -66,9 +66,10 @@ namespace Com.IsartDigital.Hyperspeed
                 if (lCrumb.safe && lCrumb.s <= pDeathS - lBack) return lCrumb;
             }
             float lS = Mathf.Max(pDeathS - lBack, pLayout.startLineS + 5f);
-            for (int i = 0; i < 40 && !pLayout.IsSafe(lS, 0f) && lS > pLayout.startLineS + 5f; i++) lS -= lBack * 0.25f;
+            for (int i = 0; i < 60 && !pLayout.IsSafe(lS, pLayout.field.CenterLateral(lS)) && lS > pLayout.startLineS + 5f; i++) lS -= lBack * 0.25f;
             lS = Mathf.Max(lS, pLayout.startLineS + 5f);
-            return new Breadcrumb { position = pLayout.GroundPoint(lS, 0f), heading = pLayout.Flow(lS), s = lS, lateral = 0f, speed = pLayout.profile.cruise, safe = true };
+            float lCenter = pLayout.field.CenterLateral(lS);
+            return new Breadcrumb { position = pLayout.GroundPoint(lS, lCenter), heading = pLayout.Flow(lS), s = lS, lateral = lCenter, speed = pLayout.profile.cruise, safe = true };
         }
     }
 }

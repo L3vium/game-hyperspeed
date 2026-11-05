@@ -2,8 +2,8 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // Electric ropes : wide catch radius from the ground or the air, you get pulled on, ride with growing speed, get
-    // thrown off the far end with a boost.
+    // Electric ropes : they catch you only if you actually reach them, you ride with growing speed, get thrown off the far
+    // end with a boost.
     public partial class PlayerController
     {
         private GrindRail _rail;
@@ -28,49 +28,47 @@ namespace Com.IsartDigital.Hyperspeed
                 Vector3 lVelocity = OnSurface ? _moveDir * _speed : _velocity;
                 float lAlong = Vector3.Dot(lVelocity, lTangent);
                 if (lAlong < 8f) continue;
-                AttachRail(lRail, lRailDistance, lPos);
+                AttachRail(lRail, lRailDistance, lPos, lUp);
                 return true;
             }
             return false;
         }
 
-        private void AttachRail(GrindRail pRail, float pDistance, Vector3 pPoint)
+        private void AttachRail(GrindRail pRail, float pDistance, Vector3 pPoint, Vector3 pUp)
         {
             _rail = pRail;
             _railDistance = pDistance;
             _railDirection = 1;
-            _railBlend = 0.18f;
+            _railBlend = 0.1f;
             _railFrom = transform.position;
-            _speed = Mathf.Min(_profile.max, Mathf.Max(Speed, _profile.cruise * 0.85f) + _profile.cruise * 0.08f);
+            _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, Mathf.Max(Speed, _profile.cruise * 0.85f) + _profile.cruise * 0.12f);
             SetState(PlayerState.Grind);
             Diving = false;
             HasDoubleJump = true;
-            HasAirDash = true;
             AudioManager.Play("sfx_grind_start", 0.8f);
             FX.Sparks(pPoint, UIFactory.CYAN, 40, 34f);
             FX.Shockwave(pPoint, _heading, UIFactory.CYAN, 18f, 0.3f);
             Juice.Shake(0.25f);
             Juice.FovKick(5f);
-            Juice.Popup("ROPE!", UIFactory.CYAN, 1f);
             AddCombo();
         }
 
         private void GrindStep(float pDt)
         {
             Vector3 lPos, lTangent, lUp;
-            _speed = Mathf.Min(_profile.max, _speed + _profile.cruise * 0.14f * pDt);
+            _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + _profile.cruise * 0.14f * pDt);
             _railDistance += _railDirection * _speed * pDt;
             _rail.Evaluate(_railDistance, out lPos, out lTangent, out lUp);
-            _up = Vector3.up;
+            _up = lUp;
             _gravityUp = _up;
             _heading = lTangent * _railDirection;
             _moveDir = _heading;
             _velocity = _heading * _speed;
-            Vector3 lTarget = lPos + Vector3.up * 0.25f;
+            Vector3 lTarget = lPos + lUp * 0.25f;
             if (_railBlend > 0f)
             {
                 _railBlend -= pDt;
-                lTarget = Vector3.Lerp(lTarget, _railFrom, Mathf.Clamp01(_railBlend / 0.18f));
+                lTarget = Vector3.Lerp(lTarget, _railFrom, Mathf.Clamp01(_railBlend / 0.1f));
             }
             transform.position = lTarget;
             AudioManager.SetLoop("sfx_grind_loop", 0.55f, 0.9f + Mathf.Min(_speed * 0.002f, 0.8f));
@@ -78,11 +76,11 @@ namespace Com.IsartDigital.Hyperspeed
 
             if (_railDistance >= _rail.Length - 1f)
             {
-                _speed = Mathf.Min(_profile.max, _speed + _profile.cruise * 0.12f);
-                _velocity = _heading * _speed + Vector3.up * 8f * Ballistics.Scale;
+                _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + _profile.cruise * 0.2f);
+                _velocity = _heading * _speed + _up * 14f;
                 LeaveRail();
-                Juice.Popup("ROPE BOOST", UIFactory.CYAN, 1f);
-                Juice.FovKick(5f);
+                Juice.FovKick(6f);
+                Juice.Rollback(6f);
                 _boostTimer = Mathf.Max(_boostTimer, 0.8f);
                 AudioManager.Play("sfx_boost_small", 0.7f);
             }
@@ -91,7 +89,6 @@ namespace Com.IsartDigital.Hyperspeed
         private void LeaveRail()
         {
             _railCooldown = 0.5f;
-            _airYaw = _layout != null ? _layout.spine.Evaluate(Progress).yaw : 0f;
             SetState(PlayerState.Air);
         }
     }

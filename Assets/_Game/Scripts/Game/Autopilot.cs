@@ -2,11 +2,12 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // Route-following bot (cheat key 7) : holds the route lateral, punches what is ahead, dives where the stage says so.
-    // Used to playtest every stage end to end.
+    // Route-following bot (cheat key 7) : it looks where a player would look, through virtual inputs, so stages are tested
+    // through the real controller. Aggressive mode chains every boost it can reach : the proof that light speed exists.
     public class Autopilot : MonoBehaviour
     {
         public static bool Enabled;
+        public static bool Aggressive;
 
         private PlayerController _player;
         private LevelLayout _layout;
@@ -15,7 +16,9 @@ namespace Com.IsartDigital.Hyperspeed
         private readonly string[] _trace = new string[12];
         private int _traceCursor;
         private float _traceTimer;
-        private float _punchCooldown;
+        private float _diveTimer;
+        private float _feelTimer;
+        private int _startTrace;
 
         public void Init(PlayerController pPlayer, LevelLayout pLayout)
         {
@@ -45,7 +48,8 @@ namespace Com.IsartDigital.Hyperspeed
         {
             HSInput.BotSteer = 0f;
             HSInput.BotSlideHeld = false;
-            HSInput.BotGlideHeld = false;
+            HSInput.BotDashHeld = false;
+            HSInput.BotAimActive = false;
         }
 
         public void Toggle()
@@ -69,57 +73,73 @@ namespace Com.IsartDigital.Hyperspeed
             if (_traceTimer <= 0f)
             {
                 _traceTimer = 0.25f;
-                _trace[_traceCursor] = "t" + Time.time.ToString("F2") + " s" + lS.ToString("F0") + " lat" + _player.Lateral.ToString("F1") + " y" + _player.transform.position.y.ToString("F1")
-                    + " ground" + _layout.Ground(lS, _player.Lateral).ToString("F1") + " " + _player.State + " v" + _player.Speed.ToString("F0")
-                    + " vy" + Vector3.Dot(_player.Velocity, Vector3.up).ToString("F0") + (_player.HasLandingPrediction ? " land@" + _player.LandingPoint.y.ToString("F0") : " noLand")
-                    + (_player.Diving ? " dive" : "");
+                _trace[_traceCursor] = "t" + Time.time.ToString("F2") + " s" + lS.ToString("F0") + " lat" + _player.Lateral.ToString("F1") + " pos" + _player.transform.position.ToString("F0")
+                    + " " + _player.State + " v" + _player.Speed.ToString("F0") + " pitch" + _player.AimPitch.ToString("F0") + (_player.HasLandingPrediction ? " land" : " noLand") + (_player.Diving ? " dive" : "");
                 _traceCursor = (_traceCursor + 1) % _trace.Length;
             }
+            _feelTimer -= Time.deltaTime;
+            if (_startTrace < 16)
+            {
+                _startTrace++;
+                Debug.Log("[HS-TRACE] s=" + lS.ToString("F1") + " lat=" + _player.Lateral.ToString("F1") + " st=" + _player.State + " head=" + _player.Heading.ToString("F2") + " aim=" + _player.CameraForward.ToString("F2") + " up=" + _player.Up.ToString("F2") + " vel=" + _player.Velocity.ToString("F0") + " slip=" + _player.LateralSpeed.ToString("F1") + " target=" + _layout.RouteLateral(lS + 50f).ToString("F1"));
+            }
+            if (_feelTimer <= 0f)
+            {
+                _feelTimer = 5f;
+                Debug.Log("[HS-FEEL] s=" + lS.ToString("F0") + " v=" + _player.Speed.ToString("F0") + " ratio=" + (_player.Speed / _player.Profile.cruise).ToString("F2") + " light=" + _player.LightForm + " state=" + _player.State);
+            }
             int lNext = Time.frameCount + 1;
-            _punchCooldown -= Time.deltaTime;
 
-            // Steer toward the route lateral half a second ahead : Steer is a fraction of the max strafe speed.
-            float lTarget = _layout.RouteLateral(lS + lSpeed * 0.5f);
-            float lMax = _player.Profile.StrafeMax(lSpeed);
-            HSInput.BotSteer = Mathf.Clamp((lTarget - _player.Lateral) * 2f / lMax, -1f, 1f);
+            // Look at the point of the route ahead : a closer one when off the line.
+            float lLook = Mathf.Max(30f, lSpeed * 0.45f);
+            float lTargetS = lS + lLook;
+            float lLateral = _layout.RouteLateral(lTargetS);
+            Vector3 lPoint = _layout.GroundPoint(lTargetS, lLateral);
+            HSInput.BotAimActive = true;
+            HSInput.BotAimDirection = lPoint - _player.transform.position;
+            HSInput.BotAimPitch = 0f;
+            HSInput.BotSteer = 0f;
+
+            // Past a lip with nothing below : look down to dive for a moment.
+            if (_diveTimer > 0f)
+            {
+                _diveTimer -= Time.deltaTime;
+                HSInput.BotAimPitch = -40f;
+            }
 
             while (_actIndex < _layout.acts.Count && _layout.acts[_actIndex].s < lS - lSpeed * 0.5f) _actIndex++;
             if (_actIndex < _layout.acts.Count && lS >= _layout.acts[_actIndex].s)
             {
                 RouteAct lAct = _layout.acts[_actIndex];
-                if (lAct.action == RouteAction.Dive && _player.State == PlayerState.Air && !_player.Diving)
+                if (lAct.action == RouteAction.Dive)
                 {
-                    HSInput.BotSlideFrame = lNext;
-                    _actIndex++;
+                    if (_player.State == PlayerState.Air) { _diveTimer = 0.5f; _actIndex++; }
                 }
-                else if (lAct.action == RouteAction.Jump && _player.State == PlayerState.Ground)
+                else if (lAct.action == RouteAction.Jump)
                 {
                     HSInput.BotJumpFrame = lNext;
                     _actIndex++;
                 }
-                else if (lAct.action == RouteAction.Punch)
+                else if (lAct.action == RouteAction.Dash)
                 {
-                    HSInput.BotPunchFrame = lNext;
+                    HSInput.BotDashFrame = lNext;
                     _actIndex++;
                 }
             }
 
-            if (_player.State == PlayerState.Ground && !_player.Hyper && _player.Speed < _player.Profile.hyperEnter) HSInput.BotDashFrame = lNext;
-
-            if (_punchCooldown <= 0f)
+            // Over a hole with the speed dropping : a jump and a dash buy distance, as a player would.
+            if (_player.State == PlayerState.Air && !_layout.field.Solid(lS) && Vector3.Dot(_player.Velocity, _player.GravityUp) < -30f && _diveTimer <= 0f)
             {
-                foreach (Breakable lBreakable in Breakable.All)
-                {
-                    Vector3 lDelta = lBreakable.transform.position - _player.transform.position;
-                    float lAlong = Vector3.Dot(lDelta, _player.Heading);
-                    if (lAlong > 0f && lAlong < lBreakable.radius + 20f + lSpeed * 0.2f && Vector3.ProjectOnPlane(lDelta, _player.Heading).magnitude < lBreakable.radius + 20f)
-                    {
-                        HSInput.BotPunchFrame = lNext;
-                        _punchCooldown = 0.35f;
-                        break;
-                    }
-                }
+                if (_player.HasDoubleJump) HSInput.BotJumpFrame = lNext;
+                else if (_player.DashEnergy >= 1f) HSInput.BotDashFrame = lNext;
             }
+
+            HSInput.BotDashHeld = false;
+            if (Aggressive)
+            {
+                if (_player.DashEnergy >= 1f) HSInput.BotDashFrame = lNext;
+            }
+            else if (_player.State == PlayerState.Ground && _player.DashEnergy >= 2.9f && _player.Speed < _player.Profile.cruise * 1.4f) HSInput.BotDashFrame = lNext;
         }
     }
 }

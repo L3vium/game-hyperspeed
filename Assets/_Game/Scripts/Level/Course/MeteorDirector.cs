@@ -76,15 +76,16 @@ namespace Com.IsartDigital.Hyperspeed
             lObject.transform.SetParent(pParent, false);
             Meteor lMeteor = lObject.AddComponent<Meteor>();
             lMeteor.radius = pRadius;
+            lMeteor.big = true;
             lMeteor.color = new Color(0.32f, 0.2f, 0.2f);
             lMeteor._layout = pLayout;
 
             float lSpeed = Mathf.Max(pPlayer.Speed, pLayout.profile.cruise * 0.7f);
             float lTime = Mathf.Max(0.8f, (pS - pPlayer.Progress) / lSpeed);
             float lAim = pPlayer.Lateral + Random.Range(-1f, 1f) * pRadius * 0.8f;
-            Vector3 lHit = pLayout.GroundPoint(pS, lAim) + Vector3.up * pRadius * 0.9f;
-            float lHeight = 260f * Mathf.Pow(pLayout.profile.k, 0.7f);
-            Vector3 lFrom = pLayout.spine.Point(pS + lSpeed * 1.2f, lAim + Random.Range(-1f, 1f) * 90f, lHit.y + lHeight);
+            Vector3 lUp = pLayout.field.Normal(pS);
+            Vector3 lHit = pLayout.GroundPoint(pS, lAim) + lUp * pRadius * 0.9f;
+            Vector3 lFrom = lHit + pLayout.spine.Forward(pS) * lSpeed * 1.2f + pLayout.spine.Right(pS) * Random.Range(-1f, 1f) * 60f + lUp * 240f;
             lObject.transform.position = lFrom;
             lMeteor._velocity = (lHit - lFrom) / lTime;
             lMeteor._spin = Random.onUnitSphere * 160f;
@@ -98,9 +99,10 @@ namespace Com.IsartDigital.Hyperspeed
         {
             GameObject lObject = new GameObject("Boulder");
             lObject.transform.SetParent(pParent, false);
-            lObject.transform.position = pLayout.GroundPoint(pS, pLateral) + Vector3.up * pRadius * 0.85f;
+            lObject.transform.position = pLayout.GroundPoint(pS, pLateral) + pLayout.field.Normal(pS) * pRadius * 0.85f;
             Meteor lMeteor = lObject.AddComponent<Meteor>();
             lMeteor.radius = pRadius;
+            lMeteor.big = true;
             lMeteor.color = new Color(0.32f, 0.2f, 0.2f);
             lMeteor._landed = true;
             BuildVisual(lObject.transform, pRadius, pTheme, (int)pS);
@@ -117,9 +119,8 @@ namespace Com.IsartDigital.Hyperspeed
             _groundCheck -= lDt;
             if (_groundCheck > 0f || _layout == null) return;
             _groundCheck = 0.05f;
-            float lLateral;
-            float lS = _layout.spine.Project(transform.position, RaceContext.PlayerProgress, out lLateral);
-            if (transform.position.y - radius * 0.8f <= _layout.Ground(lS, lLateral)) Land();
+            RaycastHit lHit;
+            if (Physics.Raycast(transform.position, _velocity.normalized, out lHit, _velocity.magnitude * 0.06f + radius, 1 << Layers.DECK, QueryTriggerInteraction.Ignore)) Land();
         }
 
         private void Land()

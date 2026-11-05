@@ -11,13 +11,13 @@ namespace Com.IsartDigital.Hyperspeed
             lParent.SetParent(pRoot, false);
             System.Random lRandom = new System.Random(pSeed);
             Spine lSpine = pLayout.spine;
-            float lK = Mathf.Pow(pLayout.profile.k, 0.8f);
-            float lChunk = 900f * pLayout.profile.k;
+            float lK = 1f;
+            float lChunk = 900f;
             Material lMaterial = Mats.Flat(pTheme.shade, false);
             for (float lS0 = lSpine.StartS; lS0 < lSpine.EndS; lS0 += lChunk)
             {
                 MeshData lData = new MeshData();
-                Vector3 lOrigin = lSpine.Point(lS0, 0f, lSpine.Height(lS0));
+                Vector3 lOrigin = lSpine.Evaluate(lS0).position;
                 int lCount = lRandom.Next(6, 10);
                 for (int i = 0; i < lCount; i++)
                 {
@@ -27,7 +27,7 @@ namespace Com.IsartDigital.Hyperspeed
                     bool lFar = lRandom.NextDouble() < 0.45;
                     float lSize = Rand(lRandom, lFar ? 500f : 160f, lFar ? 1100f : 420f) * lK;
                     float lLateral = lSide * (lHalf + lSize * 0.55f + Rand(lRandom, 40f, lFar ? 1500f : 260f) * lK);
-                    Vector3 lBase = lSpine.Point(lS, lLateral, lSpine.Height(lS));
+                    Vector3 lBase = lSpine.Evaluate(lS).position + Vector3.Cross(Vector3.up, Vector3.ProjectOnPlane(lSpine.Forward(lS), Vector3.up).normalized) * lLateral;
                     if (!CourseValidator.IsClear(lBase, lSize * 0.6f)) continue;
                     Color lColor = i % 3 == 0 ? pTheme.decorA : i % 3 == 1 ? pTheme.decorB : pTheme.decorC;
                     if (lFar) lColor = Color.Lerp(lColor, pTheme.fog, 0.35f);

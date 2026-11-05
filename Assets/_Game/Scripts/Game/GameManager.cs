@@ -56,7 +56,6 @@ namespace Com.IsartDigital.Hyperspeed
             RaceContext.Theme = lTheme;
             SpeedProfile lProfile = LevelDatabase.Profile(_level);
             SpeedProfile.Current = lProfile;
-            Ballistics.Scale = lProfile.gravityScale;
             Transform lRoot = new GameObject("Level").transform;
             EnvironmentBuilder.Build(lTheme, lRoot, lProfile);
 
@@ -114,7 +113,7 @@ namespace Com.IsartDigital.Hyperspeed
             _rig.Snap();
             Vector3 lForward = _layout.Flow(_layout.spawnS);
             Vector3 lSpot = _layout.GroundPoint(_layout.spawnS, 0f);
-            _rig.CutTo(lSpot + Vector3.up * 70f - lForward * 90f, lSpot + lForward * 120f + Vector3.up * 35f, 72f);
+            _rig.CutTo(lSpot + Vector3.up * 40f - lForward * 60f, lSpot + lForward * 120f + Vector3.up * 16f, 72f);
             _rig.ClearOverride(1.3f);
 
             while (SceneTransition.IsBusy) yield return null;
@@ -178,7 +177,7 @@ namespace Com.IsartDigital.Hyperspeed
                 StartCoroutine(EndRoutine(true, "FINISH!!"));
             else if (!_level.chaser && _rival.Finished)
                 StartCoroutine(EndRoutine(false, "TOO SLOW"));
-            else if (_level.chaser && !_player.Invulnerable && !_player.CheatInvincible && !_respawn.Busy && _rival.distance >= _player.Progress - 2f && _rival.distance > 0f)
+            else if (_level.chaser && !_player.Invulnerable && !_player.CheatInvincible && !_respawn.Busy && !_rival.Passing && _rival.distance >= _player.Progress - 2f && _rival.distance > 0f)
                 StartCoroutine(EndRoutine(false, CaughtWord()));
         }
 
@@ -219,7 +218,7 @@ namespace Com.IsartDigital.Hyperspeed
                 _player.CheatInvincible = !_player.CheatInvincible;
                 _cheatBar.SetActive(0, _player.CheatInvincible);
             }
-            if (lKeyboard.digit2Key.wasPressedThisFrame && lRacing) { _player.ApplyBoost(_layout.profile.cruise * 0.6f, _player.Heading, 0f, "CHEAT BOOST"); _cheatBar.Flash(1); }
+            if (lKeyboard.digit2Key.wasPressedThisFrame && lRacing) { _player.ApplyBoost(_layout.profile.cruise * 0.6f, _player.Heading, 0f, null); _cheatBar.Flash(1); }
             if (lKeyboard.digit3Key.wasPressedThisFrame && lRacing) { _player.SkipToNextCheckpoint(); _cheatBar.Flash(2); }
             if (lKeyboard.digit4Key.wasPressedThisFrame && lRacing) { StartCoroutine(EndRoutine(true, "FINISH!!")); _cheatBar.Flash(3); }
             if (lKeyboard.digit5Key.wasPressedThisFrame)
@@ -239,11 +238,11 @@ namespace Com.IsartDigital.Hyperspeed
                 _autopilot.Toggle();
                 _cheatBar.SetActive(6, Autopilot.Enabled);
             }
-            if (lKeyboard.digit8Key.wasPressedThisFrame && lRacing) { _player.ApplyBoost(_layout.profile.max, _player.Heading, 0f, "MAX SPEED"); _cheatBar.Flash(7); }
+            if (lKeyboard.digit8Key.wasPressedThisFrame && lRacing) { _player.ApplyBoost(_layout.profile.lightEnter, _player.Heading, 0f, null); _cheatBar.Flash(7); }
             if (lKeyboard.digit9Key.wasPressedThisFrame && lRacing)
             {
                 MeteorDirector lDirector = FindAnyObjectByType<MeteorDirector>();
-                if (lDirector != null) Meteor.CreateIncoming(lDirector.transform, _layout, _player, _player.Progress + _player.Speed * 2.5f, 26f * Mathf.Sqrt(_layout.profile.k), RaceContext.Theme);
+                if (lDirector != null) Meteor.CreateIncoming(lDirector.transform, _layout, _player, _player.Progress + _player.Speed * 2.5f, 18f, RaceContext.Theme);
                 _cheatBar.Flash(8);
             }
             if (lKeyboard.digit0Key.wasPressedThisFrame) { Retry(); _cheatBar.Flash(9); }
@@ -261,9 +260,8 @@ namespace Com.IsartDigital.Hyperspeed
             if (pWin)
             {
                 _visual.SetVictory();
-                Juice.ImpactFrame(1f);
-                Juice.Popup(pHeadline, UIKit.GOLD, 2f);
-                AudioManager.Play("sfx_finish", 1f);
+                Impacts.Request(ImpactReason.Finish);
+                                AudioManager.Play("sfx_finish", 1f);
                 Juice.SlowMo(0.25f, 1f);
                 yield return new WaitForSecondsRealtime(1.1f);
                 _rig.SetFinishMode(true);
@@ -352,7 +350,7 @@ namespace Com.IsartDigital.Hyperspeed
             Interactable.All.Clear();
             Breakable.All.Clear();
             GrindRail.All.Clear();
-            TerrainBaker.Chunks.Clear();
+            TrackBaker.Chunks.Clear();
             Shader.SetGlobalFloat(ROAD_SPEED, 0f);
         }
     }
