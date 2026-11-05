@@ -384,7 +384,7 @@ namespace Com.IsartDigital.Hyperspeed
             _wingL.localPosition = new Vector3(-lSpread + lSwing + Mathf.Sin(_windPhase) * 0.8f, 1.1f + Mathf.Sin(_windPhase * 1.3f) * 0.5f, -0.3f);
             _wingR.localPosition = new Vector3(lSpread + lSwing + Mathf.Sin(_windPhase + 2.2f) * 0.8f, 1.1f + Mathf.Sin(_windPhase * 1.3f + 1.4f) * 0.5f, -0.3f);
             _trailL.time = _trailR.time = Mathf.Lerp(0.35f, 1f, lLevel);
-            _trailL.startWidth = _trailR.startWidth = Mathf.Lerp(0.22f, 0.6f, lLevel);
+            _trailL.startWidth = _trailR.startWidth = Mathf.Lerp(0.18f, 0.38f, lLevel);
         }
 
         private void UpdateHelix()

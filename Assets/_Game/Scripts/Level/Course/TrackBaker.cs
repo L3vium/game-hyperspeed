@@ -180,8 +180,14 @@ namespace Com.IsartDigital.Hyperspeed
                     }
                 }
             }
-            Cap(lData, lGrid, 0, lColumns, lTop, -lRowForward[0], pBlock, pTheme, pFirst == 0);
-            Cap(lData, lGrid, lRowCount - 1, lColumns, lTop, lRowForward[lRowCount - 1], pBlock, pTheme, pLast == pRows.Count - 1);
+            List<Vector3> lCapTriangles = new List<Vector3>();
+            if (pFirst == 0) CapTriangles(lCapTriangles, lGrid, 0, lColumns, lTop, lFloorFirst, lRowUp[0], pBlock.thickness * 0.32f, -lRowForward[0]);
+            if (pLast == pRows.Count - 1) CapTriangles(lCapTriangles, lGrid, (lRowCount - 1) * lColumns, lColumns, lTop, lFloorFirst, lRowUp[lRowCount - 1], pBlock.thickness * 0.32f, lRowForward[lRowCount - 1]);
+            Color lCapColor = Color.Lerp(pTheme.roadSide, pTheme.decorB, 0.25f);
+            for (int i = 0; i < lCapTriangles.Count; i += 3)
+            {
+                pData_FacetTri(lData, lCapTriangles[i], lCapTriangles[i + 1], lCapTriangles[i + 2], lCapColor);
+            }
 
             GameObject lObject = new GameObject("Block");
             lObject.transform.SetParent(pParent, false);
@@ -207,10 +213,13 @@ namespace Com.IsartDigital.Hyperspeed
                     lIndices.Add(lB); lIndices.Add(lD); lIndices.Add(lC);
                 }
             }
-            // End faces fan out from their centre, under the floor : the open channel between the walls stays open.
+            // The end faces, with the channel between the walls left open.
             List<Vector3> lCollisionVertices = new List<Vector3>(lGrid);
-            if (pFirst == 0) CapCollision(lCollisionVertices, lIndices, lGrid, 0, lColumns, false);
-            if (pLast == pRows.Count - 1) CapCollision(lCollisionVertices, lIndices, lGrid, (lRowCount - 1) * lColumns, lColumns, true);
+            foreach (Vector3 lPoint in lCapTriangles)
+            {
+                lIndices.Add(lCollisionVertices.Count);
+                lCollisionVertices.Add(lPoint);
+            }
             Mesh lCollision = new Mesh { name = "TrackCollision" };
             lCollision.indexFormat = lCollisionVertices.Count > 65000 ? UnityEngine.Rendering.IndexFormat.UInt32 : UnityEngine.Rendering.IndexFormat.UInt16;
             lCollision.SetVertices(lCollisionVertices);
@@ -221,35 +230,56 @@ namespace Com.IsartDigital.Hyperspeed
             Chunks.Add(new TrackChunk { s0 = pRows[pFirst], s1 = pRows[pLast], gameObject = lObject, collider = lCollider });
         }
 
-        private static void CapCollision(List<Vector3> pVertices, List<int> pIndices, Vector3[] pGrid, int pStart, int pColumns, bool pEnd)
+        // Triangle already wound the right way (see CapTriangles).
+        private static void pData_FacetTri(MeshData pData, Vector3 pA, Vector3 pB, Vector3 pC, Color pColor)
         {
-            Vector3 lCenter = Vector3.zero;
-            for (int i = 0; i < pColumns; i++) lCenter += pGrid[pStart + i];
-            int lMiddle = pVertices.Count;
-            pVertices.Add(lCenter / pColumns);
-            for (int i = 0; i < pColumns; i++)
-            {
-                int lA = pStart + i;
-                int lB = pStart + (i + 1) % pColumns;
-                pIndices.Add(lMiddle);
-                pIndices.Add(pEnd ? lB : lA);
-                pIndices.Add(pEnd ? lA : lB);
-            }
+            Vector3 lNormal = Vector3.Cross(pB - pA, pC - pA).normalized;
+            pData.FacetTri(pA, pB, pC, lNormal, pColor);
         }
 
-        // End face of a block : only where the block really ends.
-        private static void Cap(MeshData pData, Vector3[] pGrid, int pRow, int pColumns, int pTop, Vector3 pOutward, TrackBlock pBlock, Theme pTheme, bool pIsEnd)
+        // End face of a block, wound to face pOutward. A band under the whole top line, straight down from each point so the
+        // open channel between the walls stays open, then the part under it as a fan.
+        private static void CapTriangles(List<Vector3> pOut, Vector3[] pGrid, int pStart, int pColumns, int pTop, int pFloorColumn, Vector3 pUp, float pDepth, Vector3 pOutward)
         {
-            if (!pIsEnd) return;
-            Vector3 lCenter = Vector3.zero;
-            for (int i = 0; i < pColumns; i++) lCenter += pGrid[pRow * pColumns + i];
-            lCenter /= pColumns;
-            for (int i = 0; i < pColumns; i++)
+            Vector3 lFloor = pGrid[pStart + pFloorColumn];
+            Vector3 Down(Vector3 pPoint) => pPoint - pUp * (Vector3.Dot(pPoint - lFloor, pUp) + pDepth);
+            for (int i = 0; i < pTop - 1; i++)
             {
-                Vector3 lA = pGrid[pRow * pColumns + i];
-                Vector3 lB = pGrid[pRow * pColumns + (i + 1) % pColumns];
-                Color lColor = i < pTop - 1 ? Color.Lerp(pTheme.roadSide, pTheme.decorB, 0.25f) : FlankColor(pTheme, i - (pTop - 1), pColumns - pTop, pBlock.seed);
-                pData.FacetTri(lCenter, lA, lB, pOutward, lColor);
+                Vector3 lA = pGrid[pStart + i];
+                Vector3 lB = pGrid[pStart + i + 1];
+                Vector3 lC = Down(lB);
+                Vector3 lD = Down(lA);
+                AddFacing(pOut, lA, lB, lC, pOutward);
+                AddFacing(pOut, lA, lC, lD, pOutward);
+            }
+            Vector3 lCenter = Vector3.zero;
+            int lCount = pColumns - pTop;
+            for (int i = pTop; i < pColumns; i++) lCenter += pGrid[pStart + i];
+            lCenter /= Mathf.Max(1, lCount);
+            Vector3 lPrevious = Down(pGrid[pStart + pTop - 1]);
+            for (int i = pTop; i < pColumns; i++)
+            {
+                Vector3 lNext = pGrid[pStart + i];
+                AddFacing(pOut, lCenter, lPrevious, lNext, pOutward);
+                lPrevious = lNext;
+            }
+            Vector3 lLeft = Down(pGrid[pStart]);
+            AddFacing(pOut, lCenter, lPrevious, lLeft, pOutward);
+            AddFacing(pOut, lCenter, lLeft, Down(pGrid[pStart + pTop - 1]), pOutward);
+        }
+
+        private static void AddFacing(List<Vector3> pOut, Vector3 pA, Vector3 pB, Vector3 pC, Vector3 pOutward)
+        {
+            pOut.Add(pA);
+            if (Vector3.Dot(Vector3.Cross(pB - pA, pC - pA), pOutward) >= 0f)
+            {
+                pOut.Add(pB);
+                pOut.Add(pC);
+            }
+            else
+            {
+                pOut.Add(pC);
+                pOut.Add(pB);
             }
         }
 

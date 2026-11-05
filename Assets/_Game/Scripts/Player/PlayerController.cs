@@ -80,7 +80,6 @@ namespace Com.IsartDigital.Hyperspeed
 
         // Camera / visual signals.
         public float DiveTime { get; private set; }
-        public float DiveCamera01 => 0f;
         public bool HasLandingPrediction { get; private set; }
         public Vector3 LandingPoint { get; private set; }
         public float LandingTime { get; private set; }

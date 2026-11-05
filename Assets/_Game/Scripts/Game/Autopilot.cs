@@ -18,7 +18,6 @@ namespace Com.IsartDigital.Hyperspeed
         private float _traceTimer;
         private float _diveTimer;
         private float _feelTimer;
-        private int _startTrace;
 
         public void Init(PlayerController pPlayer, LevelLayout pLayout)
         {
@@ -78,11 +77,6 @@ namespace Com.IsartDigital.Hyperspeed
                 _traceCursor = (_traceCursor + 1) % _trace.Length;
             }
             _feelTimer -= Time.deltaTime;
-            if (_startTrace < 16)
-            {
-                _startTrace++;
-                Debug.Log("[HS-TRACE] s=" + lS.ToString("F1") + " lat=" + _player.Lateral.ToString("F1") + " st=" + _player.State + " head=" + _player.Heading.ToString("F2") + " aim=" + _player.CameraForward.ToString("F2") + " up=" + _player.Up.ToString("F2") + " vel=" + _player.Velocity.ToString("F0") + " slip=" + _player.LateralSpeed.ToString("F1") + " target=" + _layout.RouteLateral(lS + 50f).ToString("F1"));
-            }
             if (_feelTimer <= 0f)
             {
                 _feelTimer = 5f;

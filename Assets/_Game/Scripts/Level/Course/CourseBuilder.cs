@@ -329,11 +329,14 @@ namespace Com.IsartDigital.Hyperspeed
             float lLength = lRadius * Mathf.PI * 2f * 1.2f;
             Quaternion lYaw = Quaternion.AngleAxis(_yaw, Vector3.up);
             Vector3 lShift = lYaw * Vector3.right * (int)pSide * (_halfWidth * 3f + 60f);
-            Open(BlockLook.Pipe, 14f);
+            float lHalf = _halfWidth;
+            _halfWidth *= 1.25f;
+            Open(BlockLook.Pipe, 18f);
             Span(M(0.4f));
             _localGravity = true;
             NoPads(_s, _s + lLength);
             Span(lLength, 0f, 360f, (int)pSide * 360f, lShift);
+            _halfWidth = lHalf;
             _localGravity = false;
             Wrap();
             _pitch = 0f;

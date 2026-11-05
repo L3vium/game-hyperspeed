@@ -16,6 +16,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         private ParticleSystem _system;
         private float _budget;
+        private Transform _ambient;
 
         private void Awake()
         {
@@ -36,11 +37,39 @@ namespace Com.IsartDigital.Hyperspeed
             lFade.color = lGradient;
         }
 
+        // Fireflies in the green places, embers near fire, drifting lines in the cold and the void, wind everywhere else.
+        private void Start()
+        {
+            Theme lTheme = RaceContext.Theme;
+            GameObject[] lPrefabs = GameAssets.Instance.ambientParticles;
+            if (lTheme == null || lPrefabs == null) return;
+            string lWanted = "Wind";
+            switch (lTheme.decor)
+            {
+                case DecorKind.Forest:
+                case DecorKind.Prehistoric:
+                case DecorKind.Night: lWanted = "FireFlies"; break;
+                case DecorKind.Industrial:
+                case DecorKind.Canyon: lWanted = "Embers"; break;
+                case DecorKind.Ice:
+                case DecorKind.Space:
+                case DecorKind.Void:
+                case DecorKind.Neon: lWanted = "Etherial"; break;
+            }
+            foreach (GameObject lPrefab in lPrefabs)
+            {
+                if (lPrefab == null || !lPrefab.name.Contains(lWanted)) continue;
+                _ambient = Instantiate(lPrefab, transform).transform;
+                break;
+            }
+        }
+
         private void Update()
         {
             PlayerController lPlayer = RaceContext.Player;
             CameraRig lRig = CameraRig.Instance;
             if (lPlayer == null || lRig == null || Time.deltaTime <= 0f) return;
+            if (_ambient != null) _ambient.position = lRig.transform.position + lRig.transform.forward * 40f;
             float lSpeed = lPlayer.TotalSpeed;
             if (lSpeed < 12f) return;
             float lLevel = Mathf.Clamp01(lPlayer.Speed01 * 1.2f + 0.12f);

@@ -26,7 +26,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
         private const string TITLE_FONT_SOURCE = "Assets/_Plugins/Feel/FeelDemos/UIToolkitFeedbacksDemo/Fonts/UIToolkitDemo_BigJohn.otf";
         private const string LATO = "Assets/_Plugins/Feel/MMTools/Demos/MMTween/Fonts/Lato/SDF/";
         private const string BODY_FONT = "Assets/_Plugins/Feel/MMTools/Demos/MMTween/Fonts/Lato/SDF/Lato-Black SDF.asset";
-        public const string BUILD_PATH = "Builds/Windows/HyperSpeed.exe";
+        public const string BUILD_PATH = "Builds/Windows/Hyperspeed.exe";
         private const string SHERBBS = "Assets/_Plugins/Sherbbs Particle Collection/Particles/";
 
         [MenuItem("Hyperspeed/Setup Project")]
@@ -335,7 +335,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
             return null;
         }
 
-        public const string DEV_BUILD_PATH = "Builds/Windows-Dev/HyperSpeed-Dev.exe";
+        public const string DEV_BUILD_PATH = "Builds/Windows-Dev/Hyperspeed Dev.exe";
 
         [MenuItem("Hyperspeed/Build Windows (Release)")]
         public static string BuildWindows() => Build(BUILD_PATH, false);

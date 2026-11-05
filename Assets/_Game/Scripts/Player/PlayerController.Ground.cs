@@ -38,8 +38,21 @@ namespace Com.IsartDigital.Hyperspeed
                     float lTurn = Mathf.Lerp(11f, 5f, Speed01) * (Drifting ? 1.5f : 1f);
                     lForward = Vector3.RotateTowards(lForward, lAim.normalized, lTurn * pDt, 0f);
                 }
+                // On the sections that carry you (loops, twists) the track itself keeps you in : it is a ride, not a tightrope.
+                bool lCarried = _layout != null && _layout.spine.samples[_layout.spine.IndexOf(Progress)].localGravity;
+                if (lCarried)
+                {
+                    Vector3 lFlow = Vector3.ProjectOnPlane(_layout.Flow(Progress), _up);
+                    if (lFlow.sqrMagnitude > 0.0001f) lForward = Vector3.RotateTowards(lForward, lFlow.normalized, 2.6f * pDt, 0f);
+                }
                 Vector3 lSide = Vector3.Cross(_up, lForward).normalized;
                 StrafeStep(lSide, pDt);
+                if (lCarried)
+                {
+                    float lHalf = _layout.field.HalfWidth(Progress);
+                    float lOut = (Lateral - _layout.field.CenterLateral(Progress)) / Mathf.Max(1f, lHalf);
+                    if (Mathf.Abs(lOut) > 0.45f) _slip -= Mathf.Sign(lOut) * (Mathf.Abs(lOut) - 0.45f) * _speed * 1.6f * pDt;
+                }
                 SpeedStep(lForward, pDt);
                 _heading = lForward;
             }
