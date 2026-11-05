@@ -66,7 +66,7 @@ namespace Com.IsartDigital.Hyperspeed
             _lens = _profile.Add<LensDistortion>(true);
 
             _color = _profile.Add<ColorAdjustments>(true);
-            _color.saturation.Override(22f);
+            _color.saturation.Override(30f);
             _color.contrast.Override(14f);
 
             Tonemapping lTonemap = _profile.Add<Tonemapping>(true);
@@ -140,7 +140,7 @@ namespace Com.IsartDigital.Hyperspeed
             _motionBlur.intensity.Override(0.05f + lSpeed * 0.3f);
             _bloom.intensity.Override(0.8f + lSpeed * 0.5f + hyper01 * 0.3f + _pulse * 0.8f + _light * 0.6f);
             _color.postExposure.Override(_pulse * 0.15f + hyper01 * 0.1f - _pause * 0.35f);
-            _color.saturation.Override(22f - _pause * 40f);
+            _color.saturation.Override(30f - _pause * 40f);
 
             Shader.SetGlobalFloat(ABERRATION, 0.3f + lSpeed * 2f + _pulse * 2.4f + hyper01 * 1.2f + _light * 1.2f + _rewind * 2f);
             Shader.SetGlobalFloat(RADIAL_BLUR, Mathf.Min(2.2f, Mathf.Clamp01(lSpeed - 0.06f) * 1.35f + _pulse * 0.8f + hyper01 * 0.35f + _light * 0.5f));

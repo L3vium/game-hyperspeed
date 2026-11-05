@@ -46,7 +46,7 @@ namespace Com.IsartDigital.Hyperspeed
             new LevelDefinition
             {
                 title = "THE CITY BUS", tagline = "Next stop : your dust.", world = 0,
-                rival = RivalKind.Bus, rivalSpeed = 162f, cruise = 130f, theme = Theme.Islands, seed = 22,
+                rival = RivalKind.Bus, rivalSpeed = 162f, cruise = 130f, theme = Theme.Forest, seed = 22,
                 build = b => b.Start(76f, 2600f)
                     .Hills(3f, 10f).Sweeps(4).Slabs(6f, 0.9f).Loop(Side.Left).Crates(3f, 3).Dive(260f).Sweeps(3).Pillars(4f, 0.8f)
                     .Hairpin(Side.Right).RingArc(6).Twist(3f, 1, Side.Left).Plateaus(3).Corridor(3f).Sweeps(4).Rope().Hills(3f, 12f)
@@ -64,7 +64,7 @@ namespace Com.IsartDigital.Hyperspeed
             new LevelDefinition
             {
                 title = "THE RACE CAR", tagline = "Built for one thing. So are you.", world = 0,
-                rival = RivalKind.RaceCar, rivalSpeed = 188f, cruise = 150f, theme = Theme.City, seed = 44,
+                rival = RivalKind.RaceCar, rivalSpeed = 188f, cruise = 150f, theme = Theme.NeonNight, seed = 44,
                 build = b => b.Start(72f, 3000f)
                     .Road(2f).WallTurn(Side.Left).Sweeps(5).Tunnel(3f).Loop(Side.Left).Corkscrew().Sweeps(3).Pillars(4f, 1f).Hairpin(Side.Right)
                     .WallTurn(Side.Right).Lasers(3f, 1f).Slabs(5f, 1.1f).Inverted(3f, Side.Right).Rope().Sweeps(4).Crates(3f, 4).PadRun(3f)
@@ -75,7 +75,7 @@ namespace Com.IsartDigital.Hyperspeed
             new LevelDefinition
             {
                 title = "THE BULLET TRAIN", tagline = "Runs on time. You run ahead of it.", world = 1,
-                rival = RivalKind.Train, rivalSpeed = 200f, cruise = 160f, theme = Theme.Desert, seed = 55,
+                rival = RivalKind.Train, rivalSpeed = 200f, cruise = 160f, theme = Theme.GoldDunes, seed = 55,
                 build = b => b.Start(80f, 3200f)
                     .Hills(3f, 12f).Dive(300f).Plateaus(3).Sweeps(4).Lasers(4f, 0.9f).Rope().Corridor(3f).Loop().Hairpin(Side.Left)
                     .Slabs(6f, 1.1f).Hammers(4f).Dive(320f).RingArc(6).Sweeps(4).Twist(3f).Convoy(4f, 7).PadRun(3f).FinalRush(6f).Finish()
@@ -99,7 +99,7 @@ namespace Com.IsartDigital.Hyperspeed
             new LevelDefinition
             {
                 title = "THE FIGHTER JET", tagline = "Mach two. Mach you.", world = 1,
-                rival = RivalKind.FighterJet, rivalSpeed = 236f, cruise = 190f, theme = Theme.Industrial, seed = 88,
+                rival = RivalKind.FighterJet, rivalSpeed = 236f, cruise = 190f, theme = Theme.LaserCanyon, seed = 88,
                 build = b => b.Start(74f, 3800f)
                     .Hills(3f, 14f).Twist(2.6f, 2).Sweeps(5).Meteors(5f, 1.4f).Corkscrew().WallTurn(Side.Right).Lasers(3f, 0.8f).Plateaus(3).Loop(Side.Left)
                     .Sweeps(4).Inverted(3f, Side.Right).Convoy(4f, 8).Rope().Slabs(5f, 1.3f).PadRun(3f).FinalRush(6f).Finish()
@@ -115,7 +115,7 @@ namespace Com.IsartDigital.Hyperspeed
             new LevelDefinition
             {
                 title = "THE ROCKETS", tagline = "Three of them. Pick a side.", world = 1,
-                rival = RivalKind.Rockets, rivalSpeed = 268f, cruise = 215f, worldBreaker = true, theme = Theme.Industrial, seed = 110, music = "music_race2",
+                rival = RivalKind.Rockets, rivalSpeed = 268f, cruise = 215f, worldBreaker = true, theme = Theme.SkyCastle, seed = 110, music = "music_race2",
                 build = b => b.Start(72f, 4200f)
                     .Hint("DASHING BREAKS BLOCKS NOW").Pillars(5f, 1.3f).Crates(3f, 5, true).Sweeps(4).Meteors(5f, 1.1f).Dive(340f).Plateaus(3).Hammers(4f, 0.8f)
                     .Inverted(3f).Corkscrew().Lasers(4f, 0.75f).Sweeps(5).Pillars(4f, 1.4f).Loop().PadRun(3f).FinalRush(6f).Finish()
@@ -177,7 +177,7 @@ namespace Com.IsartDigital.Hyperspeed
         public static LevelDefinition Get(int pIndex) => Levels[UnityEngine.Mathf.Clamp(pIndex, 0, Levels.Length - 1)];
 
         // Later stages run through their open modules for longer : they last as long as the early ones despite their speed.
-        public static float Pace(int pIndex) => 1f + 0.3f * pIndex / (Levels.Length - 1);
+        public static float Pace(int pIndex) => 1.5f + 0.4f * pIndex / (Levels.Length - 1);
 
         public static SpeedProfile Profile(LevelDefinition pLevel) => SpeedProfile.For(pLevel.cruise, pLevel.worldBreaker);
     }
