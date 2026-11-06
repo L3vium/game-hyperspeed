@@ -2,26 +2,23 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // Ground : the world flows along the route, A / D strafes without ever costing forward speed, speed is never lost
-    // without a cause, crests launch you with their momentum, drift charges a boost.
+    // Ground : you run where the mouse looks, A / D strafes on top of that. You stay glued to the surface whatever its
+    // angle : only a jump, an edge, a ramp or aiming up while dashing takes you off it. Drift charges a boost.
     public partial class PlayerController
     {
-        private const float SNAP_REACH = 0.35f;
+        private const float SNAP_REACH = 1.4f;
 
-        public enum TakeoffReason { Edge, Crest, Jump, Pad }
+        public enum TakeoffReason { Edge, Jump, Aim, Stall }
 
         private float _slip;
-        private bool _onTerrain = true;
 
         public float LateralSpeed => OnSurface ? _slip : (_layout != null ? Vector3.Dot(_velocity, _layout.spine.Right(Progress)) : 0f);
 
         private void GroundStep(float pDt)
         {
             _lastGrounded = Time.time;
-            Vector3 lFlow = _layout != null ? _layout.Flow(Progress) : _heading;
-            Vector3 lForward = Vector3.ProjectOnPlane(lFlow, _up);
-            lForward = lForward.sqrMagnitude > 0.0001f ? lForward.normalized : _heading;
-            Vector3 lRight = Vector3.Cross(_up, lForward).normalized;
+            Vector3 lForward = Vector3.ProjectOnPlane(_heading, _up);
+            lForward = lForward.sqrMagnitude > 0.0001f ? lForward.normalized : _aimForward;
 
             UpdateDrift(pDt);
             Sliding = _slideHeld && !Drifting && !_freeRoam;
@@ -34,14 +31,35 @@ namespace Com.IsartDigital.Hyperspeed
             }
             else
             {
-                StrafeStep(lRight, pDt);
+                // Quick to answer the mouse, a bit heavier the faster you go. A drift swings harder.
+                Vector3 lAim = Vector3.ProjectOnPlane(_aimForward, _up);
+                if (lAim.sqrMagnitude > 0.0001f)
+                {
+                    float lTurn = Mathf.Lerp(11f, 5f, Speed01) * (Drifting ? 1.5f : 1f);
+                    lForward = Vector3.RotateTowards(lForward, lAim.normalized, lTurn * pDt, 0f);
+                }
+                // On the sections that carry you (loops, twists) the track itself keeps you in : it is a ride, not a tightrope.
+                bool lCarried = _layout != null && _layout.spine.samples[_layout.spine.IndexOf(Progress)].localGravity;
+                if (lCarried)
+                {
+                    Vector3 lFlow = Vector3.ProjectOnPlane(_layout.Flow(Progress), _up);
+                    if (lFlow.sqrMagnitude > 0.0001f) lForward = Vector3.RotateTowards(lForward, lFlow.normalized, 2.6f * pDt, 0f);
+                }
+                Vector3 lSide = Vector3.Cross(_up, lForward).normalized;
+                StrafeStep(lSide, pDt);
+                if (lCarried)
+                {
+                    float lHalf = _layout.field.HalfWidth(Progress);
+                    float lOut = (Lateral - _layout.field.CenterLateral(Progress)) / Mathf.Max(1f, lHalf);
+                    if (Mathf.Abs(lOut) > 0.45f) _slip -= Mathf.Sign(lOut) * (Mathf.Abs(lOut) - 0.45f) * _speed * 1.6f * pDt;
+                }
                 SpeedStep(lForward, pDt);
+                _heading = lForward;
             }
 
+            Vector3 lRight = Vector3.Cross(_up, lForward).normalized;
             _moveDir = lForward;
             _velocity = lForward * _speed + lRight * _slip;
-            if (!_freeRoam && _velocity.sqrMagnitude > 1f)
-                _heading = Vector3.ProjectOnPlane(lForward * _speed + lRight * _slip * 0.45f, _up).normalized;
 
             Move(_velocity * pDt);
             if (State != PlayerState.Ground && State != PlayerState.Finished) return;
@@ -52,24 +70,20 @@ namespace Com.IsartDigital.Hyperspeed
                 TakeOff(TakeoffReason.Edge);
                 return;
             }
+            UpdateWallRide();
 
-            // Crest : when the ground falls away faster than gravity can follow, you fly off with your momentum.
-            if (_onTerrain && !_freeRoam && _layout != null)
+            // A wall or a ceiling only holds you if you keep your speed, unless the track is built to carry you.
+            bool lLocal = _layout != null && _layout.spine.samples[_layout.spine.IndexOf(Progress)].localGravity;
+            if (!lLocal && !_freeRoam && Vector3.Dot(_up, Vector3.up) < 0.25f && _speed < _profile.cruise * 0.7f)
             {
-                float lStep = Mathf.Max(10f, _speed * 0.14f);
-                float lCurve = _layout.field.Convexity(Progress, Lateral, lStep);
-                if (lCurve > 0f && _speed * _speed * lCurve > Ballistics.G_FALL * Ballistics.Scale * 1.15f)
-                {
-                    TakeOff(TakeoffReason.Crest);
-                    return;
-                }
+                TakeOff(TakeoffReason.Stall);
+                return;
             }
 
             if (!_freeRoam && TryGrind()) return;
             if (Time.time - _jumpBufferedAt < JUMP_BUFFER && State == PlayerState.Ground) TryJump();
         }
 
-        // Lateral speed that does not touch the forward one. Past the edge the banks push back : only a big overshoot leaves.
         private void StrafeStep(Vector3 pRight, float pDt)
         {
             float lMax = _profile.StrafeMax(_speed);
@@ -77,56 +91,43 @@ namespace Com.IsartDigital.Hyperspeed
             if (Drifting)
             {
                 lInput = Mathf.Clamp(DriftDirection * 0.55f + Steer * 0.6f, -1f, 1f);
-                lMax *= 1.25f;
+                lMax *= 1.35f;
             }
-            if (State == PlayerState.Finished) lInput = Mathf.Clamp(-Lateral / 30f, -0.3f, 0.3f);
-
-            if (_layout != null)
-            {
-                TerrainField lField = _layout.field;
-                float lFromCenter = Lateral - lField.Offset(Progress);
-                int lSide = lFromCenter < 0f ? -1 : 1;
-                float lOver = Mathf.Abs(lFromCenter) - lField.HalfWidth(Progress);
-                if (lOver > 0f)
-                {
-                    float lDepth = Mathf.Clamp01(lOver / lField.bermWidth);
-                    bool lReallyFast = Hyper || LightForm;
-                    if (lInput * lSide > 0f) lInput *= lReallyFast ? 1f - lDepth * 0.5f : 1f - lDepth * 0.9f;
-                    lInput -= lSide * lDepth * (lReallyFast ? 0.5f : 1.2f);
-                }
-            }
-            float lTarget = Mathf.Clamp(lInput, -1.2f, 1.2f) * lMax;
-            _slip = Mathf.MoveTowards(_slip, lTarget, lMax / (Mathf.Abs(lTarget) > Mathf.Abs(_slip) ? 0.14f : 0.2f) * pDt);
-            // The slope pushes you sideways : rolling ground shapes your line.
-            _slip += Vector3.Dot(Vector3.down, pRight) * SLOPE_ACCEL * 0.55f * pDt;
+            float lTarget = lInput * lMax;
+            _slip = Mathf.MoveTowards(_slip, lTarget, lMax / (Mathf.Abs(lTarget) > Mathf.Abs(_slip) ? 0.12f : 0.2f) * pDt);
+            // The slope pushes you sideways : leaning blocks and walls shape your line.
+            _slip += Vector3.Dot(GravityDown(), pRight) * SLOPE_ACCEL * 0.8f * pDt;
         }
 
-        // Nothing slows you but a climb or a crash. Boosts stack up, a slope feeds you.
+        private Vector3 GravityDown() => _layout != null ? -_layout.GravityUp(Progress) : Vector3.down;
+
+        // Kicks are instant and fade back toward cruise. Slopes feed you. Nothing clamps the top but the safety limit.
         private void SpeedStep(Vector3 pForward, float pDt)
         {
-            float lSlope = Vector3.Dot(pForward, Vector3.down);
-            float lGain = lSlope * SLOPE_ACCEL * Ballistics.Scale * (lSlope < 0f ? 0.4f : 1f) * (Sliding ? 1.8f : 1f);
             float lCruise = _profile.cruise;
-            float lTarget = lCruise * (1f + 0.1f * Mathf.Max(0f, HSInput.Forward));
             if (State == PlayerState.Finished)
             {
-                // Past the line : hard brake inside the run-out.
-                float lStop = Progress > _layout.finishS + lCruise * 2f ? 0f : lCruise * 0.35f;
-                _speed = Mathf.MoveTowards(_speed, lStop, lCruise * 1.3f * pDt);
+                // Past the line : a real stop.
+                _speed = Mathf.MoveTowards(_speed, 0f, Mathf.Max(lCruise * 1.6f, _speed * 1.4f) * pDt);
                 return;
             }
-            _speed += lGain * pDt;
-            if (_speed < lTarget) _speed = Mathf.MoveTowards(_speed, lTarget, RUN_ACCEL * _profile.k * (Sliding ? 0.3f : 1f) * pDt);
-            _speed = Mathf.Clamp(_speed, lCruise * 0.55f, _profile.max);
+            float lSlope = Vector3.Dot(pForward, GravityDown());
+            _speed += lSlope * SLOPE_ACCEL * (lSlope < 0f ? 0.4f : 1f) * (Sliding ? 1.8f : 1f) * pDt;
+            float lTarget = lCruise * (1f + 0.1f * Mathf.Max(0f, HSInput.Forward));
+            if (_speed < lTarget) _speed = Mathf.MoveTowards(_speed, lTarget, RUN_ACCEL * (Sliding ? 0.3f : 1f) * pDt);
+            else
+            {
+                float lOver = _speed / lCruise - 1f;
+                float lDrag = LightForm ? DRAG_LIGHT : DRAG + DRAG_OVER * lOver;
+                _speed -= (_speed - lTarget) * (1f - Mathf.Exp(-lDrag * pDt));
+            }
+            _speed = Mathf.Clamp(_speed, lCruise * 0.55f, SpeedProfile.SAFETY_MAX);
         }
 
-        // Before GO (and on the title) : camera-relative jog anywhere on the plaza.
+        // Before GO (and on the title) : jog anywhere on the plaza, relative to the view.
         private void FreeRoamSteer(float pDt)
         {
-            Vector3 lCameraForward = CameraRig.Instance != null ? CameraRig.Instance.transform.forward : _heading;
-            Vector3 lFlatForward = Vector3.ProjectOnPlane(lCameraForward, _up).normalized;
-            Vector3 lFlatRight = Vector3.Cross(_up, lFlatForward).normalized;
-            Vector3 lInput = InputLocked ? Vector3.zero : lFlatForward * HSInput.Forward + lFlatRight * HSInput.Steer;
+            Vector3 lInput = InputLocked ? Vector3.zero : _aimForward * HSInput.Forward + Vector3.Cross(_up, _aimForward).normalized * HSInput.Steer;
             float lAmount = Mathf.Clamp01(lInput.magnitude);
             if (lAmount > 0.1f) _heading = Vector3.RotateTowards(_heading, lInput.normalized, 10f * pDt, 0f);
             _heading = Vector3.ProjectOnPlane(_heading, _up).normalized;
@@ -134,14 +135,13 @@ namespace Com.IsartDigital.Hyperspeed
             _speed = Mathf.MoveTowards(_speed, lTarget, (lTarget > _speed ? 60f : 70f) * pDt);
         }
 
-        // Ray probe. Snap reach follows the step so fast feet stay on rolling ground.
+        // Ray probe with a generous reach : fast feet stay on rolling ground and over crests.
         private bool ProbeGround(float pDt)
         {
             RaycastHit lHit;
             Vector3 lOrigin = transform.position + _up * 1.1f;
-            float lReach = Mathf.Max(SNAP_REACH, _speed * pDt * 0.26f);
-            if (Physics.Raycast(lOrigin, -_up, out lHit, 1.1f + lReach, GroundMask, QueryTriggerInteraction.Ignore)
-                && Vector3.Dot(lHit.normal, _up) >= GROUND_MIN_DOT && lHit.normal.y >= GROUND_MIN_WORLD_DOT)
+            float lReach = Mathf.Max(SNAP_REACH, _speed * pDt * 1.4f);
+            if (Physics.Raycast(lOrigin, -_up, out lHit, 1.1f + lReach, GroundMask, QueryTriggerInteraction.Ignore) && Vector3.Dot(lHit.normal, _up) >= GROUND_MIN_DOT)
             {
                 Stick(lHit, pDt);
                 return true;
@@ -152,25 +152,40 @@ namespace Com.IsartDigital.Hyperspeed
         private void Stick(RaycastHit pHit, float pDt)
         {
             transform.position = pHit.point;
-            _onTerrain = pHit.collider.gameObject.layer == Layers.DECK;
-            // Facets stay visual : on the terrain the body follows the smooth height function.
-            Vector3 lNormal = pHit.normal;
-            if (_onTerrain && _layout != null) lNormal = _layout.field.Normal(Progress, Lateral, Mathf.Max(6f, 7f * _profile.k));
-            _up = Vector3.Slerp(_up, lNormal, 1f - Mathf.Exp(-22f * pDt)).normalized;
+            float lRate = 26f + _speed * 0.06f;
+            _up = Vector3.Slerp(_up, pHit.normal, 1f - Mathf.Exp(-lRate * pDt)).normalized;
             _gravityUp = _up;
         }
 
-        // Leaves the ground with the exact tangent velocity of the surface : slope momentum is kept.
+        // Higher up the side than the floor : a wall ride, with its pose and its sparks.
+        private void UpdateWallRide()
+        {
+            int lSide = 0;
+            if (_layout != null && !_freeRoam)
+            {
+                float lAngle = Vector3.Angle(_up, _layout.field.Normal(Progress));
+                if (lAngle > 18f) lSide = Vector3.Dot(_up, Vector3.Cross(_layout.field.Normal(Progress), _layout.Flow(Progress))) > 0f ? -1 : 1;
+            }
+            if (lSide != WallSide)
+            {
+                if (lSide != 0 && WallSide == 0)
+                {
+                    AudioManager.Play("sfx_wall_attach", 0.7f);
+                    FX.Sparks(transform.position, Color.white, 16, 16f);
+                }
+                WallSide = lSide;
+            }
+            AudioManager.SetLoop("sfx_wallrun_loop", WallRiding ? 0.5f : 0f, 1f + _speed * 0.002f);
+            if (WallRiding && Random.value < 0.5f) FX.Sparks(transform.position, Color.white, 1, 10f, 0.5f, 0.25f);
+        }
+
+        // Leaves the ground with the exact tangent velocity of the surface.
         private void TakeOff(TakeoffReason pReason)
         {
             Vector3 lRight = Vector3.Cross(_up, _moveDir).normalized;
             _velocity = _moveDir * _speed + lRight * _slip;
-            float lClimb = _velocity.y - 0.5f * _velocity.magnitude;
-            if (lClimb > 0f) _velocity.y -= lClimb;
-            _gravityUp = Vector3.Dot(_up, Vector3.up) > 0.85f ? Vector3.up : _up;
+            _gravityUp = _up;
             SetState(PlayerState.Air);
-            float lFlight = Vector3.Dot(_velocity, Vector3.up);
-            if (pReason == TakeoffReason.Crest && lFlight > 8f) Juice.Popup("AIR!", Color.white, 0.8f);
         }
 
         // ================================================================ drift
@@ -214,9 +229,8 @@ namespace Com.IsartDigital.Hyperspeed
             int lTier = DriftTier;
             DriftCharge = 0f;
             if (lTier == 0) return;
-            float[] lBoosts = { 0f, 0.16f, 0.26f, 0.38f };
-            string[] lNames = { "", "DRIFT!", "SUPER DRIFT!", "ULTRA DRIFT!!" };
-            ApplyBoost(lBoosts[lTier] * _profile.cruise, _heading, 0f, lNames[lTier]);
+            float[] lBoosts = { 0f, 0.2f, 0.34f, 0.5f };
+            ApplyBoost(lBoosts[lTier] * _profile.cruise, _heading, 0f, null);
         }
 
         private void ReprojectProgress()

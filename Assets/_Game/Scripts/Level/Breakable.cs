@@ -3,13 +3,15 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // Giant obstacle the player smashes (punch, dash, hyper speed) or crashes into.
+    // Giant obstacle the player bursts with a dash or a punch, or crashes into.
     public class Breakable : MonoBehaviour
     {
         public static readonly List<Breakable> All = new List<Breakable>();
 
         public float radius = 16f;
         public Color color = Color.white;
+        // Worth the big reaction (impact frame) when it bursts.
+        public bool big;
 
         public bool IsBroken { get; private set; }
 

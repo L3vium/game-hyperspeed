@@ -2,38 +2,38 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // Everything that scales with a stage's speed. World scale k = cruise / 90 : hills, pads, gaps and blocks grow with
-    // the speed so a stage reads the same in seconds of play whatever its cruise speed.
+    // Everything tied to the speed of a stage. Geometry barely grows with it : a faster stage really scrolls faster.
     public class SpeedProfile
     {
-        public float cruise = 90f;
-        public float max = 200f;
-        public float hyperEnter = 120f;
-        public float hyperExit = 105f;
-        public float lightEnter = 170f;
-        public float lightExit = 150f;
-        public float strafeBase = 20f;
-        public float strafeSlope = 0.55f;
-        public float gravityScale = 1f;
+        // Reference speed of everything else : run speed with no boost at all.
+        public float cruise = 120f;
+        // Top of the speed effects and the speedometer : not a limit, the only hard limit is SAFETY_MAX.
+        public float max = 400f;
+        public float hyperEnter = 230f;
+        public float hyperExit = 190f;
+        public float lightEnter = 360f;
+        public float lightExit = 260f;
+        public float strafeBase = 24f;
+        public float strafeSlope = 0.38f;
         public float k = 1f;
         // Late stages : the runner breaks blocks on contact and tears the ground open.
         public bool worldBreaker;
+
+        public const float SAFETY_MAX = 2400f;
 
         public static SpeedProfile Current = new SpeedProfile();
 
         public static SpeedProfile For(float pCruise, bool pWorldBreaker = false)
         {
-            float lK = pCruise / 90f;
             return new SpeedProfile
             {
                 cruise = pCruise,
-                max = pCruise * 1.85f,
-                hyperEnter = pCruise * 1.28f,
-                hyperExit = pCruise * 1.15f,
-                lightEnter = Mathf.Max(170f, pCruise * 1.65f),
-                lightExit = Mathf.Max(150f, pCruise * 1.45f),
-                gravityScale = Mathf.Pow(lK, 0.65f),
-                k = lK,
+                max = pCruise * 3.8f,
+                hyperEnter = pCruise * 1.9f,
+                hyperExit = pCruise * 1.6f,
+                lightEnter = pCruise * 3.3f,
+                lightExit = pCruise * 2.4f,
+                k = Mathf.Clamp(pCruise / 120f, 1f, 1.5f),
                 worldBreaker = pWorldBreaker
             };
         }

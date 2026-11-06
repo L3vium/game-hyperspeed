@@ -3,9 +3,9 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    public enum RouteAction : byte { None, Jump, Dive, Punch }
+    public enum RouteAction : byte { None, Jump, Dive, Dash }
 
-    // Autopilot / rival guidance : the lateral to aim for on a span (clear of blocks, onto ropes).
+    // Autopilot / rival guidance : the lateral to aim for on a span (clear of hazards, centre of a block, onto ropes).
     public struct RouteNode
     {
         public float s0;
@@ -23,7 +23,7 @@ namespace Com.IsartDigital.Hyperspeed
     public class LevelLayout
     {
         public readonly Spine spine = new Spine();
-        public TerrainField field;
+        public TrackField field;
         public SpeedProfile profile;
         public readonly List<GrindRail> rails = new List<GrindRail>();
         public readonly List<RouteNode> route = new List<RouteNode>();
@@ -37,43 +37,38 @@ namespace Com.IsartDigital.Hyperspeed
 
         public float Length => spine.EndS;
 
-        public float Ground(float pS, float pLateral) => field.Height(pS, pLateral);
-
         public Vector3 GroundPoint(float pS, float pLateral) => field.Point(pS, pLateral);
 
-        // Direction the world flows at s : the route, seen a short way ahead so the view anticipates turns.
         public Vector3 Flow(float pS) => spine.Forward(pS);
 
         public Vector3 FlowRight(float pS) => spine.Right(pS);
 
-        // Below this you are not coming back : lowest ground around, far below.
-        public float KillY(float pS, float pSpeed)
+        // Where gravity pulls at s : world down, except on the sections where the track carries you upside down.
+        public Vector3 GravityUp(float pS)
         {
-            float lLowest = float.MaxValue;
-            float lEnd = pS + Mathf.Max(150f, pSpeed * 2f);
-            float lStep = (lEnd - (pS - 100f)) / 8f;
-            for (float lS = pS - 100f; lS <= lEnd; lS += lStep) lLowest = Mathf.Min(lLowest, spine.Height(lS));
-            return lLowest - 150f * Mathf.Max(1f, profile != null ? profile.k * 0.6f : 1f);
+            SpineSample lSample = spine.samples[spine.IndexOf(pS)];
+            return lSample.localGravity ? lSample.up : Vector3.up;
         }
 
-        // Flat enough, well inside the corridor, no lip right ahead : a place to come back to.
+        // Nothing to catch you : far from the line, in any direction.
+        public bool IsLost(Vector3 pPosition, float pS)
+        {
+            float lReach = 280f + field.HalfWidth(pS) * 2f;
+            return (pPosition - spine.Evaluate(pS).position).sqrMagnitude > lReach * lReach;
+        }
+
+        // Solid, right way up, well inside the block, no gap right ahead : a place to come back to.
         public bool IsSafe(float pS, float pLateral)
         {
-            if (!field.Inside(pS, pLateral)) return false;
-            if (Mathf.Abs(pLateral - field.Offset(pS)) > field.HalfWidth(pS) * 0.85f) return false;
-            float lLook = 1.4f * (profile != null ? profile.cruise : 90f);
-            float lHere = Ground(pS, pLateral);
+            if (!field.Solid(pS)) return false;
+            SpineSample lSample = spine.Evaluate(pS);
+            if (lSample.localGravity || lSample.up.y < 0.7f) return false;
+            float lHalf = field.HalfWidth(pS);
+            if (Mathf.Abs(pLateral - field.CenterLateral(pS)) > lHalf * 0.75f) return false;
+            float lLook = 1.4f * (profile != null ? profile.cruise : 120f);
             for (float lD = lLook * 0.25f; lD <= lLook; lD += lLook * 0.25f)
-                if (Ground(pS + lD, pLateral) < lHere - 12f) return false;
+                if (!field.Solid(pS + lD)) return false;
             return true;
-        }
-
-        public float SkyY(float pS)
-        {
-            float lTop = spine.Height(pS);
-            float lStep = field.HalfWidth(pS) * 0.5f;
-            for (int i = -2; i <= 2; i++) lTop = Mathf.Max(lTop, Ground(pS, i * lStep));
-            return lTop + 15f;
         }
 
         public float RouteLateral(float pS)
@@ -89,7 +84,7 @@ namespace Com.IsartDigital.Hyperspeed
                 else if (pS > lNode.s1) lLow = lMid + 1;
                 else return lNode.lateral;
             }
-            return 0f;
+            return field != null ? field.CenterLateral(pS) : 0f;
         }
     }
 }

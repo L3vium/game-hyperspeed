@@ -38,8 +38,7 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lVelocity = _player.Velocity;
             Vector3 lHold = _rig.transform.position;
 
-            Juice.Popup("FALL!", UIFactory.RED, 1.3f);
-            Juice.Flash(UIFactory.RED, 0.25f);
+                        Juice.Flash(UIFactory.RED, 0.25f);
             AudioManager.Play("sfx_fall", 0.9f);
             for (float lTime = 0f; lTime < FALL_VIEW; lTime += Time.unscaledDeltaTime)
             {
@@ -90,8 +89,7 @@ namespace Com.IsartDigital.Hyperspeed
             _player.RespawnAt(lSafe);
             if (PostFX.Instance != null) PostFX.Instance.rewind = 0f;
             _rig.ClearOverride(SETTLE);
-            Juice.Popup("GO!", UIKit.GOLD, 1.2f);
-            AudioManager.Play("sfx_respawn", 0.8f);
+                        AudioManager.Play("sfx_respawn", 0.8f);
             yield return new WaitForSecondsRealtime(SETTLE);
             Busy = false;
         }

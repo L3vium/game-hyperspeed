@@ -9,7 +9,7 @@ namespace Com.IsartDigital.Hyperspeed
     {
         private class Falling
         {
-            public TerrainChunk chunk;
+            public TrackChunk chunk;
             public Vector3 home;
             public Quaternion homeRotation;
             public float time;
@@ -41,10 +41,10 @@ namespace Com.IsartDigital.Hyperspeed
             PlayerController lPlayer = RaceContext.Player;
             if (lPlayer == null || !RaceContext.Running) return;
             float lLine = lPlayer.Progress - _behind;
-            List<TerrainChunk> lChunks = TerrainBaker.Chunks;
+            List<TrackChunk> lChunks = TrackBaker.Chunks;
             while (_next < lChunks.Count && lChunks[_next].s1 < lLine)
             {
-                TerrainChunk lChunk = lChunks[_next++];
+                TrackChunk lChunk = lChunks[_next++];
                 _falling.Add(new Falling
                 {
                     chunk = lChunk,
@@ -70,8 +70,8 @@ namespace Com.IsartDigital.Hyperspeed
                 if (_scar <= 0f)
                 {
                     _scar = 0.09f;
-                    FX.Shards(lPlayer.transform.position - lPlayer.Heading * 6f, RaceContext.Theme.roadSide, 8, 40f, 2.4f, Vector3.up * 26f);
-                    FX.Shockwave(lPlayer.transform.position - lPlayer.Heading * 10f, Vector3.up, Color.white, 26f, 0.3f);
+                    FX.Shards(lPlayer.transform.position - lPlayer.Heading * 6f, RaceContext.Theme.roadSide, 8, 40f, 2.4f, lPlayer.Up * 26f);
+                    FX.Shockwave(lPlayer.transform.position - lPlayer.Heading * 10f, lPlayer.Up, Color.white, 26f, 0.3f);
                 }
             }
         }
@@ -88,7 +88,7 @@ namespace Com.IsartDigital.Hyperspeed
                 lItem.chunk.collider.enabled = true;
                 _falling.RemoveAt(i);
             }
-            int lIndex = TerrainBaker.Chunks.FindIndex(pChunk => pChunk.s1 >= lLine);
+            int lIndex = TrackBaker.Chunks.FindIndex(pChunk => pChunk.s1 >= lLine);
             if (lIndex >= 0) _next = Mathf.Min(_next, lIndex);
         }
     }

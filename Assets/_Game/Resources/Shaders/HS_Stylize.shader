@@ -50,14 +50,19 @@ Shader "Hyperspeed/Stylize"
 
                 if (_HS_RadialBlur > 0.001)
                 {
+                    // The world tears into long radial strands : each direction stretches by its own amount, which keeps
+                    // hard streaks of colour instead of a soft blur. Only the middle, around the runner, stays crisp.
                     half3 lAccum = lColor;
-                    // Blur only outside a central ellipse : the runner and the road ahead stay crisp.
-                    float lStrength = _HS_RadialBlur * 0.06 * smoothstep(0.28, 1.1, lEdge);
-                    [unroll] for (int i = 1; i <= 6; i++)
+                    float lAngle = atan2(lDelta.y, lDelta.x) * 42.0;
+                    float lCell = floor(lAngle);
+                    float lStrand = lerp(frac(sin(lCell * 12.9898) * 43758.5453), frac(sin((lCell + 1.0) * 12.9898) * 43758.5453), smoothstep(0.0, 1.0, frac(lAngle)));
+                    float lMask = smoothstep(0.015, 0.55, lEdge);
+                    float lStrength = _HS_RadialBlur * 0.055 * lMask * (0.25 + lStrand * lStrand * 2.1);
+                    [unroll] for (int i = 1; i <= 14; i++)
                     {
-                        lAccum += SampleScene(lUV - lDelta * lStrength * i);
+                        lAccum += SampleScene(lUV - lDelta * lStrength * (i / 14.0) * 8.0);
                     }
-                    lColor = lAccum / 7.0;
+                    lColor = lAccum / 15.0;
                 }
 
                 // Ordered dithering + light posterization for a printed / anime look.
@@ -70,10 +75,11 @@ Shader "Hyperspeed/Stylize"
                 if (_HS_Impact > 0.001)
                 {
                     half lLuma = dot(lColor, half3(0.299, 0.587, 0.114));
-                    half3 lInk = lLuma > 0.45 ? half3(1, 1, 1) : (lLuma > 0.2 ? _HS_ImpactColor.rgb : half3(0, 0, 0));
-                    // First impact frames are inverted (black sky, white ink), then plain ink.
+                    // Inked from the scene itself : its lights stay white, its middle takes the colour of the place.
+                    half3 lInk = lLuma > 0.55 ? half3(1, 1, 1) : (lLuma > 0.22 ? _HS_ImpactColor.rgb : half3(0.02, 0.01, 0.04));
+                    // First frame in negative, then plain ink, then the scene comes back through it.
                     if (_HS_Impact > 0.5) lInk = 1.0 - lInk;
-                    lColor = lInk;
+                    lColor = lerp(lColor, lInk, _HS_Impact > 0.5 ? 1.0 : 0.82);
                 }
 
                 if (_HS_Rewind > 0.001)

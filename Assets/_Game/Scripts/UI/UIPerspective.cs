@@ -103,17 +103,20 @@ namespace Com.IsartDigital.Hyperspeed
         }
     }
 
-    // Any block of UI that leans with the mouse in perspective.
-    public class UITiltBlock : MonoBehaviour
+    // A whole screen as one single panel, swinging around the centre of the screen with the mouse : everything on it moves
+    // together, nothing leans on its own. Set baseEuler to stand it in perspective.
+    public class PerspectivePanel : MonoBehaviour
     {
         public Vector3 baseEuler;
-        public float amountX = 6f;
-        public float amountY = 4f;
+        public float amountX = 7f;
+        public float amountY = 5f;
+        public Vector2 slide = new Vector2(26f, 16f);
 
         private void Update()
         {
             Vector2 lTilt = UIMouse.Tilt;
             transform.localRotation = Quaternion.Euler(baseEuler.x + lTilt.y * amountY, baseEuler.y - lTilt.x * amountX, baseEuler.z);
+            ((RectTransform)transform).anchoredPosition = new Vector2(-lTilt.x * slide.x, -lTilt.y * slide.y);
         }
     }
 }

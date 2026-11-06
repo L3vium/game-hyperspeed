@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    public enum DecorKind { Islands, City, Desert, Industrial, Ice, Space, Void, Night, Prehistoric }
+    public enum DecorKind { Islands, City, Desert, Industrial, Ice, Space, Void, Night, Prehistoric, Forest, Canyon, Castle, Neon }
 
     // Palette + decor style of a level.
     public class Theme
@@ -109,6 +109,61 @@ namespace Com.IsartDigital.Hyperspeed
             roadA = Hex("FFFFFF"), roadB = Hex("F1F1FA"), roadEdge = Hex("FF3D8B"), roadSide = Hex("C9A8FF"),
             wall = Hex("F7E6FF"), accent = Hex("FF3D8B"),
             decorA = Hex("FFC2DD"), decorB = Hex("FFFFFF"), decorC = Hex("C9A8FF"), shade = Hex("D8B8F0"), rays = 1f
+        };
+
+        public static Theme Forest() => new Theme
+        {
+            road = Hex("4C7A1E"), groundC = Hex("C4E23C"),
+            name = "THE CANOPY", decor = DecorKind.Forest,
+            skyTop = Hex("0F7A6B"), skyHorizon = Hex("BFEFA0"), skyBottom = Hex("EAF7C8"), cloud = Hex("F2FFE0"), sun = new Color(2.2f, 2f, 1.3f),
+            fog = Hex("B6E6A0"), fogDensity = 0.0018f, ambient = Hex("B0DFA0"),
+            roadA = Hex("9BD12E"), roadB = Hex("7FBC24"), roadEdge = Hex("31D6C3"), roadSide = Hex("6B4426"),
+            wall = Hex("B5823F"), accent = Hex("C23BFF"),
+            decorA = Hex("2F8F3A"), decorB = Hex("E2D13C"), decorC = Hex("5A3A22"), shade = Hex("7FA08C"), clouds = 0.5f
+        };
+
+        public static Theme GoldDunes() => new Theme
+        {
+            road = Hex("C48A2C"), groundC = Hex("FFD06A"),
+            name = "AMBER SEA", decor = DecorKind.Desert,
+            skyTop = Hex("3A2A78"), skyHorizon = Hex("E47A5C"), skyBottom = Hex("FFC67A"), cloud = Hex("FFE1B0"), sun = new Color(2.4f, 1.5f, 0.9f),
+            fog = Hex("E89A6A"), fogDensity = 0.0018f, ambient = Hex("E0A890"),
+            roadA = Hex("F5B84A"), roadB = Hex("E8A63A"), roadEdge = Hex("7A2BFF"), roadSide = Hex("8A4A20"),
+            wall = Hex("D98A3A"), accent = Hex("7A2BFF"),
+            decorA = Hex("2F7A52"), decorB = Hex("2A1F4A"), decorC = Hex("8E4BFF"), shade = Hex("9060A0"), rays = 0.5f
+        };
+
+        public static Theme LaserCanyon() => new Theme
+        {
+            road = Hex("3A3438"), groundC = Hex("6E6468"),
+            name = "RED LINE", decor = DecorKind.Canyon,
+            skyTop = Hex("3A3238"), skyHorizon = Hex("8A7A78"), skyBottom = Hex("A89890"), cloud = Hex("B0A098"), sun = new Color(1.8f, 1.4f, 1.3f),
+            fog = Hex("8E7E7C"), fogDensity = 0.0022f, ambient = Hex("9A8A8A"), light = Hex("FFD8C8"),
+            roadA = Hex("6A6064"), roadB = Hex("5C5358"), roadEdge = Hex("FF2A3C"), roadSide = Hex("2A2428"),
+            wall = Hex("4A4246"), accent = Hex("FF2A3C"),
+            decorA = Hex("2E282E"), decorB = Hex("4A4048"), decorC = Hex("6A5A62"), shade = Hex("6A5070"), clouds = 0.25f
+        };
+
+        public static Theme SkyCastle() => new Theme
+        {
+            road = Hex("B98A5E"), groundC = Hex("E4C49A"),
+            name = "HIGH KEEP", decor = DecorKind.Castle,
+            skyTop = Hex("2E7BE8"), skyHorizon = Hex("BEEAFF"), skyBottom = Hex("FFFFFF"), cloud = Hex("FFFFFF"), sun = new Color(2.3f, 2.2f, 2f),
+            fog = Hex("E0F2FF"), fogDensity = 0.0014f, ambient = Hex("C8DCFF"),
+            roadA = Hex("D9AE7C"), roadB = Hex("C99A68"), roadEdge = Hex("3F6BFF"), roadSide = Hex("8FA6C8"),
+            wall = Hex("A8BEDC"), accent = Hex("3F6BFF"),
+            decorA = Hex("8FA6C8"), decorB = Hex("DCE8F8"), decorC = Hex("4A5FA0"), shade = Hex("9CA8D8"), clouds = 0.8f
+        };
+
+        public static Theme NeonNight() => new Theme
+        {
+            road = Hex("1C1440"), groundC = Hex("5A2FB0"),
+            name = "AFTER HOURS", decor = DecorKind.Neon,
+            skyTop = Hex("120A3A"), skyHorizon = Hex("C42BD8"), skyBottom = Hex("FF5AA8"), cloud = Hex("E058C8"), sun = new Color(2.4f, 1f, 2f),
+            fog = Hex("6A1FA0"), fogDensity = 0.0022f, ambient = Hex("9060E0"), light = Hex("E0B8FF"),
+            roadA = Hex("3A2478"), roadB = Hex("2E1C64"), roadEdge = Hex("2BE7FF"), roadSide = Hex("FF2BD6"),
+            wall = Hex("4A2FA0"), accent = Hex("2BE7FF"),
+            decorA = Hex("FF2BD6"), decorB = Hex("2BE7FF"), decorC = Hex("2A1A60"), shade = Hex("5A3AA8"), stars = 0.6f, clouds = 0.4f
         };
 
         public static Theme Prehistoric() => new Theme

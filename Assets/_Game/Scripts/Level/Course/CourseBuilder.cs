@@ -16,15 +16,22 @@ namespace Com.IsartDigital.Hyperspeed
     }
 
     // Authoring API of a stage : modules laid one after the other, sized in seconds at cruise speed so the same recipe
-    // holds at 90 and at 420 m/s. The terrain is one enormous ribbon of hills, plateaus and valleys, blocks stand on it.
+    // holds at any speed. A turtle draws the line in 3D (yaw, pitch, roll) and every module opens solid blocks on it :
+    // long stretches, big tilted slabs, pipes, loops, inverted runs.
     public class CourseBuilder
     {
-        private const float PLAZA = 320f;
+        private const float PLAZA = 300f;
 
-        private struct BlockDef { public float s, lateral, width, length, height, taper; public int palette; public bool wall; }
-        private struct StripDef { public float s, lateral, halfWidth, target, targetLateral, targetHeight; }
-        private struct RopeDef { public float s0, s1, lateral, catchRadius; public bool sky; public float skyHeight; }
+        private struct StripDef { public float s, lateral, halfWidth, up; }
+        private struct RopeDef { public float s0, s1, lateral, height0, height1; }
         private struct MeteorDef { public float s; public bool fromSky; public float radius; public float lateral; }
+        private struct PadDef { public float s, lateral, width, length, boost; }
+        private struct RingDef { public float s, lateral, height, radius; }
+        private struct CrateDef { public float s, lateral, size; public bool moving; }
+        private struct LaserDef { public float s, height, spin; public int beams; }
+        private struct HammerDef { public float s, phase; }
+        private struct BlockDef { public float s, lateral, width, length, height, lean; public int palette; }
+        private struct ArchDef { public float s; public bool lit; }
 
         private readonly Transform _root;
         private readonly Theme _theme;
@@ -33,33 +40,36 @@ namespace Com.IsartDigital.Hyperspeed
         private readonly System.Random _random;
         private readonly int _seed;
 
-        private readonly List<float> _hw = new List<float>();
-        private readonly List<float> _off = new List<float>();
-        private readonly List<float> _hill = new List<float>();
-        private readonly List<float> _road = new List<float>();
-        private readonly List<float> _creases = new List<float>();
-        private readonly List<TerrainStamp> _stamps = new List<TerrainStamp>();
-        private readonly List<BlockDef> _blocks = new List<BlockDef>();
+        private readonly List<TrackBlock> _blocks = new List<TrackBlock>();
         private readonly List<StripDef> _strips = new List<StripDef>();
         private readonly List<RopeDef> _ropes = new List<RopeDef>();
         private readonly List<MeteorDef> _meteors = new List<MeteorDef>();
+        private readonly List<PadDef> _pads = new List<PadDef>();
+        private readonly List<RingDef> _rings = new List<RingDef>();
+        private readonly List<CrateDef> _crates = new List<CrateDef>();
+        private readonly List<LaserDef> _lasers = new List<LaserDef>();
+        private readonly List<HammerDef> _hammers = new List<HammerDef>();
+        private readonly List<BlockDef> _props = new List<BlockDef>();
+        private readonly List<ArchDef> _arches = new List<ArchDef>();
         private readonly List<Vector2> _noPads = new List<Vector2>();
 
         private Vector3 _pos;
         private float _yaw;
-        private float _y;
+        private float _pitch;
+        private float _roll;
         private float _s;
         private float _halfWidth;
         private bool _started;
-        private bool _noScatter;
+        private bool _localGravity;
+        private bool _noItems;
         private int _dives;
-        private float _maxY = float.MinValue;
+        private TrackBlock _open;
 
         // Stretches the open modules (not the jumps) : later stages last as long as the plan says despite their speed.
         public float pace = 1f;
 
         public float K => _p.k;
-        public float Scale => Mathf.Pow(_p.k, 0.7f);
+        public float Cruise => _p.cruise;
         public LevelLayout Layout => _layout;
 
         public CourseBuilder(Transform pRoot, Theme pTheme, SpeedProfile pProfile, int pSeed)
@@ -76,76 +86,106 @@ namespace Com.IsartDigital.Hyperspeed
 
         private float Rand(float pMin, float pMax) => pMin + (float)_random.NextDouble() * (pMax - pMin);
 
-        // ================================================================ spine
-        private void Push(float pYawDelta, float pY, float pHill, float pRoad)
+        private bool Chance(float pProbability) => _random.NextDouble() < pProbability;
+
+        // ================================================================ line
+
+        private Quaternion Frame() => Quaternion.AngleAxis(_yaw, Vector3.up) * Quaternion.AngleAxis(-_pitch, Vector3.right) * Quaternion.AngleAxis(-_roll, Vector3.forward);
+
+        private void Push(Vector3 pShift = default(Vector3))
         {
-            _yaw += pYawDelta;
-            SpineSample lSample = new SpineSample { yaw = _yaw, s = _s };
-            if (_layout.spine.samples.Count > 0) _pos += lSample.Forward * Spine.STEP;
-            _y = pY;
-            lSample.position = new Vector3(_pos.x, _y, _pos.z);
-            _layout.spine.samples.Add(lSample);
-            _hw.Add(_halfWidth);
-            _off.Add(0f);
-            _hill.Add(pHill);
-            _road.Add(pRoad);
-            _maxY = Mathf.Max(_maxY, _y);
+            Quaternion lFrame = Frame();
+            Vector3 lForward = lFrame * Vector3.forward;
+            if (_layout.spine.Count > 0) _pos += lForward * Spine.STEP + pShift;
+            _layout.spine.samples.Add(new SpineSample { position = _pos, forward = lForward, up = lFrame * Vector3.up, s = _s, localGravity = _localGravity });
             _s += Spine.STEP;
         }
 
-        private void Span(float pLength, float pDeltaY, float pYawTotal, float pHill, float pRoad, bool pSmoothY = true)
+        // Advances the line while yaw, pitch and roll ease by the given totals. pShift moves it sideways or down without
+        // changing where it points (keeps the two legs of a loop apart, lets a drop stay level).
+        private void Span(float pLength, float pYaw = 0f, float pPitch = 0f, float pRoll = 0f, Vector3 pShift = default(Vector3))
         {
             int lSteps = Mathf.Max(1, Mathf.RoundToInt(pLength / Spine.STEP));
-            float lFrom = _y;
-            float lPreviousYaw = 0f;
+            float lYaw0 = _yaw, lPitch0 = _pitch, lRoll0 = _roll;
+            float lPrevious = 0f;
             for (int i = 1; i <= lSteps; i++)
             {
-                float lT = i / (float)lSteps;
-                float lYaw = pYawTotal * HSMath.Smooth(lT);
-                Push(lYaw - lPreviousYaw, lFrom + pDeltaY * (pSmoothY ? HSMath.Smooth(lT) : lT), pHill, pRoad);
-                lPreviousYaw = lYaw;
+                float lE = HSMath.Smooth(i / (float)lSteps);
+                _yaw = lYaw0 + pYaw * lE;
+                _pitch = lPitch0 + pPitch * lE;
+                _roll = lRoll0 + pRoll * lE;
+                Push(pShift * (lE - lPrevious));
+                lPrevious = lE;
             }
         }
 
-        // Vertical drop between two samples : the mesh gets a clean cliff there.
-        private void Cliff(float pDrop)
+        private void Wrap()
         {
-            _creases.Add(_s - Spine.STEP);
-            Push(0f, _y - pDrop, 0f, 0f);
+            _pitch = Mathf.Repeat(_pitch + 180f, 360f) - 180f;
+            _roll = Mathf.Repeat(_roll + 180f, 360f) - 180f;
+        }
+
+        // ================================================================ blocks
+
+        private TrackBlock Open(BlockLook pLook, float pWall = 0f, float pHalfWidth = -1f, float pOffset = 0f, float pDrop = 0f, float pTilt = 0f, float pThickness = -1f)
+        {
+            Close();
+            _open = new TrackBlock
+            {
+                s0 = _s - Spine.STEP,
+                look = pLook,
+                wallLeft = pWall,
+                wallRight = pWall,
+                halfWidth = pHalfWidth > 0f ? pHalfWidth : _halfWidth,
+                offset = pOffset,
+                drop = pDrop,
+                tilt = pTilt,
+                thickness = pThickness > 0f ? pThickness : Rand(22f, 44f),
+                seed = _blocks.Count
+            };
+            _blocks.Add(_open);
+            return _open;
+        }
+
+        private void Close()
+        {
+            if (_open == null) return;
+            _open.s1 = _s - Spine.STEP;
+            _open = null;
         }
 
         private void NoPads(float pFrom, float pTo) => _noPads.Add(new Vector2(pFrom, pTo));
-
-        // Title backdrop : no gameplay items on the attract run.
-        public CourseBuilder NoPadsAnywhere()
-        {
-            NoPads(float.MinValue, float.MaxValue);
-            return this;
-        }
-
-        private float HillAmp(float pAmount) => 30f * K * pAmount;
 
         private void Route(float pS0, float pS1, float pLateral)
         {
             if (pS1 > pS0) _layout.route.Add(new RouteNode { s0 = pS0, s1 = pS1, lateral = pLateral });
         }
 
+        private void Act(float pS, RouteAction pAction) => _layout.acts.Add(new RouteAct { s = pS, action = pAction });
+
+        // Title backdrop : nothing to touch on the attract run.
+        public CourseBuilder NoItems()
+        {
+            _noItems = true;
+            return this;
+        }
+
         // ================================================================ modules
+
         public CourseBuilder Start(float pWidth, float pAltitude)
         {
             _halfWidth = pWidth * 0.5f;
-            _y = pAltitude;
             _yaw = 90f;
-            _pos = new Vector3(-8000f * K, 0f, 0f);
+            _pos = new Vector3(-8000f, pAltitude, 0f);
             _s = -PLAZA;
             _started = true;
+            Open(BlockLook.Plaza, 6f, _halfWidth + 26f);
             int lSteps = Mathf.RoundToInt(PLAZA / Spine.STEP);
-            for (int i = 0; i <= lSteps; i++) Push(0f, _y, 0f, 0f);
+            for (int i = 0; i <= lSteps; i++) Push();
             _layout.startLineS = 0f;
             _layout.spawnS = -130f;
-            // Backstop : a giant block closing the plaza.
-            _blocks.Add(new BlockDef { s = -PLAZA + 25f, lateral = 0f, width = pWidth + 260f, length = 40f, height = 220f, taper = 0f, palette = 0, wall = true });
-            NoPads(-PLAZA, M(1.5f));
+            NoPads(-PLAZA, M(1.2f));
+            Open(BlockLook.Road, 3f);
             return this;
         }
 
@@ -161,296 +201,505 @@ namespace Com.IsartDigital.Hyperspeed
             return this;
         }
 
-        // Rolling ground with mountains to run over. Trend = height change per second of play.
-        public CourseBuilder Hills(float pSeconds, float pAmount = 1f, float pTrend = -12f)
+        // Classic stretch : a road on a long block, low kerbs.
+        public CourseBuilder Road(float pSeconds)
+        {
+            Open(BlockLook.Road, 3f);
+            Span(M(pSeconds * pace), 0f, 0f, 0f);
+            return this;
+        }
+
+        // Rolling ground. Your speed follows the slopes.
+        public CourseBuilder Hills(float pSeconds, float pDegrees = 14f)
         {
             pSeconds *= pace;
-            float lS0 = _s;
-            float lLength = M(pSeconds);
-            Span(lLength, pTrend * pSeconds * K, 0f, HillAmp(pAmount), 0f, false);
-            int lMounds = Mathf.RoundToInt(pSeconds * 0.8f * pAmount);
-            for (int i = 0; i < lMounds; i++)
+            Open(BlockLook.Ground, Chance(0.5f) ? 7f : 0f);
+            int lHumps = Mathf.Max(1, Mathf.RoundToInt(pSeconds / 3.4f));
+            float lLength = M(pSeconds) / lHumps;
+            for (int i = 0; i < lHumps; i++)
             {
-                float lS = lS0 + lLength * (i + Rand(0.2f, 0.8f)) / Mathf.Max(1, lMounds);
-                _stamps.Add(new TerrainStamp
-                {
-                    s = lS,
-                    lateral = Rand(-_halfWidth * 0.9f, _halfWidth * 0.9f),
-                    radiusS = Rand(170f, 320f) * K,
-                    radiusL = Rand(_halfWidth * 0.35f, _halfWidth * 0.75f),
-                    height = Rand(35f, 80f) * K * pAmount * (_random.NextDouble() < 0.2 ? -0.7f : 1f)
-                });
+                float lAngle = pDegrees * Rand(0.7f, 1.2f);
+                Span(lLength * 0.25f, 0f, lAngle);
+                Span(lLength * 0.5f, 0f, -lAngle * 2f);
+                Span(lLength * 0.25f, 0f, lAngle);
             }
+            _pitch = 0f;
             return this;
         }
 
-        // Flat, immense straight with a road painted on it.
-        public CourseBuilder Road(float pSeconds, float pTrend = -6f)
-        {
-            pSeconds *= pace;
-            Span(M(pSeconds), pTrend * pSeconds * K, 0f, HillAmp(0.05f), 1f, false);
-            return this;
-        }
+        private float TurnRoom(int pSide) => pSide > 0 ? 170f - _yaw : _yaw - 10f;
 
-        public CourseBuilder Turn(Side pSide, float pDegrees, float pHills = 0.35f)
+        // Banked turn. The heading stays within a half circle : the stage always gets away from its own past, so legs
+        // never cross. Asked the other way, it turns toward the side that has room.
+        public CourseBuilder Turn(Side pSide, float pDegrees, float pBank = 28f)
         {
-            // Heading stays within [0, 180] : x only ever grows, so the route can never cross itself. Asked the other way,
-            // the turn goes to the side that has room.
             int lSide = (int)pSide;
-            float lRoom = lSide > 0 ? 180f - _yaw : _yaw;
-            float lOther = lSide > 0 ? _yaw : 180f - _yaw;
-            if (lRoom < pDegrees && lOther > lRoom)
-            {
-                lSide = -lSide;
-                lRoom = lOther;
-            }
-            float lDegrees = Mathf.Min(pDegrees, lRoom);
+            if (TurnRoom(lSide) < pDegrees && TurnRoom(-lSide) > TurnRoom(lSide)) lSide = -lSide;
+            float lDegrees = Mathf.Min(pDegrees, TurnRoom(lSide));
             if (lDegrees < 5f) return this;
-            // Wide enough that the inside of the ribbon never folds and both legs of a hairpin stay apart.
-            float lRadius = Mathf.Max(_halfWidth + 150f * Scale, _p.cruise * _p.cruise / 200f);
-            // The eased yaw covers less ground sideways than a true arc : stretch it so the legs really end up apart.
-            float lLength = lRadius * lDegrees * Mathf.Deg2Rad * 1.2f;
-            Span(lLength, -lLength * 0.01f, lSide * lDegrees, HillAmp(pHills), 0f, false);
+            float lRadius = Mathf.Max(_halfWidth * 2.4f + 30f, _p.cruise / 0.72f);
+            float lLength = lRadius * lDegrees * Mathf.Deg2Rad;
+            if (_open == null || _open.look == BlockLook.Slab) Open(BlockLook.Ground, 10f);
+            Span(lLength * 0.25f, lSide * lDegrees * 0.15f, 0f, lSide * pBank);
+            Span(lLength * 0.5f, lSide * lDegrees * 0.7f);
+            Span(lLength * 0.25f, lSide * lDegrees * 0.15f, 0f, -lSide * pBank);
+            _roll = 0f;
             return this;
         }
 
-        // The stage turns around : half a circle, wide enough that both legs stay side by side.
+        // The stage turns around : half a circle with a hard bank, both legs far apart.
         public CourseBuilder Hairpin(Side pSide)
         {
-            return Turn(_yaw <= 90f ? Side.Right : Side.Left, 180f, 0.15f);
+            Open(BlockLook.Pipe, 16f);
+            return Turn(_yaw <= 90f ? Side.Right : Side.Left, 150f, 46f);
+        }
+
+        // Linked curves, left and right : no rest for the mouse.
+        public CourseBuilder Sweeps(int pCount, float pDegrees = 42f)
+        {
+            Open(BlockLook.Ground, 9f);
+            int lSide = Chance(0.5f) ? 1 : -1;
+            for (int i = 0; i < pCount; i++)
+            {
+                Turn(lSide > 0 ? Side.Right : Side.Left, pDegrees * Rand(0.75f, 1.2f), 26f);
+                if (i < pCount - 1) Span(M(0.25f));
+                lSide = -lSide;
+            }
+            return this;
+        }
+
+        // A turn so banked it is a wall : you ride it, gravity follows the track for the length of it.
+        public CourseBuilder WallTurn(Side pSide, float pDegrees = 110f)
+        {
+            Open(BlockLook.Pipe, 20f);
+            bool lWas = _localGravity;
+            _localGravity = true;
+            Turn(pSide, pDegrees, 74f);
+            _localGravity = lWas;
+            return this;
         }
 
         // Long slope that feeds your speed.
-        public CourseBuilder Descent(float pSeconds, float pDrop)
-        {
-            Span(M(pSeconds), -pDrop * K, 0f, HillAmp(0.15f), 0f);
-            return this;
-        }
-
-        public CourseBuilder Climb(float pSeconds, float pRise)
+        public CourseBuilder Descent(float pSeconds, float pDegrees = 22f)
         {
             float lLength = M(pSeconds);
-            Span(lLength, Mathf.Min(pRise * K, lLength * 0.42f), 0f, HillAmp(0.2f), 0f);
+            Open(BlockLook.Ground, 8f);
+            Span(lLength * 0.25f, 0f, -pDegrees);
+            Span(lLength * 0.5f);
+            Span(lLength * 0.25f, 0f, pDegrees);
+            _pitch = 0f;
             return this;
         }
 
-        // Run off a colossal cliff and dive : the valley below lasts long enough to land anywhere.
-        public CourseBuilder Dive(float pDrop = 420f)
+        public CourseBuilder Climb(float pSeconds, float pDegrees = 18f)
         {
-            float lDrop = pDrop * Scale;
-            Span(M(2f), 8f * K, 0f, 0f, 0f);
-            float lLip = _s;
-            Cliff(lDrop);
-            NoPads(lLip - M(1f), lLip + M(1f));
-            _layout.acts.Add(new RouteAct { s = lLip + M(0.5f), action = RouteAction.Dive });
-            _dives++;
-            float lFall = Mathf.Sqrt(2f * lDrop / (Ballistics.G_FALL * _p.gravityScale));
-            Span(M(Mathf.Max(5f, lFall * 2f)), -6f * K, 0f, HillAmp(0.08f), 0f, false);
+            float lLength = M(pSeconds);
+            Open(BlockLook.Ground, 8f);
+            Span(lLength * 0.25f, 0f, pDegrees);
+            Span(lLength * 0.5f);
+            Span(lLength * 0.25f, 0f, -pDegrees);
+            _pitch = 0f;
             return this;
         }
 
-        // Big platforms separated by valleys : a jump strip runs along the whole lip, missing it just costs time.
-        public CourseBuilder Plateaus(int pCount, float pPlatform = 4.5f)
+        // Full loop. The two legs are shifted apart so the way out never meets the way in.
+        public CourseBuilder Loop(Side pSide = Side.Right)
         {
-            float lDepth = 90f * Scale;
-            for (int i = 0; i < pCount; i++)
-            {
-                Span(M(pPlatform), 0f, 0f, 0f, i % 2 == 0 ? 1f : 0f);
-                float lLip = _s;
-                float lPlatformY = _y;
-                Cliff(lDepth);
-                Span(M(1.5f), 0f, 0f, 0f, 0f);
-                Span(M(1.1f), lPlatformY - _y, 0f, 0f, 0f);
-                NoPads(lLip - M(1.4f), _s);
-                _strips.Add(new StripDef { s = lLip - M(0.25f), lateral = 0f, halfWidth = _halfWidth + 30f, target = _s + M(0.5f), targetLateral = float.NaN, targetHeight = lPlatformY });
-            }
+            float lRadius = Mathf.Max(_p.cruise * 0.8f, _halfWidth * 1.7f);
+            float lLength = lRadius * Mathf.PI * 2f * 1.08f;
+            Quaternion lYaw = Quaternion.AngleAxis(_yaw, Vector3.up);
+            Vector3 lShift = lYaw * Vector3.right * (int)pSide * (_halfWidth * 2.6f + 40f);
+            Open(BlockLook.Pipe, 12f);
+            Span(M(0.5f));
+            _localGravity = true;
+            NoPads(_s, _s + lLength);
+            Span(lLength, 0f, 360f, 0f, lShift);
+            _localGravity = false;
+            _pitch = 0f;
+            Span(M(0.4f));
+            Route(_s - lLength - M(1f), _s, 0f);
+            _arches.Add(new ArchDef { s = _s - lLength - M(0.3f), lit = true });
             return this;
         }
 
-        // A hole with a rope over it : the ground funnels you onto the rope, missing it means a valley and a ramp back up.
-        public CourseBuilder Rope(float pSeconds = 3f, int pCount = 1)
+        // Corkscrew : a loop with the track rolling all the way round at the same time.
+        public CourseBuilder Corkscrew(Side pSide = Side.Left)
         {
-            float lFunnel = M(3f);
-            float lS0 = _s;
-            float lLateralBase = pCount == 1 ? Rand(-_halfWidth * 0.2f, _halfWidth * 0.2f) : 0f;
-            Span(lFunnel, 0f, 0f, 0f, 0f);
-            float lLip = _s;
-            float lTop = _y;
-            float lDepth = 150f * Scale;
-            if (pCount == 1)
-                _stamps.Add(new TerrainStamp { s = lLip - lFunnel * 0.5f, lateral = lLateralBase, radiusS = lFunnel * 0.55f, radiusL = 150f * Mathf.Sqrt(K), height = 26f * Mathf.Sqrt(K), funnel = true });
-            Cliff(lDepth);
-            float lSpan = M(pSeconds);
-            Span(lSpan, 0f, 0f, 0f, 0f);
-            float lFar = _s;
-            Span(M(1f), lTop - _y, 0f, 0f, 0f);
-            NoPads(lS0, _s + M(0.5f));
-            float lSpacing = pCount > 1 ? _halfWidth * 1.3f / (pCount - 1) : 0f;
-            for (int i = 0; i < pCount; i++)
-            {
-                float lLateral = lLateralBase + (pCount > 1 ? -_halfWidth * 0.65f + i * lSpacing : 0f);
-                _ropes.Add(new RopeDef { s0 = lLip - M(1.1f), s1 = _s + M(0.5f), lateral = lLateral, catchRadius = 22f * Mathf.Sqrt(K) });
-            }
-            Route(lS0, lFar + M(1.5f), pCount == 1 ? lLateralBase : -_halfWidth * 0.65f);
-            Span(M(1.5f), 0f, 0f, 0f, 0f);
+            float lRadius = Mathf.Max(_p.cruise * 0.95f, _halfWidth * 2f);
+            float lLength = lRadius * Mathf.PI * 2f * 1.2f;
+            Quaternion lYaw = Quaternion.AngleAxis(_yaw, Vector3.up);
+            Vector3 lShift = lYaw * Vector3.right * (int)pSide * (_halfWidth * 3f + 60f);
+            float lHalf = _halfWidth;
+            _halfWidth *= 1.25f;
+            Open(BlockLook.Pipe, 18f);
+            Span(M(0.4f));
+            _localGravity = true;
+            NoPads(_s, _s + lLength);
+            Span(lLength, 0f, 360f, (int)pSide * 360f, lShift);
+            _halfWidth = lHalf;
+            _localGravity = false;
+            Wrap();
+            _pitch = 0f;
+            _roll = 0f;
+            Span(M(0.4f));
             return this;
         }
 
-        // Rope hanging in the sky over rolling ground : a launch strip sends you up to it.
-        public CourseBuilder SkyRope(float pSeconds = 3.5f)
+        // The track turns around its own axis : the wall becomes the ceiling, the ceiling the floor.
+        public CourseBuilder Twist(float pSeconds = 3.2f, int pTurns = 1, Side pSide = Side.Right)
         {
-            float lS0 = _s;
-            float lLateral = Rand(-_halfWidth * 0.4f, _halfWidth * 0.4f);
-            float lHeight = 70f * Scale;
-            Span(M(1.2f), 0f, 0f, 0f, 1f);
-            float lStripS = _s - M(0.1f);
-            float lRopeS = _s + M(0.8f);
-            Span(M(0.8f + pSeconds + 0.5f), -10f * K, 0f, HillAmp(0.4f), 0f, false);
-            float lTop = _layout.spine.samples.Count > 0 ? _y : 0f;
-            _strips.Add(new StripDef { s = lStripS, lateral = lLateral, halfWidth = 90f * Mathf.Sqrt(K), target = lRopeS, targetLateral = lLateral, targetHeight = float.NaN });
-            _ropes.Add(new RopeDef { s0 = lRopeS - M(0.05f), s1 = lRopeS + M(pSeconds), lateral = lLateral, catchRadius = 30f * Mathf.Sqrt(K), sky = true, skyHeight = lHeight });
-            Route(lS0, lRopeS + M(pSeconds), lLateral);
-            NoPads(lS0, lRopeS);
+            Open(BlockLook.Pipe, 18f);
+            Span(M(0.3f));
+            _localGravity = true;
+            NoPads(_s, _s + M(pSeconds));
+            Span(M(pSeconds), 0f, 0f, (int)pSide * 360f * pTurns);
+            _localGravity = false;
+            _roll = 0f;
+            Span(M(0.3f));
             return this;
         }
 
-        // Field of giant blocks to weave through, climb or run along.
-        public CourseBuilder Blocks(float pSeconds, float pDensity = 1f)
+        // Up the wall, across the ceiling, down the other side : a whole stretch runs upside down.
+        public CourseBuilder Inverted(float pSeconds = 3f, Side pSide = Side.Left)
+        {
+            Open(BlockLook.Pipe, 22f);
+            int lSide = (int)pSide;
+            Span(M(0.3f));
+            _localGravity = true;
+            Span(M(1.6f), 0f, 0f, lSide * 180f);
+            Span(M(pSeconds * pace));
+            Span(M(1.6f), 0f, 0f, lSide * 180f);
+            _localGravity = false;
+            _roll = 0f;
+            Span(M(0.3f));
+            return this;
+        }
+
+        // Corridor between two leaning walls : ride them up, come back down with the speed.
+        public CourseBuilder Corridor(float pSeconds, float pWall = 40f, float pLean = 30f)
+        {
+            float lHalf = _halfWidth;
+            _halfWidth = Mathf.Min(_halfWidth, 26f + 4f * K);
+            TrackBlock lBlock = Open(BlockLook.Pipe, pWall);
+            lBlock.wallLean = pLean;
+            Span(M(pSeconds * pace));
+            _halfWidth = lHalf;
+            return this;
+        }
+
+        // Big slabs, each one shifted, lowered and tilted against the last : some touch, some leave a gap to jump.
+        public CourseBuilder Slabs(float pSeconds, float pDensity = 1f)
         {
             pSeconds *= pace;
-            float lS0 = _s;
-            float lLength = M(pSeconds);
-            Span(lLength, -6f * pSeconds * K, 0f, HillAmp(0.2f), 0f, false);
-            float lRow = M(0.75f) / pDensity;
-            float lGate = Rand(-1f, 1f) * _halfWidth * 0.5f;
-            for (float lS = lS0 + lRow * 0.5f; lS < lS0 + lLength - lRow * 0.4f; lS += lRow)
+            float lEnd = _s + M(pSeconds);
+            float lOffset = 0f;
+            float lDrop = 0f;
+            float lHalf = _halfWidth;
+            while (_s < lEnd)
             {
-                lGate = Mathf.Clamp(lGate + Rand(-1f, 1f) * _halfWidth * 0.35f, -_halfWidth * 0.7f, _halfWidth * 0.7f);
-                Route(lS - lRow * 0.5f, lS + lRow * 0.5f, lGate);
-                float lGap = 60f * Scale;
-                for (int lSide = -1; lSide <= 1; lSide += 2)
+                float lLength = M(Rand(0.8f, 1.9f) / pDensity);
+                float lNarrow = lHalf * Rand(0.55f, 0.95f);
+                TrackBlock lBlock = Open(BlockLook.Slab, Chance(0.3f) ? Rand(5f, 10f) : 0f, lNarrow, lOffset, lDrop, Rand(-22f, 22f), Rand(30f, 70f));
+                float lS0 = _s;
+                Span(lLength, Rand(-5f, 5f) * ((_yaw > 30f && _yaw < 150f) ? 1f : 0f));
+                Close();
+                Route(lS0, _s, lOffset);
+                lOffset = Mathf.Clamp(lOffset + Rand(-1f, 1f) * lHalf * 0.8f, -lHalf * 1.1f, lHalf * 1.1f);
+                bool lGap = Chance(0.55f);
+                // Rises only as high as a jump carries you.
+                float lNext = lDrop + Rand(-7f, 14f);
+                if (lGap)
                 {
-                    float lFrom = lGate + lSide * lGap;
-                    float lRoom = _halfWidth - lSide * lFrom;
-                    if (lRoom < 40f) continue;
-                    float lWidth = Mathf.Min(Rand(0.3f, 0.8f) * lRoom, Rand(60f, 170f) * Scale);
-                    if (_random.NextDouble() < 0.25) continue;
-                    _blocks.Add(new BlockDef
-                    {
-                        s = lS,
-                        lateral = lFrom + lSide * lWidth * 0.5f,
-                        width = lWidth,
-                        length = Mathf.Min(Rand(50f, 170f) * Scale, lRow * 0.75f),
-                        height = Rand(35f, 170f) * Scale,
-                        taper = Rand(0f, 0.18f),
-                        palette = _random.Next(0, 3)
-                    });
+                    float lGapLength = M(Rand(0.14f, 0.34f));
+                    Act(_s - M(0.12f), RouteAction.Jump);
+                    Span(lGapLength);
+                    NoPads(lS0 + lLength * 0.7f, _s + M(0.3f));
                 }
+                else if (lNext < lDrop) Act(_s - M(0.12f), RouteAction.Jump);
+                lDrop = lNext;
             }
-            NoPads(lS0, lS0 + lLength);
+            // Back to the line for the next module.
+            float lBack = lDrop;
+            Close();
+            Span(M(0.2f), 0f, 0f, 0f, Vector3.down * lBack);
+            Open(BlockLook.Ground, 4f);
             return this;
         }
 
-        // Corridor between two endless walls : wall run, wall jump.
-        public CourseBuilder Canyon(float pSeconds)
+        // Run off a colossal cliff : look down to dive. The block below lasts long enough to land anywhere on it.
+        public CourseBuilder Dive(float pDrop = 320f)
+        {
+            Open(BlockLook.Ground, 0f);
+            Span(M(1.2f), 0f, 5f);
+            Span(M(0.3f), 0f, -5f);
+            _pitch = 0f;
+            Close();
+            float lLip = _s;
+            Act(lLip - M(0.1f), RouteAction.Jump);
+            Act(lLip + M(0.25f), RouteAction.Dive);
+            NoPads(lLip - M(0.8f), lLip + M(3f));
+            float lFall = Mathf.Sqrt(2f * pDrop / Ballistics.G_FALL);
+            Span(M(lFall * 0.9f), 0f, 0f, 0f, Vector3.down * pDrop);
+            float lHalf = _halfWidth;
+            _halfWidth = lHalf * 1.5f;
+            Open(BlockLook.Ground, 10f);
+            Span(M(Mathf.Max(3.5f, lFall * 1.5f)));
+            _halfWidth = lHalf;
+            _dives++;
+            return this;
+        }
+
+        // Platforms separated by holes : a launch strip on each lip. Missing it is a jump at best, a fall at worst.
+        public CourseBuilder Plateaus(int pCount, float pPlatform = 2.4f)
+        {
+            for (int i = 0; i < pCount; i++)
+            {
+                Open(BlockLook.Slab, 0f, _halfWidth * Rand(0.8f, 1f), 0f, 0f, Rand(-8f, 8f), Rand(40f, 90f));
+                Span(M(pPlatform * pace));
+                Close();
+                float lLip = _s;
+                _strips.Add(new StripDef { s = lLip - M(0.22f), lateral = 0f, halfWidth = _halfWidth * 0.75f, up = 52f });
+                NoPads(lLip - M(0.8f), lLip + M(1.5f));
+                Span(M(Rand(0.55f, 0.85f)));
+            }
+            Open(BlockLook.Ground, 4f);
+            return this;
+        }
+
+        // A hole with a rope over it. Jump onto it : it never catches you on its own. Below, a low block and a launch.
+        public CourseBuilder Rope(float pSeconds = 2.2f)
+        {
+            float lS0 = _s;
+            Open(BlockLook.Road, 3f);
+            Span(M(1.1f));
+            float lLateral = Rand(-_halfWidth * 0.3f, _halfWidth * 0.3f);
+            Close();
+            float lLip = _s;
+            Act(lLip - M(0.2f), RouteAction.Jump);
+            float lDepth = 70f;
+            // Safety net : a sunken block, a launch strip at its end brings you back up.
+            Open(BlockLook.Slab, 0f, _halfWidth * 1.1f, 0f, lDepth, 0f, 40f);
+            Span(M(pSeconds));
+            _strips.Add(new StripDef { s = _s - M(0.3f), lateral = 0f, halfWidth = _halfWidth, up = 92f, });
+            Close();
+            Span(M(0.2f));
+            _ropes.Add(new RopeDef { s0 = lLip - M(0.25f), s1 = _s + M(0.1f), lateral = lLateral, height0 = 7f, height1 = 3f });
+            Route(lS0, _s + M(0.2f), lLateral);
+            NoPads(lS0, _s + M(0.6f));
+            Open(BlockLook.Road, 3f);
+            return this;
+        }
+
+        // Rope in the sky above the track : a launch strip throws you straight up, the rest is on you.
+        public CourseBuilder SkyRope(float pSeconds = 2.4f)
+        {
+            float lS0 = _s;
+            float lLateral = Rand(-_halfWidth * 0.3f, _halfWidth * 0.3f);
+            Open(BlockLook.Road, 3f);
+            Span(M(0.9f));
+            float lStrip = _s - M(0.15f);
+            _strips.Add(new StripDef { s = lStrip, lateral = lLateral, halfWidth = _halfWidth * 0.3f, up = 58f });
+            Span(M(pSeconds + 0.8f));
+            _ropes.Add(new RopeDef { s0 = lStrip + M(0.4f), s1 = lStrip + M(0.4f + pSeconds), lateral = lLateral, height0 = 13f, height1 = 3f });
+            Route(lS0, _s, lLateral);
+            NoPads(lS0, _s);
+            return this;
+        }
+
+        // Chain of small speed pads along the line : take them all to really fly.
+        public CourseBuilder PadRun(float pSeconds, float pEvery = 0.45f)
+        {
+            float lS0 = _s;
+            Open(BlockLook.Road, 4f);
+            Span(M(pSeconds * pace));
+            float lWeave = Rand(0f, 6f);
+            for (float lT = 0.2f; lT < pSeconds * pace; lT += pEvery)
+                _pads.Add(new PadDef { s = lS0 + M(lT), lateral = Mathf.Sin(lT * 1.3f + lWeave) * _halfWidth * 0.55f, width = _halfWidth * 0.5f, length = M(0.14f), boost = 0.09f });
+            Route(lS0, _s, 0f);
+            NoPads(lS0, _s);
+            return this;
+        }
+
+        // Rings in an arc above the ground : worth a boost each, if you stay up there.
+        public CourseBuilder RingArc(int pCount = 5)
+        {
+            float lS0 = _s;
+            Open(BlockLook.Ground, 3f);
+            Span(M(0.5f + pCount * 0.34f));
+            float lLateral = Rand(-_halfWidth * 0.5f, _halfWidth * 0.5f);
+            Act(lS0 + M(0.25f), RouteAction.Jump);
+            for (int i = 0; i < pCount; i++)
+            {
+                float lT = (i + 0.5f) / pCount;
+                _rings.Add(new RingDef { s = lS0 + M(0.5f + i * 0.34f), lateral = lLateral, height = 5f + Mathf.Sin(lT * Mathf.PI) * 9f, radius = 9f });
+            }
+            Route(lS0, _s, lLateral);
+            NoPads(lS0, _s);
+            return this;
+        }
+
+        // Giant crates in the way. Dash through them : they burst and throw you forward. Run into them : it hurts.
+        public CourseBuilder Crates(float pSeconds, int pCount, bool pWall = false)
+        {
+            float lS0 = _s;
+            Open(BlockLook.Road, 4f);
+            Span(M(pSeconds * pace));
+            float lLength = _s - lS0;
+            for (int i = 0; i < pCount; i++)
+            {
+                float lS = lS0 + lLength * (i + 0.6f) / pCount;
+                float lSize = Rand(26f, 40f);
+                if (pWall)
+                {
+                    int lCount = Mathf.CeilToInt(_halfWidth * 2f / lSize);
+                    for (int c = 0; c < lCount; c++)
+                        _crates.Add(new CrateDef { s = lS, lateral = -_halfWidth + lSize * (c + 0.5f), size = lSize });
+                    Act(lS - M(0.32f), RouteAction.Dash);
+                }
+                else
+                {
+                    float lLateral = Rand(-0.6f, 0.6f) * _halfWidth;
+                    _crates.Add(new CrateDef { s = lS, lateral = lLateral, size = lSize });
+                    Act(lS - M(0.32f), RouteAction.Dash);
+                    Route(lS - M(0.5f), lS + M(0.1f), lLateral);
+                }
+            }
+            NoPads(lS0, _s);
+            return this;
+        }
+
+        // Crates rolling along the route, slower than you : weave through or dash through.
+        public CourseBuilder Convoy(float pSeconds, int pCount)
+        {
+            float lS0 = _s;
+            Open(BlockLook.Road, 4f);
+            Span(M(pSeconds * pace));
+            float lLength = _s - lS0;
+            for (int i = 0; i < pCount; i++)
+                _crates.Add(new CrateDef { s = lS0 + lLength * (i + 0.5f) / pCount, lateral = Rand(-0.75f, 0.75f) * _halfWidth, size = Rand(20f, 30f), moving = true });
+            NoPads(lS0, _s);
+            return this;
+        }
+
+        // Rows of laser beams : low ones to jump, slanted ones to read, spinning ones to time. Touching one costs your speed.
+        public CourseBuilder Lasers(float pSeconds, float pEvery = 0.9f)
+        {
+            float lS0 = _s;
+            Open(BlockLook.Ground, 6f);
+            Span(M(pSeconds * pace));
+            for (float lT = pEvery; lT < pSeconds * pace - 0.3f; lT += pEvery)
+            {
+                float lS = lS0 + M(lT);
+                int lKind = _random.Next(0, 3);
+                _lasers.Add(new LaserDef { s = lS, height = lKind == 0 ? 2.2f : Rand(5f, 9f), beams = lKind == 0 ? 1 : lKind == 1 ? 3 : 4, spin = lKind == 2 ? Rand(30f, 70f) * (Chance(0.5f) ? 1f : -1f) : 0f });
+                Act(lS - M(0.3f), lKind == 0 ? RouteAction.Jump : RouteAction.Dash);
+            }
+            NoPads(lS0, _s);
+            return this;
+        }
+
+        // Pendulums swinging across the track.
+        public CourseBuilder Hammers(float pSeconds, float pEvery = 1.2f)
+        {
+            float lS0 = _s;
+            Open(BlockLook.Road, 4f);
+            Span(M(pSeconds * pace));
+            for (float lT = pEvery; lT < pSeconds * pace - 0.3f; lT += pEvery)
+                _hammers.Add(new HammerDef { s = lS0 + M(lT), phase = Rand(0f, 6.28f) });
+            NoPads(lS0, _s);
+            return this;
+        }
+
+        // Pillars and leaning blocks standing on the track : weave.
+        public CourseBuilder Pillars(float pSeconds, float pDensity = 1f)
+        {
+            float lS0 = _s;
+            Open(BlockLook.Ground, 4f);
+            Span(M(pSeconds * pace));
+            float lRow = M(0.55f) / pDensity;
+            float lGate = 0f;
+            for (float lS = lS0 + lRow; lS < _s - lRow * 0.3f; lS += lRow)
+            {
+                lGate = Mathf.Clamp(lGate + Rand(-1f, 1f) * _halfWidth * 0.4f, -_halfWidth * 0.6f, _halfWidth * 0.6f);
+                Route(lS - lRow * 0.5f, lS + lRow * 0.5f, lGate);
+                for (int lSide = -1; lSide <= 1; lSide += 2)
+                {
+                    float lFrom = lGate + lSide * 20f;
+                    float lRoom = _halfWidth - lSide * lFrom;
+                    if (lRoom < 12f || Chance(0.2f)) continue;
+                    float lWidth = Mathf.Min(lRoom, Rand(12f, 34f));
+                    _props.Add(new BlockDef { s = lS, lateral = lFrom + lSide * lWidth * 0.5f, width = lWidth, length = Rand(10f, 34f), height = Rand(26f, 90f), lean = Rand(-16f, 16f), palette = _random.Next(0, 3) });
+                }
+            }
+            NoPads(lS0, _s);
+            return this;
+        }
+
+        // Tunnel of lit arches.
+        public CourseBuilder Tunnel(float pSeconds)
         {
             float lS0 = _s;
             float lHalf = _halfWidth;
-            _halfWidth = Mathf.Min(_halfWidth, 80f * Scale);
-            Span(M(0.6f), 0f, 0f, 0f, 0f);
-            float lS1 = _s;
-            Span(M(pSeconds), -4f * pSeconds * K, 0f, 0f, 1f, false);
-            float lSegment = 180f * Scale;
-            for (float lS = lS1; lS < _s - lSegment * 0.5f; lS += lSegment)
-            {
-                for (int lSide = -1; lSide <= 1; lSide += 2)
-                {
-                    _blocks.Add(new BlockDef
-                    {
-                        s = lS + lSegment * 0.5f,
-                        lateral = lSide * (_halfWidth + 12f * Scale),
-                        width = 26f * Scale,
-                        length = lSegment * 0.96f,
-                        height = Rand(120f, 210f) * Scale,
-                        taper = 0f,
-                        palette = lSide > 0 ? 1 : 2,
-                        wall = true
-                    });
-                }
-            }
+            _halfWidth = Mathf.Min(_halfWidth, 24f + 4f * K);
+            TrackBlock lBlock = Open(BlockLook.Pipe, 30f);
+            lBlock.wallLean = 16f;
+            Span(M(pSeconds * pace));
+            for (float lT = 0.1f; lT < pSeconds * pace; lT += 0.22f) _arches.Add(new ArchDef { s = lS0 + M(lT), lit = true });
             _halfWidth = lHalf;
-            Span(M(0.6f), 0f, 0f, 0f, 0f);
-            NoPads(lS0, lS1);
             return this;
         }
 
-        // Meteorites coming at you : punch them apart.
+        // Meteorites coming at you : dash through them.
         public CourseBuilder Meteors(float pSeconds, float pEverySeconds = 2f)
         {
             pSeconds *= pace;
             float lS0 = _s;
-            Span(M(pSeconds), -6f * pSeconds * K, 0f, HillAmp(0.3f), 0f, false);
+            Open(BlockLook.Ground, 5f);
+            Span(M(pSeconds));
             for (float lT = pEverySeconds * 0.5f; lT < pSeconds; lT += pEverySeconds)
-                _meteors.Add(new MeteorDef { s = lS0 + M(lT), fromSky = true, radius = Rand(16f, 34f) * Mathf.Sqrt(K) });
+                _meteors.Add(new MeteorDef { s = lS0 + M(lT), fromSky = true, radius = Rand(12f, 22f) });
             return this;
         }
 
-        // Boulders blocking the way : a punch goes through them.
-        public CourseBuilder Smash(float pSeconds, int pCount)
+        // Last straight : pads everywhere, the world narrows, everything goes.
+        public CourseBuilder FinalRush(float pSeconds = 7f)
         {
             float lS0 = _s;
-            Span(M(pSeconds), -4f * pSeconds * K, 0f, 0f, 1f, false);
-            for (int i = 0; i < pCount; i++)
-                _meteors.Add(new MeteorDef { s = lS0 + M(pSeconds) * (i + 0.5f) / pCount, fromSky = false, radius = Rand(16f, 26f) * Mathf.Sqrt(K), lateral = Rand(-1f, 1f) * _halfWidth * 0.45f });
+            float lHalf = _halfWidth;
+            _halfWidth = Mathf.Max(24f, _halfWidth * 0.8f);
+            Open(BlockLook.Road, 8f);
+            Span(M(pSeconds * 0.5f), 0f, -10f);
+            Span(M(pSeconds * 0.5f), 0f, 10f);
+            _pitch = 0f;
+            for (float lT = 0.2f; lT < pSeconds; lT += 0.3f)
+                _pads.Add(new PadDef { s = lS0 + M(lT), lateral = Mathf.Sin(lT * 2.1f) * _halfWidth * 0.5f, width = _halfWidth * 0.8f, length = M(0.13f), boost = 0.1f });
+            for (float lT = 0f; lT < pSeconds; lT += 0.5f) _arches.Add(new ArchDef { s = lS0 + M(lT), lit = true });
+            _halfWidth = lHalf;
+            NoPads(lS0, _s);
             return this;
         }
 
         public CourseBuilder Finish()
         {
-            Span(M(1f), 0f, 0f, 0f, 1f);
+            Open(BlockLook.Road, 6f);
+            Span(M(0.6f));
             _layout.finishS = _s;
             NoPads(_s - M(0.8f), _s + 99999f);
-            Span(M(4.5f), 0f, 0f, 0f, 1f);
+            Span(M(3.5f));
+            Close();
             return this;
         }
 
         // ================================================================ build
-        private static float[] Blur(List<float> pValues, int pRadius)
-        {
-            int lCount = pValues.Count;
-            float[] lResult = new float[lCount];
-            float lSum = 0f;
-            int lWindow = 0;
-            for (int i = 0; i < lCount; i++)
-            {
-                if (i + pRadius < lCount) { lSum += pValues[i + pRadius]; lWindow++; }
-                if (i == 0)
-                {
-                    for (int j = 0; j < pRadius && j < lCount; j++) { lSum += pValues[j]; lWindow++; }
-                }
-                if (i - pRadius - 1 >= 0) { lSum -= pValues[i - pRadius - 1]; lWindow--; }
-                lResult[i] = lSum / Mathf.Max(1, lWindow);
-            }
-            return lResult;
-        }
 
         public LevelLayout Build()
         {
             if (!_started) throw new InvalidOperationException("CourseBuilder.Start() was not called");
             float lStart = Time.realtimeSinceStartup;
+            Close();
 
-            TerrainField lField = new TerrainField(_layout.spine, _seed);
-            int lBlur = Mathf.Max(4, Mathf.RoundToInt(M(0.7f) / Spine.STEP));
-            lField.halfWidth = Blur(_hw, lBlur);
-            lField.offset = Blur(_off, lBlur);
-            lField.hill = Blur(_hill, lBlur);
-            lField.road = _road.ToArray();
-            lField.hillWave = 300f * K;
-            lField.bermWidth = 70f * Scale;
-            lField.bermHeight = 32f * Scale;
-            lField.skirtWidth = 40f * Scale;
-            lField.creases.AddRange(_creases);
-            foreach (TerrainStamp lStamp in _stamps) lField.AddStamp(lStamp);
+            TrackField lField = new TrackField(_layout.spine);
+            lField.blocks.AddRange(_blocks);
             lField.Seal();
             _layout.field = lField;
 
@@ -458,76 +707,45 @@ namespace Com.IsartDigital.Hyperspeed
             _layout.acts.Sort((pA, pB) => pA.s.CompareTo(pB.s));
 
             CourseValidator.Check(_layout, _dives);
-            TerrainBaker.Bake(_layout, _theme, _root);
-            float lTerrainDone = Time.realtimeSinceStartup;
+            TrackBaker.Bake(_layout, _theme, _root);
+            float lTrackDone = Time.realtimeSinceStartup;
 
             Transform lProps = new GameObject("Props").transform;
             lProps.SetParent(_root, false);
-            Scatter();
-            foreach (BlockDef lBlock in _blocks) PlaceBlock(lBlock, lProps);
-            foreach (StripDef lStrip in _strips) PlaceStrip(lStrip, lProps);
-            foreach (RopeDef lRope in _ropes) PlaceRope(lRope, lProps);
-            PlacePads(lProps);
             MeteorDirector lDirector = new GameObject("Meteors").AddComponent<MeteorDirector>();
             lDirector.transform.SetParent(lProps, false);
-            foreach (MeteorDef lMeteor in _meteors) lDirector.Add(lMeteor.s, lMeteor.fromSky, lMeteor.radius, lMeteor.lateral);
+            if (!_noItems)
+            {
+                foreach (BlockDef lBlock in _props) PlaceProp(lBlock, lProps);
+                foreach (StripDef lStrip in _strips) JumpStrip.Create(lProps, _layout, lStrip.s, lStrip.lateral, lStrip.halfWidth, lStrip.up, _theme.roadEdge);
+                foreach (RopeDef lRope in _ropes) PlaceRope(lRope, lProps);
+                foreach (RingDef lRing in _rings) Ring.Create(lProps, _layout, lRing.s, lRing.lateral, lRing.height, lRing.radius, _theme.accent);
+                foreach (CrateDef lCrate in _crates) Crate.Create(lProps, _layout, lCrate.s, lCrate.lateral, lCrate.size, lCrate.moving, _theme);
+                foreach (LaserDef lLaser in _lasers) LaserGate.Create(lProps, _layout, lLaser.s, lLaser.height, lLaser.beams, lLaser.spin, _theme);
+                foreach (HammerDef lHammer in _hammers) Hammer.Create(lProps, _layout, lHammer.s, lHammer.phase, _theme);
+                PlacePads(lProps);
+                foreach (MeteorDef lMeteor in _meteors) lDirector.Add(lMeteor.s, lMeteor.fromSky, lMeteor.radius, lMeteor.lateral);
+            }
             lDirector.Init(_layout, _theme);
+            foreach (ArchDef lArch in _arches) GateKit.Arch(lProps, _layout, lArch.s, _theme);
 
             StartGate.Create(lProps, _layout, _theme);
-            FinishGate(lProps);
+            GateKit.Portal(lProps, _layout, _layout.finishS, lField.TotalHalfWidth(_layout.finishS), 60f, _theme.accent, Color.white, "FINISH");
             CourseScenery.Build(_layout, _theme, _root, _seed * 7 + 3);
 
-            Debug.Log("[HS-GEN] length=" + _layout.finishS.ToString("F0") + "m terrain=" + ((lTerrainDone - lStart) * 1000f).ToString("F0") + "ms total=" + ((Time.realtimeSinceStartup - lStart) * 1000f).ToString("F0")
-                + "ms blocks=" + _blocks.Count + " strips=" + _strips.Count + " ropes=" + _ropes.Count + " meteors=" + _meteors.Count + " dives=" + _dives);
+            Debug.Log("[HS-GEN] length=" + _layout.finishS.ToString("F0") + "m track=" + ((lTrackDone - lStart) * 1000f).ToString("F0") + "ms total=" + ((Time.realtimeSinceStartup - lStart) * 1000f).ToString("F0")
+                + "ms blocks=" + _blocks.Count + " chunks=" + TrackBaker.Chunks.Count + " pads=" + _pads.Count + " rings=" + _rings.Count + " crates=" + _crates.Count + " lasers=" + _lasers.Count + " dives=" + _dives);
             return _layout;
         }
 
-        // Blocks and pillars on both sides all along the stage, off the clear line : never in front of a lip or a rope.
-        private void Scatter()
+        private void PlaceProp(BlockDef pDef, Transform pParent)
         {
-            if (_noScatter) return;
-            float lStep = M(0.42f);
-            TerrainField lField = _layout.field;
-            for (float lS = M(1f); lS < _layout.finishS - M(1f); lS += lStep)
-            {
-                if (!PadAllowed(lS)) continue;
-                int lSide = _random.Next(0, 2) * 2 - 1;
-                float lHalf = lField.HalfWidth(lS);
-                float lRoute = _layout.RouteLateral(lS);
-                float lClear = 55f * Scale;
-                float lFrom = lRoute + lSide * lClear;
-                float lRoom = lHalf + lField.bermWidth * 0.3f - lSide * lFrom;
-                if (lRoom < 30f) continue;
-                bool lPillar = _random.NextDouble() < 0.35;
-                float lWidth = lPillar ? Rand(10f, 22f) * Scale : Rand(26f, 90f) * Scale;
-                float lLength = lPillar ? lWidth : Mathf.Min(Rand(26f, 90f) * Scale, lStep * 0.8f);
-                float lLateral = lFrom + lSide * (lWidth * 0.5f + Rand(0f, Mathf.Max(0f, lRoom - lWidth)));
-                _blocks.Add(new BlockDef
-                {
-                    s = lS,
-                    lateral = lLateral,
-                    width = lWidth,
-                    length = lLength,
-                    height = lPillar ? Rand(70f, 200f) * Scale : Rand(14f, 90f) * Scale,
-                    taper = Rand(0f, 0.25f),
-                    palette = _random.Next(0, 3)
-                });
-            }
-        }
-
-        private void PlaceBlock(BlockDef pDef, Transform pParent)
-        {
-            TerrainField lField = _layout.field;
             SpineSample lSample = _layout.spine.Evaluate(pDef.s);
-            Vector3 lBase = _layout.spine.Point(pDef.s, pDef.lateral, lField.Height(pDef.s, pDef.lateral));
+            Vector3 lBase = _layout.field.Point(pDef.s, pDef.lateral);
+            Vector3 lUp = _layout.field.Normal(pDef.s);
             Color lColor = pDef.palette == 0 ? _theme.decorA : pDef.palette == 1 ? _theme.decorB : _theme.decorC;
-            Quaternion lRotation = Quaternion.Euler(0f, lSample.yaw + (pDef.wall ? 0f : Rand(-14f, 14f)), 0f);
-            Monolith.Create(pParent, lBase, lRotation, new Vector3(pDef.width, pDef.height, pDef.length), pDef.taper, lColor, _theme, _seed + _blocks.Count + (int)pDef.s);
-        }
-
-        private void PlaceStrip(StripDef pDef, Transform pParent)
-        {
-            JumpStrip.Create(pParent, _layout, pDef.s, pDef.lateral, pDef.halfWidth, M(0.35f), pDef.target, pDef.targetLateral, pDef.targetHeight, _theme.roadEdge);
+            Quaternion lRotation = Quaternion.LookRotation(Vector3.ProjectOnPlane(lSample.forward, lUp), lUp) * Quaternion.Euler(pDef.lean * 0.5f, Rand(-14f, 14f), pDef.lean);
+            Monolith.Create(pParent, lBase, lRotation, new Vector3(pDef.width, pDef.height, pDef.length), Rand(0.12f, 0.3f), lColor, _theme, _seed + (int)pDef.s);
         }
 
         private void PlaceRope(RopeDef pDef, Transform pParent)
@@ -535,71 +753,47 @@ namespace Com.IsartDigital.Hyperspeed
             GameObject lObject = new GameObject("Rope");
             lObject.transform.SetParent(pParent, false);
             GrindRail lRail = lObject.AddComponent<GrindRail>();
-            lRail.catchRadius = pDef.catchRadius;
-            TerrainField lField = _layout.field;
-            float lStep = Mathf.Max(8f, 12f * K);
-            float lGroundEnd = pDef.sky ? pDef.s0 : pDef.s0 + M(1.1f);
-            float lLipY = pDef.sky ? 0f : lField.Height(lGroundEnd - Spine.STEP, pDef.lateral) + 1.4f;
-            float lEndY = pDef.sky ? 0f : lField.Height(pDef.s1, pDef.lateral) + 0.6f;
-            float lSkyY = pDef.sky ? lField.Height(pDef.s0, pDef.lateral) + pDef.skyHeight : 0f;
+            lRail.catchRadius = 6f;
+            float lStep = Mathf.Max(8f, 10f * K);
             for (float lS = pDef.s0; lS < pDef.s1; lS += lStep)
             {
-                float lY;
-                if (pDef.sky)
-                {
-                    float lT = (lS - pDef.s0) / (pDef.s1 - pDef.s0);
-                    lY = Mathf.Lerp(lSkyY, lField.Height(pDef.s1, pDef.lateral) + 0.6f, lT * lT);
-                    lY = Mathf.Max(lY, lField.Height(lS, pDef.lateral) + 6f * (1f - lT));
-                }
-                else if (lS < lGroundEnd) lY = lField.Height(lS, pDef.lateral) + 1.4f;
-                else
-                {
-                    float lT = (lS - lGroundEnd) / (pDef.s1 - lGroundEnd);
-                    lY = Mathf.Lerp(lLipY, lEndY, lT) - Mathf.Sin(lT * Mathf.PI) * 9f * Mathf.Sqrt(K);
-                }
-                lRail.AddPoint(_layout.spine.Point(lS, pDef.lateral, lY), Vector3.up, lS);
+                float lT = (lS - pDef.s0) / (pDef.s1 - pDef.s0);
+                SpineSample lSample = _layout.spine.Evaluate(lS);
+                float lHeight = Mathf.Lerp(pDef.height0, pDef.height1, lT);
+                lRail.AddPoint(lSample.position + lSample.Right * pDef.lateral + lSample.up * lHeight, lSample.up, lS);
             }
-            lRail.Finish(_theme.accent, 1.1f * Mathf.Sqrt(K));
+            lRail.Finish(_theme.accent, 1f);
             _layout.rails.Add(lRail);
         }
 
         private bool PadAllowed(float pS)
         {
+            if (!_layout.field.Solid(pS)) return false;
+            if (_layout.spine.samples[_layout.spine.IndexOf(pS)].localGravity) return false;
             foreach (Vector2 lZone in _noPads)
                 if (pS >= lZone.x && pS <= lZone.y) return false;
             return true;
         }
 
-        // Evenly spread over the whole stage, never bunched up at the end.
         private void PlacePads(Transform pParent)
         {
-            float lStep = M(3.6f);
-            int lIndex = 0;
-            float lWidth = 62f * Mathf.Sqrt(K);
-            float lLength = M(0.55f);
-            for (float lS = M(2f); lS < _layout.finishS - M(1f); lS += lStep, lIndex++)
+            foreach (PadDef lPad in _pads)
             {
-                float lShift = lS;
-                while (!PadAllowed(lShift) && lShift < lS + lStep * 0.8f) lShift += M(0.5f);
-                if (!PadAllowed(lShift)) continue;
-                float lHalf = _layout.field.HalfWidth(lShift) - lWidth * 0.6f;
-                if (lHalf < 0f) lHalf = 0f;
-                float lRoute = _layout.RouteLateral(lShift);
-                if (lIndex % 3 == 2)
-                {
-                    BoostPad.CreateDraped(pParent, _layout, lShift, -lHalf * 0.55f, lWidth, lLength, _theme.accent);
-                    BoostPad.CreateDraped(pParent, _layout, lShift, lHalf * 0.55f, lWidth, lLength, _theme.accent);
-                    BoostPad.CreateDraped(pParent, _layout, lShift, lRoute, lWidth, lLength, _theme.accent);
-                }
-                else BoostPad.CreateDraped(pParent, _layout, lShift, Mathf.Clamp(lRoute + Rand(-0.25f, 0.25f) * lHalf, -lHalf, lHalf), lWidth, lLength, _theme.accent);
+                if (!_layout.field.Solid(lPad.s)) continue;
+                BoostPad.CreateDraped(pParent, _layout, lPad.s, lPad.lateral, lPad.width, lPad.length, _theme.accent, lPad.boost);
             }
-        }
-
-        private void FinishGate(Transform pParent)
-        {
-            float lS = _layout.finishS;
-            float lHalf = _layout.field.HalfWidth(lS);
-            GateKit.Portal(pParent, _layout, lS, lHalf, 150f * Scale, _theme.accent, Color.white, "FINISH");
+            // Small pads spread over the whole stage, near the line.
+            float lStep = M(1.7f);
+            for (float lS = M(2f); lS < _layout.finishS - M(1f); lS += lStep * Rand(0.8f, 1.2f))
+            {
+                if (!PadAllowed(lS)) continue;
+                TrackBlock lBlock = _layout.field.BlockAt(lS);
+                if (lBlock == null) continue;
+                float lWidth = lBlock.halfWidth * 0.42f;
+                float lRange = lBlock.halfWidth - lWidth * 0.5f;
+                float lLateral = lBlock.offset + Rand(-0.7f, 0.7f) * lRange;
+                BoostPad.CreateDraped(pParent, _layout, lS, lLateral, lWidth, M(0.16f), _theme.accent, 0.14f);
+            }
         }
     }
 }

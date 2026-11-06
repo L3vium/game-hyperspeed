@@ -25,8 +25,8 @@ namespace Com.IsartDigital.Hyperspeed
             RenderSettings.fogMode = FogMode.ExponentialSquared;
             RenderSettings.fogColor = pTheme.fog;
             // Enormous views : the fog opens with the world scale.
-            float lWorld = pProfile != null ? Mathf.Pow(pProfile.k, 0.75f) : 1f;
-            RenderSettings.fogDensity = pTheme.fogDensity * 0.42f / lWorld;
+            float lWorld = 1f;
+            RenderSettings.fogDensity = pTheme.fogDensity * 0.24f / lWorld;
             RenderSettings.ambientMode = AmbientMode.Flat;
             RenderSettings.ambientLight = pTheme.ambient;
 

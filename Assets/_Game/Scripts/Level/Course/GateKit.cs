@@ -9,8 +9,9 @@ namespace Com.IsartDigital.Hyperspeed
         public static Transform Portal(Transform pParent, LevelLayout pLayout, float pS, float pHalf, float pHeight, Color pColor, Color pTextColor, string pWord)
         {
             Theme lTheme = RaceContext.Theme;
-            Vector3 lBase = pLayout.field.Point(pS, 0f);
-            Quaternion lRotation = Quaternion.Euler(0f, pLayout.spine.Evaluate(pS).yaw, 0f);
+            Vector3 lBase = pLayout.field.Point(pS, pLayout.field.CenterLateral(pS));
+            Vector3 lNormal = pLayout.field.Normal(pS);
+            Quaternion lRotation = Quaternion.LookRotation(pLayout.spine.Forward(pS), lNormal);
             GameObject lRoot = new GameObject("Gate");
             lRoot.transform.SetParent(pParent, false);
             lRoot.transform.SetPositionAndRotation(lBase, lRotation);
@@ -19,8 +20,8 @@ namespace Com.IsartDigital.Hyperspeed
             float lBeam = pHeight * 0.22f;
             MeshData lData = new MeshData();
             Color lDark = Color.Lerp(pColor, Color.black, 0.45f);
-            Box(lData, new Vector3(-pHalf - lPillar * 0.5f, pHeight * 0.5f - 60f, 0f), new Vector3(lPillar, pHeight + 120f, lPillar), lDark);
-            Box(lData, new Vector3(pHalf + lPillar * 0.5f, pHeight * 0.5f - 60f, 0f), new Vector3(lPillar, pHeight + 120f, lPillar), lDark);
+            Box(lData, new Vector3(-pHalf - lPillar * 0.5f, pHeight * 0.5f, 0f), new Vector3(lPillar, pHeight, lPillar), lDark);
+            Box(lData, new Vector3(pHalf + lPillar * 0.5f, pHeight * 0.5f, 0f), new Vector3(lPillar, pHeight, lPillar), lDark);
             Box(lData, new Vector3(0f, pHeight, 0f), new Vector3(pHalf * 2f + lPillar * 2f, lBeam, lPillar), pColor);
             GameObject lMesh = new GameObject("Arch");
             lMesh.transform.SetParent(lRoot.transform, false);
@@ -33,6 +34,24 @@ namespace Com.IsartDigital.Hyperspeed
                 lText.localPosition = new Vector3(0f, pHeight - lBeam * 0.05f, -lPillar * 0.5f - 0.5f);
             }
             return lRoot.transform;
+        }
+
+        // Lit arch over the track : a frame that rushes past, for tunnels and big moments.
+        public static void Arch(Transform pParent, LevelLayout pLayout, float pS, Theme pTheme)
+        {
+            float lHalf = pLayout.field.TotalHalfWidth(pS);
+            float lHeight = lHalf * 0.9f + 14f;
+            Vector3 lNormal = pLayout.field.Normal(pS);
+            GameObject lRoot = new GameObject("Arch");
+            lRoot.transform.SetParent(pParent, false);
+            lRoot.transform.SetPositionAndRotation(pLayout.field.Point(pS, pLayout.field.CenterLateral(pS)), Quaternion.LookRotation(pLayout.spine.Forward(pS), lNormal));
+            MeshData lGlow = new MeshData();
+            float lT = 1.5f;
+            Box(lGlow, new Vector3(-lHalf * 1.02f, lHeight * 0.5f, 0f), new Vector3(lT, lHeight, lT), Color.white);
+            Box(lGlow, new Vector3(lHalf * 1.02f, lHeight * 0.5f, 0f), new Vector3(lT, lHeight, lT), Color.white);
+            Box(lGlow, new Vector3(0f, lHeight, 0f), new Vector3(lHalf * 2.04f + lT, lT, lT), Color.white);
+            lRoot.AddComponent<MeshFilter>().sharedMesh = lGlow.ToMesh("Arch");
+            lRoot.AddComponent<MeshRenderer>().sharedMaterial = Mats.Glow(Color.Lerp(pTheme.accent, Color.white, 0.25f) * 3.2f, false, 0f, 0f, true);
         }
 
         public static void Box(MeshData pData, Vector3 pCenter, Vector3 pSize, Color pColor)

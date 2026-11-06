@@ -106,12 +106,17 @@ namespace Com.IsartDigital.Hyperspeed
 
         // ---------------------------------------------------------------- impact frames
 
-        // Anime impact frame, reserved for the big moments (hyper speed entry, finish) : the real scene is inked
+        // Anime impact frame, only ever called by Impacts : the real scene is inked
         // for a few frames (inverted first), thin manga lines around the edges, Vefects scene-sampled sprite.
         public static void ImpactFrame(float pStrength = 1f)
         {
             Juice lJuice = Instance;
-            if (PostFX.Instance != null) PostFX.Instance.Impact(pStrength > 0.8f ? 3 : 2);
+            Theme lTheme = RaceContext.Theme;
+            if (PostFX.Instance != null)
+            {
+                if (lTheme != null) PostFX.Instance.ImpactColor(lTheme.accent);
+                PostFX.Instance.Impact(pStrength > 0.9f ? 4 : 3);
+            }
             lJuice.ShowImpactOverlay(pStrength);
             Shake(0.2f + 0.2f * pStrength);
             GameObject lPrefab = GameAssets.Instance.impactFramePrefab;
@@ -121,6 +126,14 @@ namespace Com.IsartDigital.Hyperspeed
                 GameObject lFx = Instantiate(lPrefab, lCam);
                 lFx.transform.localPosition = new Vector3(0f, 0f, 3f);
                 lFx.transform.localRotation = Quaternion.identity;
+                // The plugin distorts what is on screen : give it the colours of the place too.
+                if (lTheme != null)
+                {
+                    MaterialPropertyBlock lBlock = new MaterialPropertyBlock();
+                    lBlock.SetColor("_LUTCoreColor", Color.Lerp(lTheme.accent, Color.black, 0.75f));
+                    lBlock.SetColor("_LUTCoreColorInverted", Color.Lerp(lTheme.fog, Color.white, 0.6f));
+                    foreach (ParticleSystemRenderer lRenderer in lFx.GetComponentsInChildren<ParticleSystemRenderer>()) lRenderer.SetPropertyBlock(lBlock);
+                }
                 Destroy(lFx, 1.2f);
             }
         }
