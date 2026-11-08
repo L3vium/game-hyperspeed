@@ -339,7 +339,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _crumbleTimer -= pDt;
             if (_crumbleTimer > 0f) return;
-            _crumbleTimer = R(0.1f, 0.22f);
+            _crumbleTimer = R(0.3f, 0.5f);
             Vector3 lCrest, lOut;
             float lHeight;
             float lS = pPlayer.Progress - R(80f, 420f);
@@ -435,7 +435,7 @@ namespace Com.IsartDigital.Hyperspeed
     // Something falling out of the sky onto the track ahead. It hits, bounces, then stays : dash through it or go round.
     public class FallingDebris : Breakable
     {
-        private enum Kind { Car, Tree, Boulder, Stone, LavaBomb, Crystal, Asteroid }
+        private enum Kind { Car, Tree, Boulder, Stone, LavaBomb, Crystal, Asteroid, Slab }
 
         private static readonly Dictionary<int, Mesh> _meshes = new Dictionary<int, Mesh>();
 
@@ -451,7 +451,7 @@ namespace Com.IsartDigital.Hyperspeed
         public static FallingDebris Create(Transform pParent, LevelLayout pLayout, float pS, float pLateral, Theme pTheme, System.Random pRandom)
         {
             Kind lKind = Pick(pTheme.decor, pRandom);
-            float lSize = lKind == Kind.Car ? 14f + (float)pRandom.NextDouble() * 12f : lKind == Kind.Tree ? 40f + (float)pRandom.NextDouble() * 50f : 18f + (float)pRandom.NextDouble() * 40f;
+            float lSize = lKind == Kind.Car ? 14f + (float)pRandom.NextDouble() * 12f : lKind == Kind.Tree ? 40f + (float)pRandom.NextDouble() * 50f : lKind == Kind.Slab ? 60f + (float)pRandom.NextDouble() * 60f : 18f + (float)pRandom.NextDouble() * 40f;
             Vector3 lUp = pLayout.field.Normal(pS);
             Vector3 lGround = pLayout.GroundPoint(pS, pLateral);
             float lHeight = 280f + (float)pRandom.NextDouble() * 220f;
@@ -492,6 +492,8 @@ namespace Com.IsartDigital.Hyperspeed
 
         private static Kind Pick(DecorKind pDecor, System.Random pRandom)
         {
+            // A piece of platform torn off somewhere up there, crashing down in front of you.
+            if (pRandom.NextDouble() < 0.22) return Kind.Slab;
             int lRoll = pRandom.Next(0, 3);
             switch (pDecor)
             {
@@ -522,6 +524,7 @@ namespace Com.IsartDigital.Hyperspeed
                 case Kind.Stone: return Color.Lerp(pTheme.wall, Color.white, 0.2f);
                 case Kind.Crystal: return pTheme.decorC;
                 case Kind.LavaBomb: return new Color(0.2f, 0.1f, 0.1f);
+                case Kind.Slab: return Color.Lerp(pTheme.roadA, pTheme.roadSide, 0.3f);
                 default: return Color.Lerp(pTheme.decorB, pTheme.roadSide, 0.5f);
             }
         }
@@ -554,6 +557,12 @@ namespace Com.IsartDigital.Hyperspeed
                     break;
                 case Kind.Crystal:
                     lData.Append(RockSculptor.Shard(2), Matrix4x4.Scale(new Vector3(0.4f, 1f, 0.4f)), Color.white);
+                    break;
+                case Kind.Slab:
+                    // A broken piece of track : painted top, layered rock under it, a jagged edge.
+                    GateKit.Box(lData, new Vector3(0f, 0.04f, 0f), new Vector3(1f, 0.08f, 0.7f), Color.white);
+                    GateKit.Box(lData, new Vector3(0.05f, -0.06f, 0f), new Vector3(0.85f, 0.14f, 0.6f), new Color(0.55f, 0.45f, 0.45f));
+                    lData.Append(RockSculptor.Boulder(4), Matrix4x4.TRS(new Vector3(-0.1f, -0.16f, 0.05f), Quaternion.identity, new Vector3(0.6f, 0.18f, 0.45f)), new Color(0.5f, 0.4f, 0.42f));
                     break;
                 default:
                     lData.Append(RockSculptor.Boulder((int)pKind % 6), Matrix4x4.Scale(Vector3.one), Color.white);

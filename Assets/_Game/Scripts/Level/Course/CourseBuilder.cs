@@ -261,7 +261,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (TurnRoom(lSide) < pDegrees && TurnRoom(-lSide) > TurnRoom(lSide)) lSide = -lSide;
             float lDegrees = Mathf.Min(pDegrees, TurnRoom(lSide));
             if (lDegrees < 5f) return this;
-            float lRadius = Mathf.Max(Mathf.Max(_halfWidth * 2.4f + 30f, _p.cruise * 3f), 820f);
+            float lRadius = Mathf.Max(Mathf.Max(_halfWidth * 2.4f + 30f, _p.cruise * 3f), 950f);
             float lLength = lRadius * lDegrees * Mathf.Deg2Rad;
             if (_open == null || _open.look == BlockLook.Slab) Open(BlockLook.Ground, 10f);
             Span(lLength * 0.25f, lSide * lDegrees * 0.15f, 0f, lSide * pBank);

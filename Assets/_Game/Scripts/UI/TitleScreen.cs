@@ -29,6 +29,8 @@ namespace Com.IsartDigital.Hyperspeed
         private RectTransform _credits;
         private TextMeshProUGUI _musicValue;
         private TextMeshProUGUI _sfxValue;
+        private TextMeshProUGUI _mouseValue;
+        private TextMeshProUGUI _invertValue;
         private DevCheatBar _cheats;
         private ScreenId _screen;
 
@@ -220,16 +222,20 @@ namespace Com.IsartDigital.Hyperspeed
             lTitle.fontSizeMax = 120f;
 
             _settingsNav = UINav.Create(_settings.gameObject);
-            NavTile lMusic = SettingRow("MUSIC", 60f, out _musicValue);
-            NavTile lSfx = SettingRow("EFFECTS", -60f, out _sfxValue);
-            _settingsNav.Add((RectTransform)lMusic.transform, new Vector2(0f, 1f), () => ChangeVolume(true, 1), lMusic.SetSelected, pDirection => ChangeVolume(true, pDirection));
-            _settingsNav.Add((RectTransform)lSfx.transform, new Vector2(0f, 0f), () => ChangeVolume(false, 1), lSfx.SetSelected, pDirection => ChangeVolume(false, pDirection));
+            NavTile lMusic = SettingRow("MUSIC", 180f, out _musicValue);
+            NavTile lSfx = SettingRow("EFFECTS", 60f, out _sfxValue);
+            NavTile lMouse = SettingRow("MOUSE", -60f, out _mouseValue);
+            NavTile lInvert = SettingRow("INVERT Y", -180f, out _invertValue);
+            _settingsNav.Add((RectTransform)lMusic.transform, new Vector2(0f, 2f), () => ChangeVolume(true, 1), lMusic.SetSelected, pDirection => ChangeVolume(true, pDirection));
+            _settingsNav.Add((RectTransform)lSfx.transform, new Vector2(0f, 1f), () => ChangeVolume(false, 1), lSfx.SetSelected, pDirection => ChangeVolume(false, pDirection));
+            _settingsNav.Add((RectTransform)lMouse.transform, new Vector2(0f, 0f), () => ChangeMouse(1), lMouse.SetSelected, ChangeMouse);
+            _settingsNav.Add((RectTransform)lInvert.transform, new Vector2(0f, -1f), () => ChangeInvert(), lInvert.SetSelected, pDirection => ChangeInvert());
             _settingsNav.onBack = () => SetScreen(ScreenId.Main);
             BackArrow(_settings, _settingsNav, () => SetScreen(ScreenId.Main));
 
             TextMeshProUGUI lIgnored;
-            NavTile lCreditsRow = SettingRow("CREDITS", -180f, out lIgnored);
-            _settingsNav.Add((RectTransform)lCreditsRow.transform, new Vector2(0f, -1f), () => ShowCredits(true), lCreditsRow.SetSelected);
+            NavTile lCreditsRow = SettingRow("CREDITS", -300f, out lIgnored);
+            _settingsNav.Add((RectTransform)lCreditsRow.transform, new Vector2(0f, -2f), () => ShowCredits(true), lCreditsRow.SetSelected);
 
             _credits = UIFactory.Stretch(UIFactory.CreateRect(_canvas.transform, "Credits", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
             UIKit.FullScreen(_credits, "Dim", new Color(0.04f, 0.02f, 0.06f, 0.92f));
@@ -295,6 +301,25 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _musicValue.text = "< " + Mathf.RoundToInt(AudioManager.MusicMaster * 100f) + "% >";
             _sfxValue.text = "< " + Mathf.RoundToInt(AudioManager.MasterSfx * 100f) + "% >";
+            _mouseValue.text = "< " + GameSession.MouseSensitivity.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " >";
+            _invertValue.text = GameSession.InvertY ? "< ON >" : "< OFF >";
+        }
+
+        // Look sensitivity, 0.2 to 3, by steps of 0.1 ; past the top it wraps to the bottom.
+        private void ChangeMouse(int pDirection)
+        {
+            float lValue = GameSession.MouseSensitivity + pDirection * 0.1f;
+            if (lValue > 3.04f) lValue = 0.2f;
+            GameSession.MouseSensitivity = Mathf.Clamp(lValue, 0.2f, 3f);
+            AudioManager.Play("ui_move", 0.5f);
+            RefreshVolumes();
+        }
+
+        private void ChangeInvert()
+        {
+            GameSession.InvertY = !GameSession.InvertY;
+            AudioManager.Play("ui_move", 0.5f);
+            RefreshVolumes();
         }
 
         private void BuildStages()
