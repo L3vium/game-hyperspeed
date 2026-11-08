@@ -79,7 +79,7 @@ namespace Com.IsartDigital.Hyperspeed
             Juice.Rollback(9f);
             Juice.Pulse(0.5f);
             Juice.Shake(0.18f);
-            FX.Sparks(transform.position + CameraUpRaw, Color.white, 22, 30f);
+            FX.Sparks(transform.position + PhysUp, Color.white, 22, 30f);
             OnDashed?.Invoke();
         }
 
@@ -138,11 +138,12 @@ namespace Com.IsartDigital.Hyperspeed
         }
 
         // One instant kick. It fades on its own : see the drag in SpeedStep. pRefill also gives dash energy back.
-        public void ApplyBoost(float pBoost, Vector3 pDirection, float pAlign, string pLabel, bool pRefill = false)
+        public void ApplyBoost(float pBoost, Vector3 pDirection, float pAlign, string pLabel, bool pRefill = false, bool pPad = false)
         {
-            // Pads and rings are worth less and less up high : what takes you to light is your own dashes on top of them.
+            // Kicks are worth less up high : what takes you to light is your own dashes on top of them. A pad keeps
+            // most of its punch at any speed : running over one must always be felt.
             float lRatio = Speed / _profile.cruise;
-            pBoost *= Mathf.Clamp(1.45f - 0.36f * lRatio, 0.3f, 1f);
+            pBoost *= Mathf.Clamp(1.45f - 0.36f * lRatio, pPad ? 0.6f : 0.3f, 1f);
             if (OnSurface) _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + pBoost);
             else _velocity += pDirection.normalized * pBoost;
             if (pRefill) _dashEnergy = Mathf.Min(DASH_ENERGY, _dashEnergy + 0.7f);
@@ -156,8 +157,8 @@ namespace Com.IsartDigital.Hyperspeed
             Juice.Shake(0.1f + lAmount * 0.16f);
             Juice.Vignette(UIFactory.CYAN, 0.5f);
             if (!string.IsNullOrEmpty(pLabel)) Juice.Popup(pLabel, UIFactory.CYAN, 1f);
-            FX.Sparks(transform.position + CameraUpRaw * 0.5f, UIFactory.CYAN, 50, 50f, 0.9f, 0.5f);
-            FX.Burst(transform.position + CameraUpRaw, _heading, UIFactory.CYAN, 22f);
+            FX.Sparks(transform.position + PhysUp * 0.5f, UIFactory.CYAN, 50, 50f, 0.9f, 0.5f);
+            FX.Burst(transform.position + PhysUp, _heading, UIFactory.CYAN, 22f);
             AddCombo();
         }
 

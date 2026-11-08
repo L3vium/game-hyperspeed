@@ -83,7 +83,7 @@ namespace Com.IsartDigital.Hyperspeed
             _rig.Snap();
 
             float lStart = _level.chaser ? _level.chaserStart * lProfile.k : _layout.spawnS + 15f;
-            _rival = Rival.Create(_level.rival, _level.rivalSpeed, _level.rivalDelay, _level.chaser, lStart, lRoot);
+            _rival = Rival.Create(_level.rival, LevelDatabase.RivalSpeed(_level), _level.rivalDelay, _level.chaser, lStart, lRoot);
             _respawn = RespawnDirector.Create(_player, _rig);
 
             if (_level.chaser) _player.OnRespawned += () => StartCoroutine(PushChaserBack());
@@ -285,7 +285,7 @@ namespace Com.IsartDigital.Hyperspeed
             bool lRecord = false;
             if (pWin)
             {
-                float lRivalTime = _layout.finishS / _level.rivalSpeed;
+                float lRivalTime = _layout.finishS / LevelDatabase.RivalSpeed(_level);
                 float lRatio = _raceTime / lRivalTime;
                 lRank = lRatio < 0.8f ? 4 : lRatio < 0.88f ? 3 : lRatio < 0.96f ? 2 : 1;
                 if (_player.Respawns >= 3 && lRank > 2) lRank--;

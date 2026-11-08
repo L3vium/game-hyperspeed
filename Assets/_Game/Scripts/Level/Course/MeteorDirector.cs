@@ -70,7 +70,7 @@ namespace Com.IsartDigital.Hyperspeed
             lCore.name = "Lava";
         }
 
-        public static Meteor CreateIncoming(Transform pParent, LevelLayout pLayout, PlayerController pPlayer, float pS, float pRadius, Theme pTheme)
+        public static Meteor CreateIncoming(Transform pParent, LevelLayout pLayout, PlayerController pPlayer, float pS, float pRadius, Theme pTheme, float pAimLateral = float.NaN)
         {
             GameObject lObject = new GameObject("Meteor");
             lObject.transform.SetParent(pParent, false);
@@ -82,7 +82,7 @@ namespace Com.IsartDigital.Hyperspeed
 
             float lSpeed = Mathf.Max(pPlayer.Speed, pLayout.profile.cruise * 0.7f);
             float lTime = Mathf.Max(0.8f, (pS - pPlayer.Progress) / lSpeed);
-            float lAim = pPlayer.Lateral + Random.Range(-1f, 1f) * pRadius * 0.8f;
+            float lAim = float.IsNaN(pAimLateral) ? pPlayer.Lateral + Random.Range(-1f, 1f) * pRadius * 0.8f : pAimLateral;
             Vector3 lUp = pLayout.field.Normal(pS);
             Vector3 lHit = pLayout.GroundPoint(pS, lAim) + lUp * pRadius * 0.9f;
             Vector3 lFrom = lHit + pLayout.spine.Forward(pS) * lSpeed * 1.2f + pLayout.spine.Right(pS) * Random.Range(-1f, 1f) * 60f + lUp * 240f;

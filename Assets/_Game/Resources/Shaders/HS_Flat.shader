@@ -90,6 +90,22 @@ Shader "Hyperspeed/Flat"
                 half3 lAlbedo = _BaseColor.rgb * input.color.rgb;
                 half3 lColor = lerp(lAlbedo * _ShadeColor.rgb, lAlbedo, lBand);
 
+                // Ground detail on the floor of the track (uv = lateral, distance in metres) : tight bands, slab seams
+                // and grain, so the ground itself tells how fast you go. Faded with distance to stay clean far away.
+                if (_RoadStreaks > 0 && (abs(input.uv.x + 1.0) + abs(input.uv.y)) > 0.001)
+                {
+                    float lFade = saturate(1.0 - distance(input.positionWS, GetCameraPositionWS()) / 420.0);
+                    float lAlt = step(0.5, frac(input.uv.y / 9.0));
+                    lColor *= lerp(1.0, lerp(0.9, 1.04, lAlt), lFade);
+                    float2 lTile = input.uv / float2(22.0, 11.0);
+                    float2 lCell = abs(frac(lTile) - 0.5) * 2.0;
+                    float2 lWidth = max(fwidth(lTile) * 2.0, 0.035);
+                    float lSeam = max(smoothstep(1.0 - lWidth.x, 1.0, lCell.x), smoothstep(1.0 - lWidth.y, 1.0, lCell.y));
+                    lColor = lerp(lColor, lColor * 0.68, lSeam * lFade * 0.85);
+                    float lGrain = frac(sin(dot(floor(input.uv * float2(0.7, 1.4)), float2(12.9898, 78.233))) * 43758.5453);
+                    lColor *= lerp(1.0, 0.92 + 0.14 * lGrain, lFade * 0.7);
+                }
+
                 // Thin lines rushing along the route, denser with speed. Fade with distance : a texture-free ground.
                 if (_RoadStreaks > 0 && _HS_RoadSpeed > 0.01)
                 {

@@ -53,7 +53,8 @@ namespace Com.IsartDigital.Hyperspeed
         // Nothing to catch you : far from the line, in any direction.
         public bool IsLost(Vector3 pPosition, float pS)
         {
-            float lReach = 280f + field.HalfWidth(pS) * 2f;
+            // The safety net catches you far out : only truly lost is lost.
+            float lReach = 1200f + field.TotalHalfWidth(pS) * 2f;
             return (pPosition - spine.Evaluate(pS).position).sqrMagnitude > lReach * lReach;
         }
 

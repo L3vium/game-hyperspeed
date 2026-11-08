@@ -11,6 +11,40 @@ namespace Com.IsartDigital.Hyperspeed
 
         public static int SelectedLevel = 0;
 
+        // Look settings, saved. Mouse up looks up unless inverted.
+        private static float _mouseSensitivity = -1f;
+        private static int _invertY = -1;
+
+        public static float MouseSensitivity
+        {
+            get
+            {
+                if (_mouseSensitivity < 0f) _mouseSensitivity = PlayerPrefs.GetFloat("hs_mouse_sens", 1f);
+                return _mouseSensitivity;
+            }
+            set
+            {
+                _mouseSensitivity = Mathf.Clamp(value, 0.2f, 3f);
+                PlayerPrefs.SetFloat("hs_mouse_sens", _mouseSensitivity);
+                PlayerPrefs.Save();
+            }
+        }
+
+        public static bool InvertY
+        {
+            get
+            {
+                if (_invertY < 0) _invertY = PlayerPrefs.GetInt("hs_invert_y", 0);
+                return _invertY == 1;
+            }
+            set
+            {
+                _invertY = value ? 1 : 0;
+                PlayerPrefs.SetInt("hs_invert_y", _invertY);
+                PlayerPrefs.Save();
+            }
+        }
+
 #if HS_CHEATS
         public static bool CheatsEnabled = true;
 #else

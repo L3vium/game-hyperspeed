@@ -147,15 +147,24 @@ namespace Com.IsartDigital.Hyperspeed
             _timerText.text = GameSession.FormatTime(pTime);
         }
 
+        private float _lineBurst;
+        private float _lastBoost;
+
         private void Update()
         {
             float lDt = Time.unscaledDeltaTime;
             if (_player != null)
             {
-                float lTarget = 0.12f + Mathf.Pow(_player.Speed01, 0.8f) * 0.88f + (_player.LightForm ? 0.2f : 0f) + (_player.Dashing ? 0.16f : 0f) + _player.BoostAmount * 0.14f;
+                float lTarget = 0.12f + Mathf.Pow(_player.Speed01, 0.8f) * 0.88f + (_player.LightForm ? 0.2f : 0f) + (_player.Dashing ? 0.16f : 0f) + _player.BoostAmount * 0.14f + _player.Dive01 * 0.25f;
                 _lineIntensity = Mathf.Lerp(_lineIntensity, Mathf.Clamp01(lTarget), 1f - Mathf.Exp(-7f * lDt));
+                // Every new kick : the streaks snap toward the centre, then ease back out over 0.4 s.
+                float lBoost = _player.BoostAmount;
+                if (lBoost > _lastBoost + 0.05f) _lineBurst = 1f;
+                _lastBoost = lBoost;
+                _lineBurst = Mathf.MoveTowards(_lineBurst, 0f, lDt / 0.4f);
                 _speedLinesMaterial.SetFloat("_Intensity", _player.State == PlayerState.Frozen ? 0f : _lineIntensity);
-                _speedLinesMaterial.SetFloat("_Boost", _player.BoostAmount);
+                _speedLinesMaterial.SetFloat("_Boost", lBoost);
+                _speedLinesMaterial.SetFloat("_Burst", _lineBurst * _lineBurst);
                 _speedLinesMaterial.SetColor("_LineColor", new Color(0.9f, 0.95f, 1f, 0.95f));
                 UpdateRail();
                 UpdateRivalPointer();

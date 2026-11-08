@@ -91,7 +91,7 @@ namespace Com.IsartDigital.Hyperspeed
             new LevelDefinition
             {
                 title = "THE AIRLINER", tagline = "Please remain seated. You will not.", world = 1,
-                rival = RivalKind.Plane, rivalSpeed = 224f, cruise = 180f, theme = Theme.Industrial, seed = 77,
+                rival = RivalKind.Plane, rivalSpeed = 224f, cruise = 180f, theme = Theme.Volcano, seed = 77,
                 build = b => b.Start(74f, 3600f)
                     .Road(2f).Tunnel(3f).Hammers(4f, 1f).Sweeps(4).Inverted(3f).Lasers(4f, 0.85f).Hairpin(Side.Right).Crates(3f, 4, true).WallTurn(Side.Left)
                     .Loop().Corkscrew().Slabs(5f, 1.2f).Tunnel(2.5f).Sweeps(4).Dive(320f).Hammers(3f, 0.9f).PadRun(3f).FinalRush(6f).Finish()
@@ -179,6 +179,11 @@ namespace Com.IsartDigital.Hyperspeed
         // Later stages run through their open modules for longer : they last as long as the early ones despite their speed.
         public static float Pace(int pIndex) => 1.8f + 0.4f * pIndex / (Levels.Length - 1);
 
-        public static SpeedProfile Profile(LevelDefinition pLevel) => SpeedProfile.For(pLevel.cruise, pLevel.worldBreaker);
+        // Every speed in the table is scaled by this : the world got six times wider, the runner much faster.
+        public const float SPEED_SCALE = 1.8f;
+
+        public static SpeedProfile Profile(LevelDefinition pLevel) => SpeedProfile.For(pLevel.cruise * SPEED_SCALE, pLevel.worldBreaker);
+
+        public static float RivalSpeed(LevelDefinition pLevel) => pLevel.rivalSpeed * SPEED_SCALE;
     }
 }

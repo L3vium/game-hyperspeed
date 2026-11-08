@@ -10,6 +10,7 @@ namespace Com.IsartDigital.Hyperspeed
         public float s1;
         public GameObject gameObject;
         public MeshCollider collider;
+        public BlockLook look;
     }
 
     // Solid extruded blocks from the track field : a painted top, leaning rideable sides, thick layered flanks, a rough
@@ -18,6 +19,7 @@ namespace Com.IsartDigital.Hyperspeed
     {
         private const int FLOOR_COLUMNS = 8;
         private const int WALL_COLUMNS = 4;
+        private const int MOUNTAIN_COLUMNS = 9;
         private const int CHUNK_ROWS = 36;
         private const float MAX_ROW = 26f;
         private const float MIN_ROW = 6f;
@@ -70,33 +72,49 @@ namespace Com.IsartDigital.Hyperspeed
             }
         }
 
+        private static int WallColumns(TrackBlock pBlock) => pBlock.mountain ? MOUNTAIN_COLUMNS : WALL_COLUMNS;
+
+        // Height of a side at t (0 at the floor's edge, 1 at the crest). A mountain is rocky : its slope wanders along the
+        // route but always starts flat and steepens, with no step anywhere between it and the floor.
+        private static float SideHeight(TrackBlock pBlock, float pHeight, float pT, float pS, int pSide)
+        {
+            float lBase = pHeight * Mathf.Pow(pT, 1.5f);
+            if (!pBlock.mountain) return lBase;
+            float lNoise = Mathf.PerlinNoise(pS * 0.0042f + pBlock.seed * 1.3f + pSide * 17.1f, pT * 2.3f + pSide * 5.7f) - 0.5f;
+            float lRidge = Mathf.PerlinNoise(pS * 0.011f + pSide * 3.3f, pBlock.seed * 0.7f) - 0.5f;
+            return lBase * (1f + lNoise * 0.5f * pT + lRidge * 0.35f * pT * pT);
+        }
+
         // Cross-section, left to right along the top, then back under : (x along the block width, y above its floor).
         private static Vector2[] Section(TrackBlock pBlock, float pS, out int pTopCount)
         {
-            List<Vector2> lPoints = new List<Vector2>(40);
+            List<Vector2> lPoints = new List<Vector2>(48);
             float lHalf = pBlock.halfWidth;
             float lRunL = pBlock.WallRun(pBlock.wallLeft);
             float lRunR = pBlock.WallRun(pBlock.wallRight);
+            int lCols = WallColumns(pBlock);
+            float lCrestL = pBlock.mountain ? pBlock.wallLeft * 0.3f : 5f;
+            float lCrestR = pBlock.mountain ? pBlock.wallRight * 0.3f : 5f;
 
             if (pBlock.wallLeft > 0.01f)
             {
-                lPoints.Add(new Vector2(-lHalf - lRunL - 5f, pBlock.wallLeft));
-                for (int i = WALL_COLUMNS; i > 0; i--)
+                lPoints.Add(new Vector2(-lHalf - lRunL - lCrestL, SideHeight(pBlock, pBlock.wallLeft, 1f, pS, -1) * (pBlock.mountain ? 0.92f : 1f)));
+                for (int i = lCols; i > 0; i--)
                 {
-                    float lT = i / (float)WALL_COLUMNS;
-                    lPoints.Add(new Vector2(-lHalf - lRunL * lT, pBlock.wallLeft * Mathf.Pow(lT, 1.5f)));
+                    float lT = i / (float)lCols;
+                    lPoints.Add(new Vector2(-lHalf - lRunL * lT, SideHeight(pBlock, pBlock.wallLeft, lT, pS, -1)));
                 }
             }
             else lPoints.Add(new Vector2(-lHalf - 1.6f, -1.4f));
             for (int i = 0; i <= FLOOR_COLUMNS; i++) lPoints.Add(new Vector2(Mathf.Lerp(-lHalf, lHalf, i / (float)FLOOR_COLUMNS), 0f));
             if (pBlock.wallRight > 0.01f)
             {
-                for (int i = 1; i <= WALL_COLUMNS; i++)
+                for (int i = 1; i <= lCols; i++)
                 {
-                    float lT = i / (float)WALL_COLUMNS;
-                    lPoints.Add(new Vector2(lHalf + lRunR * lT, pBlock.wallRight * Mathf.Pow(lT, 1.5f)));
+                    float lT = i / (float)lCols;
+                    lPoints.Add(new Vector2(lHalf + lRunR * lT, SideHeight(pBlock, pBlock.wallRight, lT, pS, 1)));
                 }
-                lPoints.Add(new Vector2(lHalf + lRunR + 5f, pBlock.wallRight));
+                lPoints.Add(new Vector2(lHalf + lRunR + lCrestR, SideHeight(pBlock, pBlock.wallRight, 1f, pS, 1) * (pBlock.mountain ? 0.92f : 1f)));
             }
             else lPoints.Add(new Vector2(lHalf + 1.6f, -1.4f));
             pTopCount = lPoints.Count;
@@ -147,7 +165,7 @@ namespace Com.IsartDigital.Hyperspeed
             }
 
             MeshData lData = new MeshData();
-            int lWallColumns = pBlock.wallLeft > 0.01f ? WALL_COLUMNS + 1 : 1;
+            int lWallColumns = pBlock.wallLeft > 0.01f ? WallColumns(pBlock) + 1 : 1;
             int lFloorFirst = lWallColumns;
             int lFloorLast = lFloorFirst + FLOOR_COLUMNS - 1;
             for (int lRow = 0; lRow < lRowCount - 1; lRow++)
@@ -227,7 +245,7 @@ namespace Com.IsartDigital.Hyperspeed
             MeshCollider lCollider = lObject.AddComponent<MeshCollider>();
             lCollider.sharedMesh = lCollision;
 
-            Chunks.Add(new TrackChunk { s0 = pRows[pFirst], s1 = pRows[pLast], gameObject = lObject, collider = lCollider });
+            Chunks.Add(new TrackChunk { s0 = pRows[pFirst], s1 = pRows[pLast], gameObject = lObject, collider = lCollider, look = pBlock.look });
         }
 
         // Triangle already wound the right way (see CapTriangles).
@@ -300,9 +318,20 @@ namespace Com.IsartDigital.Hyperspeed
             return lColor;
         }
 
-        // Rideable sides read as such : a painted kerb, brighter toward the top.
+        // Rideable sides read as such : a painted kerb, brighter toward the top. A mountain is strata of rock, ground at
+        // its foot, a pale crest, bands along the route so the slide reads fast.
         private static Color WallColor(TrackBlock pBlock, Theme pTheme, float pS, int pStep)
         {
+            if (pBlock.mountain)
+            {
+                float lH = pStep / (float)MOUNTAIN_COLUMNS;
+                int lStrip = Mathf.FloorToInt(pS / 30f);
+                Color lRock = lH < 0.25f ? Color.Lerp(pTheme.roadA, pTheme.wall, lH * 4f)
+                    : lH < 0.7f ? Color.Lerp(pTheme.wall, pTheme.decorB, (lH - 0.25f) / 0.45f)
+                    : Color.Lerp(pTheme.decorB, Color.Lerp(pTheme.fog, Color.white, 0.5f), (lH - 0.7f) / 0.3f);
+                if (((lStrip + pStep) & 1) == 0) lRock = Color.Lerp(lRock, Color.black, 0.08f);
+                return lRock;
+            }
             int lBand = Mathf.FloorToInt(pS / 16f);
             if (pStep >= WALL_COLUMNS) return (lBand & 1) == 0 ? pTheme.roadEdge : Color.Lerp(pTheme.wall, Color.white, 0.2f);
             float lT = pStep / (float)WALL_COLUMNS;

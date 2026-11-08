@@ -355,11 +355,16 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void BuildTrails()
         {
-            // Two long streaks far out on each side of the body, swaying with the movement : never down the middle.
+            // Two long streaks born from the hands : they follow every swing of the arms. Without a rig, from the sides.
             _wingL = Pivot("WingL", _body, new Vector3(-1.6f, 1.2f, -0.2f));
             _wingR = Pivot("WingR", _body, new Vector3(1.6f, 1.2f, -0.2f));
-            _trailL = CreateTrail(_wingL, new Color(0.4f, 1.6f, 3f, 0.95f), 0.75f, 0.42f);
-            _trailR = CreateTrail(_wingR, new Color(2.8f, 0.5f, 2.2f, 0.95f), 0.75f, 0.42f);
+            _trailL = CreateTrail(_handL != null ? _handL : _wingL, new Color(0.4f, 1.6f, 3f, 0.95f), 0.75f, 0.42f);
+            _trailR = CreateTrail(_handR != null ? _handR : _wingR, new Color(2.8f, 0.5f, 2.2f, 0.95f), 0.75f, 0.42f);
+            // Thin at the hand, swelling just behind it, then thinning out : the streak grows out of the fist.
+            AnimationCurve lShape = new AnimationCurve(new Keyframe(0f, 0.25f), new Keyframe(0.12f, 1f), new Keyframe(0.5f, 0.6f), new Keyframe(1f, 0f));
+            _trailL.widthCurve = lShape;
+            _trailR.widthCurve = lShape;
+            _trailL.minVertexDistance = _trailR.minVertexDistance = 0.08f;
 
             _helixAnchorA = Pivot("HelixA", _body, Vector3.zero);
             _helixAnchorB = Pivot("HelixB", _body, Vector3.zero);
@@ -383,9 +388,17 @@ namespace Com.IsartDigital.Hyperspeed
             float lSwing = _player.Steer * 1.4f + _player.LateralSpeed * 0.02f;
             _wingL.localPosition = new Vector3(-lSpread + lSwing + Mathf.Sin(_windPhase) * 0.8f, 1.1f + Mathf.Sin(_windPhase * 1.3f) * 0.5f, -0.3f);
             _wingR.localPosition = new Vector3(lSpread + lSwing + Mathf.Sin(_windPhase + 2.2f) * 0.8f, 1.1f + Mathf.Sin(_windPhase * 1.3f + 1.4f) * 0.5f, -0.3f);
-            _trailL.time = _trailR.time = Mathf.Lerp(0.35f, 1f, lLevel);
-            _trailL.startWidth = _trailR.startWidth = Mathf.Lerp(0.18f, 0.38f, lLevel);
+            // Alive : length breathes with speed and the arm swing, width grows in from nothing when they start.
+            _trailGrow = _trailL.emitting ? Mathf.MoveTowards(_trailGrow, 1f, Time.deltaTime / 0.25f) : 0f;
+            float lBreath = 0.85f + Mathf.Sin(_windPhase * 2.3f) * 0.15f;
+            _trailL.time = Mathf.Lerp(0.3f, 0.9f, lLevel) * lBreath * (0.6f + 0.4f * _trailGrow);
+            _trailR.time = Mathf.Lerp(0.3f, 0.9f, lLevel) * (1.7f - lBreath) * (0.6f + 0.4f * _trailGrow);
+            float lWidth = Mathf.Lerp(0.22f, 0.5f, lLevel) + _player.BoostAmount * 0.25f;
+            _trailL.widthMultiplier = lWidth * _trailGrow * (0.9f + Mathf.Sin(_windPhase * 3.1f) * 0.1f);
+            _trailR.widthMultiplier = lWidth * _trailGrow * (0.9f + Mathf.Sin(_windPhase * 2.7f + 1f) * 0.1f);
         }
+
+        private float _trailGrow;
 
         private void UpdateHelix()
         {
@@ -560,13 +573,18 @@ namespace Com.IsartDigital.Hyperspeed
                         lBank -= _player.WallSide * 26f;
                         lPitch = -10f;
                     }
+                    // Looking down a slope : thrown forward over the feet, belly toward the ground.
+                    if (_player.BellySliding) lPitch = 50f;
                     break;
                 case PlayerState.Air:
                     lBank = _player.Steer * 10f;
                     if (_player.Diving)
                     {
+                        // Head first like a missile : at least as steep as you look, steeper as the fall bends down.
                         float lHorizontal = Vector3.ProjectOnPlane(_player.Velocity, _player.GravityUp).magnitude;
-                        lPitch = Mathf.Clamp(Mathf.Atan2(-lVertical, Mathf.Max(1f, lHorizontal)) * Mathf.Rad2Deg * 0.85f, 0f, 80f);
+                        float lPath = Mathf.Atan2(-lVertical, Mathf.Max(1f, lHorizontal)) * Mathf.Rad2Deg;
+                        lPitch = Mathf.Clamp(Mathf.Max(lPath, 40f + _player.Dive01 * 45f), 0f, 88f);
+                        lBank = _player.Steer * 18f + Mathf.Sin(Time.time * 31f) * 2f * _player.Dive01;
                     }
                     else lPitch = lVertical > 0f ? -5f : 7f;
                     break;
@@ -611,6 +629,8 @@ namespace Com.IsartDigital.Hyperspeed
             // Posture targets for the rig.
             float lArrow = lState == PlayerState.Ground || lState == PlayerState.Finished ? Mathf.Clamp01((lSpeed - _player.Profile.cruise * 0.9f) / (_player.Profile.cruise * 0.4f)) : 0f;
             if (_player.Hyper && lGrounded) lArrow = 1f;
+            // Diving : arms swept back along the body, a dart.
+            if (_player.Diving || _player.BellySliding) lArrow = 1f;
             _arrow = Mathf.Lerp(_arrow, lArrow, 1f - Mathf.Exp(-5f * pDt));
             _swayPhase += pDt * Mathf.Lerp(5f, 9f, _player.Speed01);
             float lWideArms = lState == PlayerState.Grind ? 0.85f : _player.WallRiding ? 0.6f : 0f;

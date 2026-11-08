@@ -96,12 +96,13 @@ namespace Com.IsartDigital.Hyperspeed
             get
             {
                 Vector2 lValue = Vector2.zero;
-                if (Ms != null) lValue += Ms.delta.ReadValue() * 0.12f;
+                if (Ms != null) lValue += Ms.delta.ReadValue() * 0.07f * GameSession.MouseSensitivity;
                 if (Pad != null)
                 {
                     Vector2 lStick = Pad.rightStick.ReadValue();
-                    if (lStick.magnitude > STICK_DEADZONE) lValue += lStick * 160f * Time.unscaledDeltaTime;
+                    if (lStick.magnitude > STICK_DEADZONE) lValue += lStick * 130f * Time.unscaledDeltaTime;
                 }
+                if (GameSession.InvertY) lValue.y = -lValue.y;
                 return lValue;
             }
         }

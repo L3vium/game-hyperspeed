@@ -11,7 +11,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         public float boost = 26f;
 
-        public static BoostPad CreateDraped(Transform pParent, LevelLayout pLayout, float pS, float pLateral, float pWidth, float pLength, Color pColor, float pBoost = 0.14f)
+        public static BoostPad CreateDraped(Transform pParent, LevelLayout pLayout, float pS, float pLateral, float pWidth, float pLength, Color pColor, float pBoost = 0.5f)
         {
             TrackField lField = pLayout.field;
             Vector3 lPosition = lField.Point(pS, pLateral);
@@ -67,7 +67,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         protected override void OnTouch(PlayerController pPlayer)
         {
-            pPlayer.ApplyBoost(boost, transform.forward, 0f, null);
+            pPlayer.ApplyBoost(boost, transform.forward, 0f, null, false, true);
         }
     }
 }

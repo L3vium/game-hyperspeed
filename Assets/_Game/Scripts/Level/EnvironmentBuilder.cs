@@ -25,7 +25,8 @@ namespace Com.IsartDigital.Hyperspeed
             RenderSettings.fogMode = FogMode.ExponentialSquared;
             RenderSettings.fogColor = pTheme.fog;
             // Enormous views : the fog opens with the world scale.
-            float lWorld = 1f;
+            // The circuit got six times wider : open the fog so the immense things far away stay in view.
+            float lWorld = 2f;
             RenderSettings.fogDensity = pTheme.fogDensity * 0.24f / lWorld;
             RenderSettings.ambientMode = AmbientMode.Flat;
             RenderSettings.ambientLight = pTheme.ambient;

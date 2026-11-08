@@ -182,7 +182,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
         {
             SerializedObject lTags = new SerializedObject(AssetDatabase.LoadAllAssetsAtPath("ProjectSettings/TagManager.asset")[0]);
             SerializedProperty lLayers = lTags.FindProperty("layers");
-            string[] lNames = { "Deck", "Membrane", "Prop", "Debris" };
+            string[] lNames = { "Deck", "Scenery", "Prop", "Debris" };
             for (int i = 0; i < lNames.Length; i++) lLayers.GetArrayElementAtIndex(Layers.DECK + i).stringValue = lNames[i];
             lTags.ApplyModifiedProperties();
         }

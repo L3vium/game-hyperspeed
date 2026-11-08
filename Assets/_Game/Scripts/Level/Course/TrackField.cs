@@ -6,10 +6,12 @@ namespace Com.IsartDigital.Hyperspeed
     public static class Layers
     {
         public const int DECK = 8;
+        // Everything around the track you can still land on : scenery, the safety net under the world.
+        public const int SCENERY = 9;
         public const int PROP = 10;
         public const int DEBRIS = 11;
 
-        public const int GROUND = (1 << 0) | (1 << DECK) | (1 << PROP);
+        public const int GROUND = (1 << 0) | (1 << DECK) | (1 << SCENERY) | (1 << PROP);
     }
 
     public enum BlockLook : byte { Ground, Road, Slab, Pipe, Plaza }
@@ -28,6 +30,8 @@ namespace Com.IsartDigital.Hyperspeed
         public float wallLeft;
         public float wallRight;
         public float wallLean = 28f;
+        // Mountain sides : rocky crest, strata colours, a slide that brings you back to the floor.
+        public bool mountain;
         public float thickness = 26f;
         public BlockLook look;
         public int seed;

@@ -29,6 +29,7 @@ namespace Com.IsartDigital.Hyperspeed
         private float _surgeLeft;
         private float _dropClock;
         private float _rate;
+        private RivalWobble _wobble;
 
         public bool Finished { get; private set; }
         public float Gap => RaceContext.PlayerProgress - distance;
@@ -46,6 +47,7 @@ namespace Com.IsartDigital.Hyperspeed
             lRival.chaser = pChaser;
             lRival.distance = pStartDistance;
             lRival._model = RivalFactory.Build(pKind, lRival.transform);
+            lRival._wobble = RivalWobble.Attach(lRival._model, pKind);
             AudioManager.CreateLoop3D(RivalFactory.EngineSound(pKind), lRival.transform, 1f);
             lRival._placement = RivalFactory.GetPlacement(pKind);
             lRival._lateral = lRival._placement.lateral;
@@ -74,7 +76,10 @@ namespace Com.IsartDigital.Hyperspeed
                 {
                     AudioManager.Play("sfx_pass", 1f);
                     Juice.Rollback(6f);
+                    // Overtaken : it flails.
+                    if (_wobble != null) _wobble.Hiccup(1f);
                 }
+                else if (!lPlayerAhead && _playerWasAhead && _wobble != null) _wobble.Hiccup(0.6f);
                 _playerWasAhead = lPlayerAhead;
             }
             else if (Finished && !chaser)
@@ -103,10 +108,20 @@ namespace Com.IsartDigital.Hyperspeed
             _surgeLeft -= pDt;
             bool lSurging = _surgeLeft > 0f;
 
-            // Hanging just behind you, or just in front during a surge : always close enough to feel.
-            float lTarget = lSurging ? -lCruise * 1.1f : lCruise * 0.9f;
-            float lWanted = speed * Mathf.Clamp(1f + (lGap - lTarget) / (lCruise * 2.4f), 0.72f, lSurging ? 2.6f : 1.7f);
-            _rate = Mathf.MoveTowards(_rate, lWanted, lCruise * 1.6f * pDt);
+            // Neck and neck : it swaps between just behind and just in front of you (a third of a second at cruise),
+            // flooring it when you are ahead, easing off when it leads. Chasers only ever hunt from behind.
+            float lSwap = Mathf.Sin(_elapsed * Mathf.PI * 2f / 12f);
+            float lTarget = chaser ? lCruise * 0.45f : lCruise * 0.3f * (lSwap >= 0f ? 1f : -1f);
+            if (lSurging) lTarget = -lCruise * 0.6f;
+            // The last stretch is yours to win : it drops just behind and fights from there.
+            if (lNearEnd && !chaser) lTarget = lCruise * 0.5f;
+            float lWanted = speed * Mathf.Clamp(1f + (lGap - lTarget) / (lCruise * 1.2f), 0.75f, lSurging ? 2.6f : 2.2f);
+            // Base pace follows the runner, so "faster" and "slower" mean against you, not against a fixed number.
+            float lPace = Mathf.Max(speed, RaceContext.Player != null ? RaceContext.Player.Speed * 0.92f : speed);
+            lWanted *= lPace / speed;
+            float lBefore = _rate;
+            _rate = Mathf.MoveTowards(_rate, lWanted, lCruise * 2.2f * pDt);
+            if (_wobble != null) _wobble.Accelerate((_rate - lBefore) / Mathf.Max(0.0001f, pDt) / lCruise);
             distance += _rate * pDt;
 
             // In front of you : things get in the way.
@@ -117,7 +132,7 @@ namespace Com.IsartDigital.Hyperspeed
                 {
                     _dropClock = DROP_EVERY;
                     float lS = distance - 10f;
-                    if (pLayout.field.Solid(lS) && lS < pLayout.finishS - lCruise) Crate.Create(transform.parent, pLayout, lS, _lateral, 22f, false, RaceContext.Theme);
+                    if (pLayout.field.Solid(lS) && lS < pLayout.finishS - lCruise) Crate.Create(transform.parent, pLayout, lS, _lateral, 60f, false, RaceContext.Theme);
                 }
             }
             if (Passing && !lSurging && lGap > lCruise * 0.15f) Passing = false;
@@ -141,14 +156,14 @@ namespace Com.IsartDigital.Hyperspeed
             // Beside the runner at the start, then on the clear line with a slow wander.
             float lHalf = lLayout.field.HalfWidth(lS);
             float lCenter = lLayout.field.CenterLateral(lS);
-            float lStart = Mathf.Clamp(_placement.lateral, -lHalf * 0.7f, lHalf * 0.7f);
-            float lRoute = lLayout.RouteLateral(lS) + Mathf.Clamp(_placement.lateral * 0.4f + Mathf.Sin(lS * 0.0031f) * lHalf * 0.25f, -lHalf * 0.6f, lHalf * 0.6f);
+            float lStart = Mathf.Clamp(_placement.lateral * 4f, -lHalf * 0.7f, lHalf * 0.7f);
+            float lRoute = lLayout.RouteLateral(lS) + Mathf.Clamp(_placement.lateral * 1.6f + Mathf.Sin(lS * 0.0031f) * lHalf * 0.25f, -lHalf * 0.6f, lHalf * 0.6f);
             float lLateralTarget = lS < lLayout.startLineS + 40f ? lStart : Mathf.Clamp(lRoute, lCenter - lHalf * 0.85f, lCenter + lHalf * 0.85f);
             if (pDt > 0f) _lateral = Mathf.MoveTowards(_lateral, lLateralTarget, Mathf.Max(speed * 0.5f, 30f) * pDt);
 
             _bobTime += pDt;
             float lBob = Mathf.Sin(_bobTime * 2.3f) * _placement.bob;
-            float lHeight = _placement.height + lBob + (_placement.flying && _placement.fromSky ? 18f : 0f);
+            float lHeight = (_placement.height + lBob + (_placement.flying && _placement.fromSky ? 18f : 0f)) * RivalFactory.GROW;
             Vector3 lPosition = lLayout.field.Point(lS, _lateral) + lUp * lHeight;
             if (distance < lLayout.spine.StartS) lPosition -= lForward * (lLayout.spine.StartS - distance);
             if (distance > lLayout.spine.EndS) lPosition += lForward * (distance - lLayout.spine.EndS);
@@ -156,6 +171,7 @@ namespace Com.IsartDigital.Hyperspeed
             float lYaw = pDt > 0f ? Vector3.SignedAngle(_lastForward, lForward, lUp) / pDt : 0f;
             _lastForward = lForward;
             if (pDt > 0f) _bank = Mathf.Lerp(_bank, Mathf.Clamp(-lYaw * 0.6f, -35f, 35f), pDt * 3f);
+            if (_wobble != null && pDt > 0f) _wobble.Turn(lYaw);
             float lBankScale = _placement.flying || kind == RivalKind.Moto ? 1f : 0.15f;
             Vector3 lFlat = Vector3.ProjectOnPlane(lForward, lUp);
             transform.SetPositionAndRotation(lPosition, Quaternion.LookRotation(lFlat.sqrMagnitude > 0.001f ? lFlat : lForward, lUp) * Quaternion.Euler(0f, 0f, _bank * lBankScale));
@@ -163,6 +179,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void Animate()
         {
+            if (_wobble != null) _wobble.Speed01 = Mathf.Clamp01(_rate / Mathf.Max(1f, speed * 2f));
             if (kind == RivalKind.Supernova)
             {
                 float lPulse = 1f + Mathf.Sin(Time.time * 9f) * 0.06f + Mathf.Sin(Time.time * 23f) * 0.03f;
