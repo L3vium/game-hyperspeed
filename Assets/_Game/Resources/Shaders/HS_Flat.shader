@@ -92,7 +92,7 @@ Shader "Hyperspeed/Flat"
 
                 // Ground detail on the floor of the track (uv = lateral, distance in metres) : tight bands, slab seams
                 // and grain, so the ground itself tells how fast you go. Faded with distance to stay clean far away.
-                if (_RoadStreaks > 0 && (abs(input.uv.x) + abs(input.uv.y)) > 0.001)
+                if (_RoadStreaks > 0 && (abs(input.uv.x + 1.0) + abs(input.uv.y)) > 0.001)
                 {
                     float lFade = saturate(1.0 - distance(input.positionWS, GetCameraPositionWS()) / 420.0);
                     float lAlt = step(0.5, frac(input.uv.y / 9.0));

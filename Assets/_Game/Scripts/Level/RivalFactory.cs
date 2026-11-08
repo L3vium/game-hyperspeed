@@ -9,6 +9,8 @@ namespace Com.IsartDigital.Hyperspeed
     public static class RivalFactory
     {
         private const float WORLD_SCALE = 2.6f;
+        // The world grew six times wider : every rival grows too, so it still reads from far back.
+        public const float GROW = 2.4f;
 
         public struct Placement
         {
@@ -113,11 +115,11 @@ namespace Com.IsartDigital.Hyperspeed
         {
             switch (pKind)
             {
-                case RivalKind.Bullet: return 8f;
-                case RivalKind.Moto: return 4f;
-                case RivalKind.TRex: return 4.5f;
-                case RivalKind.Birds: return 5f;
-                default: return WORLD_SCALE;
+                case RivalKind.Bullet: return 8f * GROW;
+                case RivalKind.Moto: return 4f * GROW;
+                case RivalKind.TRex: return 4.5f * GROW;
+                case RivalKind.Birds: return 5f * GROW;
+                default: return WORLD_SCALE * GROW;
             }
         }
 
@@ -127,9 +129,9 @@ namespace Com.IsartDigital.Hyperspeed
             lRoot.SetParent(pParent, false);
             switch (pKind)
             {
-                case RivalKind.Light: Glow(lRoot, new Color(4f, 4f, 3.6f), new Vector3(3f, 3f, 34f)); return lRoot;
-                case RivalKind.Time: BuildClock(lRoot); return lRoot;
-                case RivalKind.Death: BuildReaper(lRoot); return lRoot;
+                case RivalKind.Light: Glow(lRoot, new Color(4f, 4f, 3.6f), new Vector3(3f, 3f, 34f) * GROW); return lRoot;
+                case RivalKind.Time: BuildClock(lRoot); lRoot.localScale = Vector3.one * GROW; return lRoot;
+                case RivalKind.Death: BuildReaper(lRoot); lRoot.localScale = Vector3.one * GROW; return lRoot;
                 case RivalKind.Supernova: BuildStar(lRoot); return lRoot;
             }
             GameObject lPrefab = Model(pKind);
@@ -139,7 +141,7 @@ namespace Com.IsartDigital.Hyperspeed
                 {
                     Vector3.zero, new Vector3(-9f, 2f, -8f), new Vector3(9f, -1f, -9f), new Vector3(-17f, 4f, -18f), new Vector3(16f, 1f, -19f)
                 };
-                foreach (Vector3 lOffset in lFlock) Instance(lPrefab, pKind, lRoot, lOffset * 2f);
+                foreach (Vector3 lOffset in lFlock) Instance(lPrefab, pKind, lRoot, lOffset * 2f * GROW);
                 return lRoot;
             }
             Instance(lPrefab, pKind, lRoot, Vector3.zero);

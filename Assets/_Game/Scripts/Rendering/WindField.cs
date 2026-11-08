@@ -50,6 +50,7 @@ namespace Com.IsartDigital.Hyperspeed
                 case DecorKind.Prehistoric:
                 case DecorKind.Night: lWanted = "FireFlies"; break;
                 case DecorKind.Industrial:
+                case DecorKind.Volcano:
                 case DecorKind.Canyon: lWanted = "Embers"; break;
                 case DecorKind.Ice:
                 case DecorKind.Space:

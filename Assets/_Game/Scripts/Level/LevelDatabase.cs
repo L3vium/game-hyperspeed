@@ -91,7 +91,7 @@ namespace Com.IsartDigital.Hyperspeed
             new LevelDefinition
             {
                 title = "THE AIRLINER", tagline = "Please remain seated. You will not.", world = 1,
-                rival = RivalKind.Plane, rivalSpeed = 224f, cruise = 180f, theme = Theme.Industrial, seed = 77,
+                rival = RivalKind.Plane, rivalSpeed = 224f, cruise = 180f, theme = Theme.Volcano, seed = 77,
                 build = b => b.Start(74f, 3600f)
                     .Road(2f).Tunnel(3f).Hammers(4f, 1f).Sweeps(4).Inverted(3f).Lasers(4f, 0.85f).Hairpin(Side.Right).Crates(3f, 4, true).WallTurn(Side.Left)
                     .Loop().Corkscrew().Slabs(5f, 1.2f).Tunnel(2.5f).Sweeps(4).Dive(320f).Hammers(3f, 0.9f).PadRun(3f).FinalRush(6f).Finish()

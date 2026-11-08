@@ -56,6 +56,7 @@ namespace Com.IsartDigital.Hyperspeed
                 lSafeIndex = i;
             }
             if (CourseBreak.Instance != null) CourseBreak.Instance.RewindTo(lSafe.s);
+            if (ChaosDirector.Instance != null) ChaosDirector.Instance.RewindTo(lSafe.s);
             if (PostFX.Instance != null) PostFX.Instance.rewind = 1f;
             AudioManager.Play("sfx_rewind", 0.8f);
             Vector3 lStart = _player.transform.position;

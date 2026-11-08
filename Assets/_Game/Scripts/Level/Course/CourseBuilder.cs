@@ -755,6 +755,7 @@ namespace Com.IsartDigital.Hyperspeed
             StartGate.Create(lProps, _layout, _theme);
             GateKit.Portal(lProps, _layout, _layout.finishS, lField.TotalHalfWidth(_layout.finishS), 60f, _theme.accent, Color.white, "FINISH");
             CourseScenery.Build(_layout, _theme, _root, _seed * 7 + 3);
+            ChaosDirector.Create(_root, _layout, _theme, !_noItems, _seed * 13 + 5);
 
             Debug.Log("[HS-GEN] length=" + _layout.finishS.ToString("F0") + "m track=" + ((lTrackDone - lStart) * 1000f).ToString("F0") + "ms total=" + ((Time.realtimeSinceStartup - lStart) * 1000f).ToString("F0")
                 + "ms blocks=" + _blocks.Count + " chunks=" + TrackBaker.Chunks.Count + " pads=" + _pads.Count + " rings=" + _rings.Count + " crates=" + _crates.Count + " lasers=" + _lasers.Count + " dives=" + _dives);

@@ -478,6 +478,31 @@ namespace Com.IsartDigital.Hyperspeed
             GlowBar(lM, new Vector3(-pSize * 0.35f, pSize * 0.1f, -pSize * 0.2f), Vector3.one * pSize * 0.07f);
         }
 
+        // A volcano : banded slopes, a glowing crater, lava running down its sides, a plume of fire above.
+        public void VolcanoCone(Vector3 pAt, float pSize)
+        {
+            Matrix4x4 lM = At(pAt, 3f);
+            float lY = 0f;
+            float lW = pSize * 1.4f;
+            int lLayers = 5;
+            for (int i = 0; i < lLayers; i++)
+            {
+                float lH = pSize * 1.1f / lLayers;
+                float lTop = i == lLayers - 1 ? 0.55f : 0.8f;
+                Slab(_d, lM, Vector3.up * lY, lW, lH, lW, lTop, i % 2 == 0 ? _t.decorA : _t.decorC);
+                lY += lH;
+                lW *= lTop;
+            }
+            Slab(_g, lM, Vector3.up * lY, lW * 0.7f, pSize * 0.04f, lW * 0.7f, 1f, Color.white);
+            for (int i = 0; i < 3; i++)
+            {
+                float lAngle = R(0f, 360f) * Mathf.Deg2Rad;
+                Vector3 lDir = new Vector3(Mathf.Cos(lAngle), 0f, Mathf.Sin(lAngle));
+                Slab(_g, lM, lDir * pSize * 0.35f, pSize * 0.05f, lY * 0.9f, pSize * 0.05f, 0.4f, Color.white, -lDir * pSize * 0.3f);
+            }
+            Slab(_g, lM, Vector3.up * lY, pSize * 0.06f, pSize * 1.6f, pSize * 0.06f, 2.5f, Color.white, new Vector3(R(-0.2f, 0.2f), 0f, R(-0.2f, 0.2f)) * pSize);
+        }
+
         // ---------------------------------------------------------------- what each place grows
 
         private int Pick(int pCount) => _r.Next(0, pCount);
@@ -489,6 +514,7 @@ namespace Com.IsartDigital.Hyperspeed
                 case DecorKind.City: if (Pick(3) == 0) Billboard(pAt, pSize); else Tower(pAt, pSize * 0.8f); break;
                 case DecorKind.Desert: if (Pick(2) == 0) Cactus(pAt, pSize * 1.4f); else Strata(pAt, pSize); break;
                 case DecorKind.Industrial: if (Pick(2) == 0) Stack(pAt, pSize); else Strata(pAt, pSize); break;
+                case DecorKind.Volcano: if (Pick(3) == 0) VolcanoCone(pAt, pSize * 0.8f); else CanyonRock(pAt, pSize); break;
                 case DecorKind.Ice: Crystals(pAt, pSize * 1.2f); break;
                 case DecorKind.Space:
                 case DecorKind.Void: Asteroid(pAt, pSize); break;
@@ -509,6 +535,7 @@ namespace Com.IsartDigital.Hyperspeed
                 case DecorKind.City: Tower(pAt, pSize); break;
                 case DecorKind.Desert: if (Pick(2) == 0) Fortress(pAt, pSize); else Cactus(pAt, pSize * 1.3f); break;
                 case DecorKind.Industrial: Stack(pAt, pSize); break;
+                case DecorKind.Volcano: VolcanoCone(pAt, pSize); break;
                 case DecorKind.Ice: Crystals(pAt, pSize * 1.3f); break;
                 case DecorKind.Space:
                 case DecorKind.Void: if (Pick(3) == 0) Halo(pAt, pSize * 0.8f); else Asteroid(pAt, pSize); break;
@@ -531,6 +558,7 @@ namespace Com.IsartDigital.Hyperspeed
                 case DecorKind.Space:
                 case DecorKind.Void: if (Pick(2) == 0) Halo(pAt, pSize); else Asteroid(pAt, pSize); break;
                 case DecorKind.Ice: Crystals(pAt, pSize * 1.4f); break;
+                case DecorKind.Volcano: VolcanoCone(pAt, pSize); break;
                 case DecorKind.Prehistoric:
                 case DecorKind.Forest: GiantTree(pAt, pSize * 0.7f); break;
                 case DecorKind.Castle: CastleTower(pAt, pSize * 0.7f); break;

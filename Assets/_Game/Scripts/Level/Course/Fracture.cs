@@ -1,39 +1,63 @@
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // Big smash : the rock bursts into huge chunks flying everywhere, lava blobs, rings and a flash.
+    // Big smash : the rock bursts into huge chunks flying everywhere, lava blobs, rings and a flash. Chunks are pooled :
+    // the world breaks all the time now.
     public static class Fracture
     {
-        public static void Explode(Vector3 pCenter, float pRadius, Color pColor, Vector3 pDirection, float pSpeed)
+        private static readonly Stack<ChunkAnim> _rocks = new Stack<ChunkAnim>();
+        private static readonly Stack<ChunkAnim> _blobs = new Stack<ChunkAnim>();
+
+        private static ChunkAnim Take(Stack<ChunkAnim> pPool, bool pBlob, int pIndex)
+        {
+            while (pPool.Count > 0)
+            {
+                ChunkAnim lReady = pPool.Pop();
+                if (lReady != null)
+                {
+                    lReady.gameObject.SetActive(true);
+                    return lReady;
+                }
+            }
+            GameObject lObject;
+            if (pBlob) lObject = Mats.Primitive(PrimitiveType.Sphere, null, Vector3.zero, Vector3.one, null);
+            else
+            {
+                lObject = new GameObject("Chunk");
+                lObject.AddComponent<MeshFilter>().sharedMesh = RockSculptor.Boulder(pIndex % 6);
+                lObject.AddComponent<MeshRenderer>();
+            }
+            ChunkAnim lAnim = lObject.AddComponent<ChunkAnim>();
+            lAnim.pool = pPool;
+            return lAnim;
+        }
+
+        public static void Explode(Vector3 pCenter, float pRadius, Color pColor, Vector3 pDirection, float pSpeed, float pAmount = 1f)
         {
             Theme lTheme = RaceContext.Theme;
             Material lMaterial = Mats.Flat(lTheme != null ? lTheme.shade : new Color(0.6f, 0.55f, 0.8f), false, pColor);
             Material lLava = Mats.Glow(new Color(3.6f, 1.2f, 0.12f), false, 0f, 0f, true);
             Vector3 lDrive = pDirection.normalized * Mathf.Min(pSpeed, 400f) * 0.75f;
-            for (int i = 0; i < 16; i++)
+            int lRocks = Mathf.Max(4, Mathf.RoundToInt(16 * pAmount));
+            for (int i = 0; i < lRocks; i++)
             {
                 Vector3 lOut = Random.onUnitSphere;
                 float lSize = pRadius * Random.Range(0.18f, 0.5f);
-                GameObject lChunk = new GameObject("Chunk");
-                lChunk.transform.position = pCenter + lOut * pRadius * 0.5f;
-                lChunk.transform.localScale = Vector3.one * lSize;
-                lChunk.transform.rotation = Random.rotation;
-                lChunk.AddComponent<MeshFilter>().sharedMesh = RockSculptor.Boulder(i);
-                lChunk.AddComponent<MeshRenderer>().sharedMaterial = lMaterial;
-                ChunkAnim lAnim = lChunk.AddComponent<ChunkAnim>();
-                lAnim.velocity = lOut * Random.Range(40f, 130f) * Mathf.Sqrt(pRadius / 16f) + lDrive + Vector3.up * Random.Range(10f, 60f);
-                lAnim.spin = Random.onUnitSphere * Random.Range(180f, 720f);
-                lAnim.life = Random.Range(1.6f, 2.8f);
+                ChunkAnim lAnim = Take(_rocks, false, i);
+                lAnim.transform.SetPositionAndRotation(pCenter + lOut * pRadius * 0.5f, Random.rotation);
+                lAnim.GetComponent<MeshRenderer>().sharedMaterial = lMaterial;
+                lAnim.Launch(Vector3.one * lSize, lOut * Random.Range(40f, 130f) * Mathf.Sqrt(pRadius / 16f) + lDrive + Vector3.up * Random.Range(10f, 60f), Random.onUnitSphere * Random.Range(180f, 720f), Random.Range(1.6f, 2.8f), false);
             }
-            for (int i = 0; i < 12; i++)
+            int lBlobs = Mathf.Max(3, Mathf.RoundToInt(12 * pAmount));
+            for (int i = 0; i < lBlobs; i++)
             {
                 Vector3 lOut = Random.onUnitSphere;
-                GameObject lBlob = Mats.Primitive(PrimitiveType.Sphere, null, pCenter, Vector3.one * pRadius * Random.Range(0.05f, 0.14f), lLava);
-                ChunkAnim lAnim = lBlob.AddComponent<ChunkAnim>();
-                lAnim.velocity = lOut * Random.Range(60f, 190f) + lDrive * 0.8f;
-                lAnim.life = Random.Range(0.8f, 1.6f);
-                lAnim.shrink = true;
+                ChunkAnim lAnim = Take(_blobs, true, i);
+                lAnim.transform.position = pCenter;
+                lAnim.GetComponent<MeshRenderer>().sharedMaterial = lLava;
+                lAnim.Launch(Vector3.one * pRadius * Random.Range(0.05f, 0.14f), lOut * Random.Range(60f, 190f) + lDrive * 0.8f, Vector3.zero, Random.Range(0.8f, 1.6f), true);
             }
             FX.Shockwave(pCenter, -pDirection, new Color(1f, 0.6f, 0.15f), pRadius * 4.5f, 0.45f);
             FX.Shockwave(pCenter, Vector3.up, Color.white, pRadius * 3f, 0.3f);
@@ -50,11 +74,28 @@ namespace Com.IsartDigital.Hyperspeed
         public Vector3 spin;
         public float life = 2f;
         public bool shrink;
+        [System.NonSerialized] public Stack<ChunkAnim> pool;
 
         private float _age;
         private Vector3 _scale;
+        private bool _launched;
 
-        private void Start() => _scale = transform.localScale;
+        public void Launch(Vector3 pScale, Vector3 pVelocity, Vector3 pSpin, float pLife, bool pShrink)
+        {
+            _launched = true;
+            _scale = pScale;
+            transform.localScale = pScale;
+            velocity = pVelocity;
+            spin = pSpin;
+            life = pLife;
+            shrink = pShrink;
+            _age = 0f;
+        }
+
+        private void Start()
+        {
+            if (!_launched) _scale = transform.localScale;
+        }
 
         private void Update()
         {
@@ -65,7 +106,13 @@ namespace Com.IsartDigital.Hyperspeed
             transform.Rotate(spin * lDt, Space.World);
             float lLeft = life - _age;
             if (lLeft < 0.4f || shrink) transform.localScale = _scale * Mathf.Clamp01(shrink ? lLeft / life : lLeft / 0.4f);
-            if (lLeft <= 0f) Destroy(gameObject);
+            if (lLeft > 0f) return;
+            if (pool != null)
+            {
+                gameObject.SetActive(false);
+                pool.Push(this);
+            }
+            else Destroy(gameObject);
         }
     }
 }

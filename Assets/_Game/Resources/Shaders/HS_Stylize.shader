@@ -56,7 +56,7 @@ Shader "Hyperspeed/Stylize"
                     float lAngle = atan2(lDelta.y, lDelta.x) * 42.0;
                     float lCell = floor(lAngle);
                     float lStrand = lerp(frac(sin(lCell * 12.9898) * 43758.5453), frac(sin((lCell + 1.0) * 12.9898) * 43758.5453), smoothstep(0.0, 1.0, frac(lAngle)));
-                    float lMask = smoothstep(0.015, 0.55, lEdge);
+                    float lMask = smoothstep(0.07, 0.75, lEdge);
                     float lStrength = _HS_RadialBlur * 0.055 * lMask * (0.25 + lStrand * lStrand * 2.1);
                     [unroll] for (int i = 1; i <= 14; i++)
                     {

@@ -10,6 +10,7 @@ namespace Com.IsartDigital.Hyperspeed
         public float s1;
         public GameObject gameObject;
         public MeshCollider collider;
+        public BlockLook look;
     }
 
     // Solid extruded blocks from the track field : a painted top, leaning rideable sides, thick layered flanks, a rough
@@ -244,7 +245,7 @@ namespace Com.IsartDigital.Hyperspeed
             MeshCollider lCollider = lObject.AddComponent<MeshCollider>();
             lCollider.sharedMesh = lCollision;
 
-            Chunks.Add(new TrackChunk { s0 = pRows[pFirst], s1 = pRows[pLast], gameObject = lObject, collider = lCollider });
+            Chunks.Add(new TrackChunk { s0 = pRows[pFirst], s1 = pRows[pLast], gameObject = lObject, collider = lCollider, look = pBlock.look });
         }
 
         // Triangle already wound the right way (see CapTriangles).

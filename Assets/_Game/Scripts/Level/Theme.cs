@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    public enum DecorKind { Islands, City, Desert, Industrial, Ice, Space, Void, Night, Prehistoric, Forest, Canyon, Castle, Neon }
+    public enum DecorKind { Islands, City, Desert, Industrial, Ice, Space, Void, Night, Prehistoric, Forest, Canyon, Castle, Neon, Volcano }
 
     // Palette + decor style of a level.
     public class Theme
@@ -175,6 +175,18 @@ namespace Com.IsartDigital.Hyperspeed
             roadA = Hex("6FAA2C"), roadB = Hex("588F22"), roadEdge = Hex("FFE066"), roadSide = Hex("6B3E22"),
             wall = Hex("8A5A32"), accent = Hex("FF3D1F"),
             decorA = Hex("7A4A28"), decorB = Hex("3F6E23"), decorC = Hex("C25B22"), shade = Hex("B0605A"), rays = 0.6f
+        };
+
+        // Black basalt, rivers of lava, ash in the sky and cones spitting fire on the horizon.
+        public static Theme Volcano() => new Theme
+        {
+            road = Hex("2A1A1A"), groundC = Hex("FF5A1F"),
+            name = "MAGMA RUN", decor = DecorKind.Volcano,
+            skyTop = Hex("2A0A0A"), skyHorizon = Hex("FF5A1F"), skyBottom = Hex("FFB347"), cloud = Hex("6A4848"), sun = new Color(2.6f, 1.2f, 0.4f),
+            fog = Hex("8A2A14"), fogDensity = 0.0024f, ambient = Hex("C0503A"), light = Hex("FFC09A"),
+            roadA = Hex("3A2A2E"), roadB = Hex("2E2226"), roadEdge = Hex("FF7A1F"), roadSide = Hex("1A1012"),
+            wall = Hex("4A2E2A"), accent = Hex("FF5A00"),
+            decorA = Hex("2A1A1C"), decorB = Hex("FF7A1F"), decorC = Hex("5A2A1A"), shade = Hex("8A3A4A"), clouds = 0.3f, rays = 0.4f
         };
 
         public static Theme Night() => new Theme
