@@ -514,7 +514,7 @@ namespace Com.IsartDigital.Hyperspeed
             Span(M(pSeconds * pace));
             float lWeave = Rand(0f, 6f);
             for (float lT = 0.2f; lT < pSeconds * pace; lT += pEvery)
-                _pads.Add(new PadDef { s = lS0 + M(lT), lateral = Mathf.Sin(lT * 1.3f + lWeave) * _halfWidth * 0.55f, width = _halfWidth * 0.5f, length = M(0.14f), boost = 0.09f });
+                _pads.Add(new PadDef { s = lS0 + M(lT), lateral = Mathf.Sin(lT * 1.3f + lWeave) * _halfWidth * 0.55f, width = _halfWidth * 0.5f, length = M(0.14f), boost = 0.3f });
             Route(lS0, _s, 0f);
             NoPads(lS0, _s);
             return this;
@@ -672,7 +672,7 @@ namespace Com.IsartDigital.Hyperspeed
             Span(M(pSeconds * 0.5f), 0f, 10f);
             _pitch = 0f;
             for (float lT = 0.2f; lT < pSeconds; lT += 0.3f)
-                _pads.Add(new PadDef { s = lS0 + M(lT), lateral = Mathf.Sin(lT * 2.1f) * _halfWidth * 0.5f, width = _halfWidth * 0.8f, length = M(0.13f), boost = 0.1f });
+                _pads.Add(new PadDef { s = lS0 + M(lT), lateral = Mathf.Sin(lT * 2.1f) * _halfWidth * 0.5f, width = _halfWidth * 0.8f, length = M(0.13f), boost = 0.25f });
             for (float lT = 0f; lT < pSeconds; lT += 0.5f) _arches.Add(new ArchDef { s = lS0 + M(lT), lit = true });
             _halfWidth = lHalf;
             NoPads(lS0, _s);
@@ -792,7 +792,7 @@ namespace Com.IsartDigital.Hyperspeed
                 float lWidth = lBlock.halfWidth * 0.42f;
                 float lRange = lBlock.halfWidth - lWidth * 0.5f;
                 float lLateral = lBlock.offset + Rand(-0.7f, 0.7f) * lRange;
-                BoostPad.CreateDraped(pParent, _layout, lS, lLateral, lWidth, M(0.16f), _theme.accent, 0.14f);
+                BoostPad.CreateDraped(pParent, _layout, lS, lLateral, lWidth, M(0.16f), _theme.accent, 0.5f);
             }
         }
     }

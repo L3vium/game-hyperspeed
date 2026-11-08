@@ -161,6 +161,8 @@ namespace Com.IsartDigital.Hyperspeed
         public float Speed01 => Mathf.Clamp01((Speed - _profile.cruise * 0.55f) / (_profile.lightEnter - _profile.cruise * 0.55f));
         public float CameraRoll => -Steer * 4f - (Drifting ? DriftDirection * 8f : 0f) + WallSide * 6f;
         public bool HyperMode => Hyper;
+        // How hard you dive : 0 not diving, 1 looking straight down. A belly slide counts for half.
+        public float Dive01 => Diving ? Mathf.Lerp(0.35f, 1f, Mathf.InverseLerp(-18f, AIM_PITCH_MIN, AimPitch)) : BellySliding ? 0.45f : 0f;
 
         public void Init(LevelLayout pLayout, PlayerVisual pVisual)
         {

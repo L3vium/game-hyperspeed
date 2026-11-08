@@ -138,11 +138,12 @@ namespace Com.IsartDigital.Hyperspeed
         }
 
         // One instant kick. It fades on its own : see the drag in SpeedStep. pRefill also gives dash energy back.
-        public void ApplyBoost(float pBoost, Vector3 pDirection, float pAlign, string pLabel, bool pRefill = false)
+        public void ApplyBoost(float pBoost, Vector3 pDirection, float pAlign, string pLabel, bool pRefill = false, bool pPad = false)
         {
-            // Pads and rings are worth less and less up high : what takes you to light is your own dashes on top of them.
+            // Kicks are worth less up high : what takes you to light is your own dashes on top of them. A pad keeps
+            // most of its punch at any speed : running over one must always be felt.
             float lRatio = Speed / _profile.cruise;
-            pBoost *= Mathf.Clamp(1.45f - 0.36f * lRatio, 0.3f, 1f);
+            pBoost *= Mathf.Clamp(1.45f - 0.36f * lRatio, pPad ? 0.6f : 0.3f, 1f);
             if (OnSurface) _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + pBoost);
             else _velocity += pDirection.normalized * pBoost;
             if (pRefill) _dashEnergy = Mathf.Min(DASH_ENERGY, _dashEnergy + 0.7f);

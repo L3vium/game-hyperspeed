@@ -11,6 +11,10 @@ namespace Com.IsartDigital.Hyperspeed
         public enum TakeoffReason { Edge, Jump, Aim, Stall }
 
         private float _slip;
+        private float _driftEntrySpeed;
+
+        // Looking down a slope on the ground : belly first, it feeds you harder.
+        public bool BellySliding { get; private set; }
 
         public float LateralSpeed => OnSurface ? _slip : (_layout != null ? Vector3.Dot(_velocity, _layout.spine.Right(Progress)) : 0f);
 
@@ -22,6 +26,7 @@ namespace Com.IsartDigital.Hyperspeed
 
             UpdateDrift(pDt);
             Sliding = _slideHeld && !Drifting && !_freeRoam;
+            BellySliding = !_freeRoam && !Drifting && AimPitch < DIVE_PITCH && Vector3.Dot(lForward, GravityDown()) > 0.08f;
 
             if (_freeRoam)
             {
@@ -112,7 +117,15 @@ namespace Com.IsartDigital.Hyperspeed
                 return;
             }
             float lSlope = Vector3.Dot(pForward, GravityDown());
-            _speed += lSlope * SLOPE_ACCEL * (lSlope < 0f ? 0.4f : 1f) * (Sliding ? 1.8f : 1f) * pDt;
+            _speed += lSlope * SLOPE_ACCEL * (lSlope < 0f ? 0.4f : 1f) * (Sliding || BellySliding ? 1.8f : 1f) * pDt;
+            // A drift bites : it bleeds speed down to 70 % of what you came in with. Releasing it gives it all back.
+            if (Drifting)
+            {
+                float lFloor = Mathf.Max(_driftEntrySpeed * 0.7f, lCruise * 0.6f);
+                if (_speed > lFloor) _speed = Mathf.MoveTowards(_speed, lFloor, Mathf.Max(lCruise * 0.45f, _driftEntrySpeed * 0.35f) * pDt);
+                _speed = Mathf.Clamp(_speed, lCruise * 0.55f, SpeedProfile.SAFETY_MAX);
+                return;
+            }
             float lTarget = lCruise * (1f + 0.1f * Mathf.Max(0f, HSInput.Forward));
             if (_speed < lTarget) _speed = Mathf.MoveTowards(_speed, lTarget, RUN_ACCEL * (Sliding ? 0.3f : 1f) * pDt);
             else
@@ -202,6 +215,7 @@ namespace Com.IsartDigital.Hyperspeed
                 Drifting = true;
                 DriftDirection = Steer > 0f ? 1 : -1;
                 DriftCharge = 0f;
+                _driftEntrySpeed = _speed;
                 AudioManager.Play("sfx_drift_start", 0.7f);
             }
             if (!Drifting) return;
@@ -228,9 +242,13 @@ namespace Com.IsartDigital.Hyperspeed
             if (!pRelease) { DriftCharge = 0f; return; }
             int lTier = DriftTier;
             DriftCharge = 0f;
+            // Released while running where you look : the speed the drift ate comes back at once, and the charge on top.
+            Vector3 lAim = Vector3.ProjectOnPlane(_aimForward, _up);
+            float lAlign = lAim.sqrMagnitude > 0.0001f ? Mathf.InverseLerp(0.5f, 0.97f, Vector3.Dot(lAim.normalized, _heading)) : 0f;
+            _speed = Mathf.Max(_speed, _driftEntrySpeed * Mathf.Lerp(0.85f, 1f, lAlign));
             if (lTier == 0) return;
-            float[] lBoosts = { 0f, 0.2f, 0.34f, 0.5f };
-            ApplyBoost(lBoosts[lTier] * _profile.cruise, _heading, 0f, null);
+            float[] lBoosts = { 0f, 0.3f, 0.55f, 0.8f };
+            ApplyBoost(lBoosts[lTier] * _profile.cruise * Mathf.Lerp(0.35f, 1f, lAlign), _heading, 0f, lAlign > 0.9f && lTier >= 2 ? "DRIFT BOOST" : null);
         }
 
         private void ReprojectProgress()

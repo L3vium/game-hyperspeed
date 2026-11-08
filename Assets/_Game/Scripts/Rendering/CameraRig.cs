@@ -12,6 +12,7 @@ namespace Com.IsartDigital.Hyperspeed
         float Speed01 { get; }
         float CameraRoll { get; }
         bool HyperMode { get; }
+        float Dive01 { get; }
     }
 
     // Free third person camera : it always orbits where the mouse looks, behind the runner, in the frame of the surface
@@ -55,6 +56,7 @@ namespace Com.IsartDigital.Hyperspeed
         private float _fovVelocity;
         private float _trauma;
         private float _roll;
+        private float _dive;
         private float _hyperBlend;
         private float _lightBlend;
         private bool _finishMode;
@@ -222,6 +224,7 @@ namespace Com.IsartDigital.Hyperspeed
             _kickTarget = Mathf.MoveTowards(_kickTarget, 0f, lUnscaled * KICK_MAX / 0.7f);
             _trauma = Mathf.MoveTowards(_trauma, 0f, lUnscaled * 1.4f);
             _roll = Mathf.Lerp(_roll, target.CameraRoll, 1f - Mathf.Exp(-6f * lDt));
+            _dive = Mathf.Lerp(_dive, target.Dive01, 1f - Mathf.Exp(-5f * lDt));
 
             Vector3 lDesired = DesiredPosition(lSpeed);
             Vector3 lLook = LookPoint(lSpeed);
@@ -241,14 +244,14 @@ namespace Com.IsartDigital.Hyperspeed
             Quaternion lRotation = Quaternion.LookRotation(lLook - _base, _up) * Quaternion.Euler(0f, 0f, freeLook ? 0f : _roll);
 
             // Rumble grows with speed : at full speed the frame never rests.
-            float lShake = _trauma * _trauma + lSpeed * lSpeed * 0.06f + _hyperBlend * 0.02f + _lightBlend * 0.04f;
+            float lShake = _trauma * _trauma + lSpeed * lSpeed * 0.06f + _hyperBlend * 0.02f + _lightBlend * 0.04f + _dive * 0.05f;
             float lTime = Time.unscaledTime * 24f;
             Vector3 lShakeOffset = new Vector3(Mathf.PerlinNoise(lTime, 0.1f) - 0.5f, Mathf.PerlinNoise(0.3f, lTime) - 0.5f, 0f) * lShake * 1.4f;
             Quaternion lShakeRot = Quaternion.Euler((Mathf.PerlinNoise(lTime, 5.2f) - 0.5f) * lShake * 5f, (Mathf.PerlinNoise(7.1f, lTime) - 0.5f) * lShake * 5f, (Mathf.PerlinNoise(lTime, 9.4f) - 0.5f) * lShake * 8f);
             Vector3 lPosition = _base + lRotation * lShakeOffset;
             lRotation *= lShakeRot;
 
-            float lFovTarget = Mathf.Lerp(FOV_MIN, FOV_MAX, Mathf.Sqrt(lSpeed)) + _hyperBlend * FOV_HYPER + _kick;
+            float lFovTarget = Mathf.Lerp(FOV_MIN, FOV_MAX, Mathf.Sqrt(lSpeed)) + _hyperBlend * FOV_HYPER + _kick + _dive * 10f;
             if (freeLook) lFovTarget = 84f;
             _fov = Mathf.SmoothDamp(_fov, lFovTarget, ref _fovVelocity, 0.22f, FOV_RATE, lDt);
 
