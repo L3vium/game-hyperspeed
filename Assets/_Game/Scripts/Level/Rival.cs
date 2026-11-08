@@ -113,6 +113,8 @@ namespace Com.IsartDigital.Hyperspeed
             float lSwap = Mathf.Sin(_elapsed * Mathf.PI * 2f / 12f);
             float lTarget = chaser ? lCruise * 0.45f : lCruise * 0.3f * (lSwap >= 0f ? 1f : -1f);
             if (lSurging) lTarget = -lCruise * 0.6f;
+            // The last stretch is yours to win : it drops just behind and fights from there.
+            if (lNearEnd && !chaser) lTarget = lCruise * 0.5f;
             float lWanted = speed * Mathf.Clamp(1f + (lGap - lTarget) / (lCruise * 1.2f), 0.75f, lSurging ? 2.6f : 2.2f);
             // Base pace follows the runner, so "faster" and "slower" mean against you, not against a fixed number.
             float lPace = Mathf.Max(speed, RaceContext.Player != null ? RaceContext.Player.Speed * 0.92f : speed);
