@@ -109,7 +109,7 @@ namespace Com.IsartDigital.Hyperspeed
             _player.StartRunning();
 
             _rig.lensShiftX = -0.42f;
-            _rig.distanceScale = 0.55f;
+            _rig.distanceScale = 0.27f;
         }
 
         private void Update()

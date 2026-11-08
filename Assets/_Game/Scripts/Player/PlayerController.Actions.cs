@@ -79,7 +79,7 @@ namespace Com.IsartDigital.Hyperspeed
             Juice.Rollback(9f);
             Juice.Pulse(0.5f);
             Juice.Shake(0.18f);
-            FX.Sparks(transform.position + CameraUpRaw, Color.white, 22, 30f);
+            FX.Sparks(transform.position + PhysUp, Color.white, 22, 30f);
             OnDashed?.Invoke();
         }
 
@@ -156,8 +156,8 @@ namespace Com.IsartDigital.Hyperspeed
             Juice.Shake(0.1f + lAmount * 0.16f);
             Juice.Vignette(UIFactory.CYAN, 0.5f);
             if (!string.IsNullOrEmpty(pLabel)) Juice.Popup(pLabel, UIFactory.CYAN, 1f);
-            FX.Sparks(transform.position + CameraUpRaw * 0.5f, UIFactory.CYAN, 50, 50f, 0.9f, 0.5f);
-            FX.Burst(transform.position + CameraUpRaw, _heading, UIFactory.CYAN, 22f);
+            FX.Sparks(transform.position + PhysUp * 0.5f, UIFactory.CYAN, 50, 50f, 0.9f, 0.5f);
+            FX.Burst(transform.position + PhysUp, _heading, UIFactory.CYAN, 22f);
             AddCombo();
         }
 

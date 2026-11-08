@@ -134,15 +134,32 @@ namespace Com.IsartDigital.Hyperspeed
         private Breadcrumbs _crumbs;
 
         // ---------------- camera target
-        public Vector3 FocusPosition => (_visual != null ? _visual.Root.position : transform.position) + CameraUpRaw * 0.9f;
+        public Vector3 FocusPosition => (_visual != null ? _visual.Root.position : transform.position) + PhysUp * 0.9f;
         public Vector3 CameraUp => _smoothCameraUp;
-        private Vector3 CameraUpRaw => OnSurface ? _up : _gravityUp;
+        // The body's own up : the surface under the feet, or gravity in the air.
+        private Vector3 PhysUp => OnSurface ? _up : _gravityUp;
+        // The view's up : it only turns where gravity really turns (loops, twists, wall turns). Everywhere else it is
+        // the line's frame without its bank, so bumps, tilted blocks and mountain flanks never tip the camera.
+        private Vector3 CameraUpRaw
+        {
+            get
+            {
+                if (_layout == null || _freeRoam) return PhysUp;
+                SpineSample lSample = _layout.spine.samples[_layout.spine.IndexOf(Progress)];
+                if (lSample.localGravity) return PhysUp;
+                if (!OnSurface) return Vector3.up;
+                Vector3 lForward = lSample.forward;
+                Vector3 lRight = Vector3.Cross(Vector3.up, lForward);
+                if (lRight.sqrMagnitude < 0.01f) return lSample.up;
+                return Vector3.Cross(lForward, lRight.normalized).normalized;
+            }
+        }
         public Vector3 CameraForward => _aimForward;
         // The full look direction, pitch included.
         public Vector3 AimDirection => Quaternion.AngleAxis(-AimPitch, Vector3.Cross(_aimUp, _aimForward).normalized) * _aimForward;
         // 0 at low speed, 1 when the runner is about to turn to light.
         public float Speed01 => Mathf.Clamp01((Speed - _profile.cruise * 0.55f) / (_profile.lightEnter - _profile.cruise * 0.55f));
-        public float CameraRoll => -Steer * 14f - (Drifting ? DriftDirection * 18f : 0f) + WallSide * 20f;
+        public float CameraRoll => -Steer * 4f - (Drifting ? DriftDirection * 8f : 0f) + WallSide * 6f;
         public bool HyperMode => Hyper;
 
         public void Init(LevelLayout pLayout, PlayerVisual pVisual)
@@ -306,11 +323,12 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 Vector2 lLook = HSInput.LookDelta;
                 _aimForward = Quaternion.AngleAxis(lLook.x, _aimUp) * _aimForward;
-                AimPitch = Mathf.Clamp(AimPitch - lLook.y, AIM_PITCH_MIN, AIM_PITCH_MAX);
+                // Mouse up looks up (GameSession.InvertY flips it in HSInput).
+                AimPitch = Mathf.Clamp(AimPitch + lLook.y, AIM_PITCH_MIN, AIM_PITCH_MAX);
                 // Slight help at very high speed : the line ahead pulls the aim, never enough to fight the mouse.
                 if (_layout != null && !_freeRoam && OnSurface)
                 {
-                    float lAssist = Mathf.Lerp(0f, 26f, Speed01) * Mathf.Deg2Rad * pDt;
+                    float lAssist = Mathf.Lerp(0f, 12f, Speed01) * Mathf.Deg2Rad * pDt;
                     AimAt(_layout.Flow(Progress + Speed * 0.3f), AimPitch, lAssist);
                 }
             }
@@ -391,7 +409,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void TouchStuff()
         {
-            Vector3 lCenter = transform.position + CameraUpRaw * 0.9f;
+            Vector3 lCenter = transform.position + PhysUp * 0.9f;
             for (int i = Interactable.All.Count - 1; i >= 0; i--)
             {
                 if (i >= Interactable.All.Count) continue;
@@ -430,7 +448,7 @@ namespace Com.IsartDigital.Hyperspeed
         // One punch : wide reach, it explodes and you pick up speed.
         private void PunchHits()
         {
-            Vector3 lFist = transform.position + CameraUpRaw + _heading * (6f + Speed * 0.1f);
+            Vector3 lFist = transform.position + PhysUp + _heading * (6f + Speed * 0.1f);
             for (int i = Breakable.All.Count - 1; i >= 0; i--)
             {
                 if (i >= Breakable.All.Count) continue;

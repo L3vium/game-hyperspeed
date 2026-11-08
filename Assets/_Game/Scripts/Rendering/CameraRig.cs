@@ -19,8 +19,11 @@ namespace Com.IsartDigital.Hyperspeed
     // hard. Every change is smoothed. Shake never feeds back into the position, and a paused game freezes it completely.
     public class CameraRig : MonoBehaviour
     {
-        private const float FOV_MIN = 90f;
-        private const float FOV_MAX = 135f;
+        private const float FOV_MIN = 105f;
+        private const float FOV_MAX = 145f;
+        private const float FOV_CLAMP = 155f;
+        // How far the focus may trail behind the runner along the view's up (bumps are filtered, long falls are not).
+        private const float FOCUS_VERTICAL_LAG = 5f;
         private const float FOV_HYPER = 4f;
         private const float FOV_RATE = 140f;
         private const float KICK_MAX = 16f;
@@ -41,6 +44,9 @@ namespace Com.IsartDigital.Hyperspeed
         private Vector3 _look = Vector3.forward;
         private Vector3 _velocity;
         private Vector3 _base;
+        // Camera offset from the focus, smoothed in the runner's frame : no lag that grows with speed.
+        private Vector3 _offset;
+        private Vector3 _focus;
         private float _lag;
         private float _lagVelocity;
         private float _kick;
@@ -105,7 +111,9 @@ namespace Com.IsartDigital.Hyperspeed
             if (target == null) return;
             _up = target.CameraUp;
             _look = target.AimDirection;
+            _focus = target.FocusPosition;
             _base = DesiredPosition(target.Speed01);
+            _offset = _base - _focus;
             transform.position = _base;
             transform.rotation = Quaternion.LookRotation(LookPoint(target.Speed01) - _base, _up);
             _velocity = Vector3.zero;
@@ -154,16 +162,32 @@ namespace Com.IsartDigital.Hyperspeed
         // Thrown back : the camera falls behind, then the spring brings it home.
         public void Rollback(float pAmount) => _lag = Mathf.Min(LAG_MAX, Mathf.Max(_lag, pAmount) + pAmount * 0.3f);
 
+        // Far back and well above the runner, looking down onto it : the runner is small in a huge world, and the
+        // ground's bumps barely move the view. Even the slowest run sits twice as far as before.
         private Vector3 DesiredPosition(float pSpeed)
         {
-            float lDistance = (freeLook ? 9f : Mathf.Lerp(8f, 30f, Mathf.Sqrt(pSpeed)) + _lightBlend * 12f + _lag) * distanceScale;
-            float lHeight = freeLook ? 2f : Mathf.Lerp(2.4f, 5f, pSpeed);
-            return target.FocusPosition + _up * lHeight - _look * lDistance;
+            float lDistance = (freeLook ? 14f : Mathf.Lerp(18f, 60f, Mathf.Sqrt(pSpeed)) + _lightBlend * 20f + _lag) * distanceScale;
+            float lHeight = (freeLook ? 4f : Mathf.Lerp(7f, 16f, pSpeed)) * distanceScale;
+            return _focus + _up * lHeight - _look * lDistance;
         }
 
         private Vector3 LookPoint(float pSpeed)
         {
-            return target.FocusPosition + _up * Mathf.Lerp(1.6f, 2.8f, pSpeed) + _look * Mathf.Lerp(8f, 26f, pSpeed);
+            float lAhead = Mathf.Lerp(18f, 60f, Mathf.Sqrt(pSpeed)) * 0.25f * distanceScale;
+            return _focus + _up * Mathf.Lerp(1.2f, 2.5f, pSpeed) * distanceScale + _look * lAhead;
+        }
+
+        // Follows the runner exactly along the ground, but filters its height : bumps and steps are smoothed out.
+        private void UpdateFocus(float pDt)
+        {
+            Vector3 lRaw = target.FocusPosition;
+            Vector3 lDelta = lRaw - _focus;
+            float lVertical = Vector3.Dot(lDelta, _up);
+            Vector3 lFlat = lDelta - _up * lVertical;
+            float lKeep = lVertical * Mathf.Exp(-9f * pDt);
+            lKeep = Mathf.Clamp(lKeep, -FOCUS_VERTICAL_LAG, FOCUS_VERTICAL_LAG);
+            _focus = lRaw - _up * lKeep;
+            if (lFlat.sqrMagnitude > 250000f) _focus = lRaw;
         }
 
         private void LateUpdate()
@@ -185,9 +209,11 @@ namespace Com.IsartDigital.Hyperspeed
             if (lFrozen) return;
 
             float lSpeed = target.Speed01;
-            _up = Vector3.Slerp(_up, target.CameraUp, 1f - Mathf.Exp(-9f * lDt)).normalized;
-            // The mouse answers almost at once.
-            _look = Vector3.Slerp(_look, target.AimDirection, 1f - Mathf.Exp(-34f * lDt)).normalized;
+            // The up only turns where gravity turns (the target gives a stable frame), and slowly.
+            _up = Vector3.Slerp(_up, target.CameraUp, 1f - Mathf.Exp(-4f * lDt)).normalized;
+            // The mouse is followed with some weight : the view swings, it never snaps.
+            _look = Vector3.Slerp(_look, target.AimDirection, 1f - Mathf.Exp(-12f * lDt)).normalized;
+            UpdateFocus(lDt);
 
             _hyperBlend = Mathf.MoveTowards(_hyperBlend, target.HyperMode ? 1f : 0f, lDt * 1.5f);
             _lightBlend = Mathf.MoveTowards(_lightBlend, _player != null && _player.LightForm ? 1f : 0f, lDt * 1.2f);
@@ -203,10 +229,15 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 lDesired = _finishPosition;
                 lLook = target.FocusPosition;
+                _base = Vector3.SmoothDamp(_base, lDesired, ref _velocity, 0.6f, Mathf.Infinity, lDt);
+                _offset = _base - _focus;
             }
-            lDesired = AvoidWorld(lDesired, lDt);
-
-            _base = Vector3.SmoothDamp(_base, lDesired, ref _velocity, _finishMode ? 0.6f : freeLook ? 0.08f : 0.028f, Mathf.Infinity, lDt);
+            else
+            {
+                lDesired = AvoidWorld(lDesired, lDt);
+                _offset = Vector3.SmoothDamp(_offset, lDesired - _focus, ref _velocity, freeLook ? 0.12f : 0.1f, Mathf.Infinity, lDt);
+                _base = _focus + _offset;
+            }
             Quaternion lRotation = Quaternion.LookRotation(lLook - _base, _up) * Quaternion.Euler(0f, 0f, freeLook ? 0f : _roll);
 
             // Rumble grows with speed : at full speed the frame never rests.
@@ -218,7 +249,7 @@ namespace Com.IsartDigital.Hyperspeed
             lRotation *= lShakeRot;
 
             float lFovTarget = Mathf.Lerp(FOV_MIN, FOV_MAX, Mathf.Sqrt(lSpeed)) + _hyperBlend * FOV_HYPER + _kick;
-            if (freeLook) lFovTarget = 74f;
+            if (freeLook) lFovTarget = 84f;
             _fov = Mathf.SmoothDamp(_fov, lFovTarget, ref _fovVelocity, 0.22f, FOV_RATE, lDt);
 
             if (_overrideBlend > 0f)
@@ -233,7 +264,7 @@ namespace Com.IsartDigital.Hyperspeed
                 return;
             }
             transform.SetPositionAndRotation(lPosition, lRotation);
-            Cam.fieldOfView = Mathf.Clamp(_fov, 40f, 150f);
+            Cam.fieldOfView = Mathf.Clamp(_fov, 40f, FOV_CLAMP);
             if (lensShiftX != 0f)
             {
                 Cam.ResetProjectionMatrix();
@@ -246,14 +277,16 @@ namespace Com.IsartDigital.Hyperspeed
         // Anything solid between the runner and the camera pulls it in fast and lets it out slowly.
         private Vector3 AvoidWorld(Vector3 pDesired, float pDt)
         {
-            Vector3 lFocus = target.FocusPosition;
+            // Only a real block of the line of sight counts : the ray starts a little above the runner so the
+            // ground it stands on, or the flank it slides on, never pulls the camera in.
+            Vector3 lFocus = _focus + _up * 1.5f;
             Vector3 lDelta = pDesired - lFocus;
             float lLength = lDelta.magnitude;
             if (lLength < 0.01f) return pDesired;
             float lWanted = 1f;
             RaycastHit lHit;
-            if (Physics.SphereCast(lFocus, 0.6f, lDelta / lLength, out lHit, lLength, (1 << Layers.PROP) | (1 << Layers.DECK), QueryTriggerInteraction.Ignore))
-                lWanted = Mathf.Clamp01((lHit.distance - 0.2f) / lLength);
+            if (Physics.SphereCast(lFocus, 0.4f, lDelta / lLength, out lHit, lLength, (1 << Layers.PROP) | (1 << Layers.DECK), QueryTriggerInteraction.Ignore) && lHit.distance > 2f)
+                lWanted = Mathf.Clamp01((lHit.distance - 0.5f) / lLength);
             _blockDistance = lWanted < _blockDistance ? Mathf.Lerp(_blockDistance, lWanted, 1f - Mathf.Exp(-40f * pDt)) : Mathf.Lerp(_blockDistance, lWanted, 1f - Mathf.Exp(-3f * pDt));
             return lFocus + lDelta * _blockDistance;
         }
