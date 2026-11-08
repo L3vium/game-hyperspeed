@@ -84,7 +84,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             Theme lTheme = Theme.Islands();
             RaceContext.Theme = lTheme;
-            SpeedProfile lProfile = SpeedProfile.For(150f);
+            SpeedProfile lProfile = SpeedProfile.For(150f * LevelDatabase.SPEED_SCALE);
             SpeedProfile.Current = lProfile;
             _world = new GameObject("TitleWorld").transform;
             EnvironmentBuilder.Build(lTheme, _world, lProfile);

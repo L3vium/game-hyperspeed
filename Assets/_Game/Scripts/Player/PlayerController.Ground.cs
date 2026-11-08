@@ -76,6 +76,7 @@ namespace Com.IsartDigital.Hyperspeed
                 return;
             }
             UpdateWallRide();
+            if (!_freeRoam && CheckOffTrack(pDt)) return;
 
             // A wall or a ceiling only holds you if you keep your speed, unless the track is built to carry you.
             bool lLocal = _layout != null && _layout.spine.samples[_layout.spine.IndexOf(Progress)].localGravity;
@@ -102,6 +103,21 @@ namespace Com.IsartDigital.Hyperspeed
             _slip = Mathf.MoveTowards(_slip, lTarget, lMax / (Mathf.Abs(lTarget) > Mathf.Abs(_slip) ? 0.12f : 0.2f) * pDt);
             // The slope pushes you sideways : leaning blocks and walls shape your line.
             _slip += Vector3.Dot(GravityDown(), pRight) * SLOPE_ACCEL * 0.8f * pDt;
+            // Up a mountain side : it slides you back down to the floor, harder the higher you went.
+            if (_layout != null && !_freeRoam)
+            {
+                TrackBlock lBlock = _layout.field.BlockAt(Progress);
+                if (lBlock != null && lBlock.mountain)
+                {
+                    float lOut = Lateral - lBlock.offset;
+                    float lOver = Mathf.Abs(lOut) - lBlock.halfWidth;
+                    if (lOver > 0f)
+                    {
+                        Vector3 lHome = -Mathf.Sign(lOut) * _layout.spine.Right(Progress);
+                        _slip += Vector3.Dot(lHome, pRight) * (70f + lOver * 0.9f) * pDt;
+                    }
+                }
+            }
         }
 
         private Vector3 GravityDown() => _layout != null ? -_layout.GravityUp(Progress) : Vector3.down;
@@ -157,6 +173,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (Physics.Raycast(lOrigin, -_up, out lHit, 1.1f + lReach, GroundMask, QueryTriggerInteraction.Ignore) && Vector3.Dot(lHit.normal, _up) >= GROUND_MIN_DOT)
             {
                 Stick(lHit, pDt);
+                _groundLayer = lHit.collider.gameObject.layer;
                 return true;
             }
             return false;
@@ -190,6 +207,61 @@ namespace Com.IsartDigital.Hyperspeed
             }
             AudioManager.SetLoop("sfx_wallrun_loop", WallRiding ? 0.5f : 0f, 1f + _speed * 0.002f);
             if (WallRiding && Random.value < 0.5f) FX.Sparks(transform.position, Color.white, 1, 10f, 0.5f, 0.25f);
+        }
+
+        // ================================================================ recovery
+
+        private int _groundLayer;
+        private float _offTrackTime;
+        private float _recoverTimer;
+
+        // Running on scenery, or far out of the track : a moment later a bounce throws you back onto it.
+        private bool CheckOffTrack(float pDt)
+        {
+            if (_layout == null || _autoRun) return false;
+            bool lOff = _groundLayer == Layers.SCENERY || Mathf.Abs(Lateral - _layout.field.CenterLateral(Progress)) > _layout.field.TotalHalfWidth(Progress) + 20f;
+            _offTrackTime = lOff ? _offTrackTime + pDt : 0f;
+            if (_offTrackTime < 0.5f) return false;
+            Recover();
+            return true;
+        }
+
+        // A trampoline throw : a ballistic arc that lands on solid track ahead, the view turned toward it.
+        public void Recover()
+        {
+            if (_layout == null) return;
+            float lS = Progress + Mathf.Max(220f, Speed * 1.4f);
+            for (int i = 0; i < 60 && lS < _layout.finishS; i++)
+            {
+                if (_layout.field.Solid(lS) && !_layout.spine.samples[_layout.spine.IndexOf(lS)].localGravity) break;
+                lS += 60f;
+            }
+            Vector3 lTarget = _layout.GroundPoint(lS, _layout.RouteLateral(lS)) + _layout.field.Normal(lS) * 6f;
+            Vector3 lDelta = lTarget - transform.position;
+            Vector3 lFlat = Vector3.ProjectOnPlane(lDelta, Vector3.up);
+            float lTime = Mathf.Clamp(lFlat.magnitude / Mathf.Max(Speed, _profile.cruise), 1.1f, 3f);
+            const float GRAVITY = 135f;
+            _velocity = lFlat / lTime + Vector3.up * (lDelta.y / lTime + 0.5f * GRAVITY * lTime);
+            _recoverTimer = lTime * 0.85f;
+            _offTrackTime = 0f;
+            _gravityUp = Vector3.up;
+            if (lFlat.sqrMagnitude > 1f)
+            {
+                _heading = lFlat.normalized;
+                _aimForward = _heading;
+            }
+            AimPitch = 0f;
+            Diving = false;
+            _invulnerable = Mathf.Max(_invulnerable, 1f);
+            HasDoubleJump = true;
+            SetState(PlayerState.Air);
+            AudioManager.Play("sfx_launch", 1f, 0.8f);
+            FX.Shockwave(transform.position + Vector3.up, Vector3.up, UIFactory.CYAN, 60f, 0.5f);
+            FX.Sparks(transform.position, UIFactory.CYAN, 40, 60f, 0.8f, 0.5f);
+            Juice.FovKick(10f);
+            Juice.Rollback(12f);
+            Juice.Shake(0.4f);
+            if (Autopilot.Enabled) Debug.Log("[HS-REC] recover s=" + Progress.ToString("F0") + " to=" + lS.ToString("F0") + " t=" + lTime.ToString("F1"));
         }
 
         // Leaves the ground with the exact tangent velocity of the surface.

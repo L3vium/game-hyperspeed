@@ -21,6 +21,14 @@ namespace Com.IsartDigital.Hyperspeed
     public class CourseBuilder
     {
         private const float PLAZA = 300f;
+        // The world is six times wider than the stage recipes say : the runner is tiny in a huge circuit.
+        public const float WIDTH_SCALE = 6f;
+        // Sides are mountains, not kerbs : a gentle foot that steepens, high enough that nobody flies over.
+        private const float MOUNTAIN_MIN = 120f;
+        private const float MOUNTAIN_MAX = 210f;
+        private const float MOUNTAIN_LEAN = 52f;
+        // Hazards and props grow with the world, not as much as its width.
+        private const float PROP_SCALE = 3f;
 
         private struct StripDef { public float s, lateral, halfWidth, up; }
         private struct RopeDef { public float s0, s1, lateral, height0, height1; }
@@ -130,12 +138,28 @@ namespace Com.IsartDigital.Hyperspeed
         private TrackBlock Open(BlockLook pLook, float pWall = 0f, float pHalfWidth = -1f, float pOffset = 0f, float pDrop = 0f, float pTilt = 0f, float pThickness = -1f)
         {
             Close();
+            float lLeft = pWall;
+            float lRight = pWall;
+            bool lMountain = false;
+            if (pWall > 0.01f)
+            {
+                if (pLook == BlockLook.Pipe) lLeft = lRight = pWall * PROP_SCALE;
+                else if (pLook == BlockLook.Slab) lLeft = lRight = 0f;
+                else
+                {
+                    lMountain = true;
+                    lLeft = Rand(MOUNTAIN_MIN, MOUNTAIN_MAX);
+                    lRight = Rand(MOUNTAIN_MIN, MOUNTAIN_MAX);
+                }
+            }
             _open = new TrackBlock
             {
                 s0 = _s - Spine.STEP,
                 look = pLook,
-                wallLeft = pWall,
-                wallRight = pWall,
+                wallLeft = lLeft,
+                wallRight = lRight,
+                mountain = lMountain,
+                wallLean = lMountain ? MOUNTAIN_LEAN : 28f,
                 halfWidth = pHalfWidth > 0f ? pHalfWidth : _halfWidth,
                 offset = pOffset,
                 drop = pDrop,
@@ -174,12 +198,12 @@ namespace Com.IsartDigital.Hyperspeed
 
         public CourseBuilder Start(float pWidth, float pAltitude)
         {
-            _halfWidth = pWidth * 0.5f;
+            _halfWidth = pWidth * 0.5f * WIDTH_SCALE;
             _yaw = 90f;
             _pos = new Vector3(-8000f, pAltitude, 0f);
             _s = -PLAZA;
             _started = true;
-            Open(BlockLook.Plaza, 6f, _halfWidth + 26f);
+            Open(BlockLook.Plaza, 6f, _halfWidth + 60f);
             int lSteps = Mathf.RoundToInt(PLAZA / Spine.STEP);
             for (int i = 0; i <= lSteps; i++) Push();
             _layout.startLineS = 0f;
@@ -197,7 +221,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         public CourseBuilder Width(float pWidth)
         {
-            _halfWidth = pWidth * 0.5f;
+            _halfWidth = pWidth * 0.5f * WIDTH_SCALE;
             return this;
         }
 
@@ -213,7 +237,7 @@ namespace Com.IsartDigital.Hyperspeed
         public CourseBuilder Hills(float pSeconds, float pDegrees = 14f)
         {
             pSeconds *= pace;
-            Open(BlockLook.Ground, Chance(0.5f) ? 7f : 0f);
+            Open(BlockLook.Ground, 7f);
             int lHumps = Mathf.Max(1, Mathf.RoundToInt(pSeconds / 3.4f));
             float lLength = M(pSeconds) / lHumps;
             for (int i = 0; i < lHumps; i++)
@@ -237,7 +261,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (TurnRoom(lSide) < pDegrees && TurnRoom(-lSide) > TurnRoom(lSide)) lSide = -lSide;
             float lDegrees = Mathf.Min(pDegrees, TurnRoom(lSide));
             if (lDegrees < 5f) return this;
-            float lRadius = Mathf.Max(_halfWidth * 2.4f + 30f, _p.cruise / 0.72f);
+            float lRadius = Mathf.Max(Mathf.Max(_halfWidth * 2.4f + 30f, _p.cruise * 3f), 820f);
             float lLength = lRadius * lDegrees * Mathf.Deg2Rad;
             if (_open == null || _open.look == BlockLook.Slab) Open(BlockLook.Ground, 10f);
             Span(lLength * 0.25f, lSide * lDegrees * 0.15f, 0f, lSide * pBank);
@@ -262,7 +286,7 @@ namespace Com.IsartDigital.Hyperspeed
             for (int i = 0; i < pCount; i++)
             {
                 Turn(lSide > 0 ? Side.Right : Side.Left, pDegrees * Rand(0.75f, 1.2f), 26f);
-                if (i < pCount - 1) Span(M(0.25f));
+                if (i < pCount - 1) Span(M(0.5f));
                 lSide = -lSide;
             }
             return this;
@@ -308,7 +332,7 @@ namespace Com.IsartDigital.Hyperspeed
             float lRadius = Mathf.Max(_p.cruise * 0.8f, _halfWidth * 1.7f);
             float lLength = lRadius * Mathf.PI * 2f * 1.08f;
             Quaternion lYaw = Quaternion.AngleAxis(_yaw, Vector3.up);
-            Vector3 lShift = lYaw * Vector3.right * (int)pSide * (_halfWidth * 2.6f + 40f);
+            Vector3 lShift = lYaw * Vector3.right * (int)pSide * (_halfWidth * 2.6f + 140f);
             Open(BlockLook.Pipe, 12f);
             Span(M(0.5f));
             _localGravity = true;
@@ -328,7 +352,7 @@ namespace Com.IsartDigital.Hyperspeed
             float lRadius = Mathf.Max(_p.cruise * 0.95f, _halfWidth * 2f);
             float lLength = lRadius * Mathf.PI * 2f * 1.2f;
             Quaternion lYaw = Quaternion.AngleAxis(_yaw, Vector3.up);
-            Vector3 lShift = lYaw * Vector3.right * (int)pSide * (_halfWidth * 3f + 60f);
+            Vector3 lShift = lYaw * Vector3.right * (int)pSide * (_halfWidth * 3f + 180f);
             float lHalf = _halfWidth;
             _halfWidth *= 1.25f;
             Open(BlockLook.Pipe, 18f);
@@ -379,7 +403,7 @@ namespace Com.IsartDigital.Hyperspeed
         public CourseBuilder Corridor(float pSeconds, float pWall = 40f, float pLean = 30f)
         {
             float lHalf = _halfWidth;
-            _halfWidth = Mathf.Min(_halfWidth, 26f + 4f * K);
+            _halfWidth = Mathf.Min(_halfWidth, (26f + 4f * K) * 4f);
             TrackBlock lBlock = Open(BlockLook.Pipe, pWall);
             lBlock.wallLean = pLean;
             Span(M(pSeconds * pace));
@@ -399,23 +423,22 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 float lLength = M(Rand(0.8f, 1.9f) / pDensity);
                 float lNarrow = lHalf * Rand(0.55f, 0.95f);
-                TrackBlock lBlock = Open(BlockLook.Slab, Chance(0.3f) ? Rand(5f, 10f) : 0f, lNarrow, lOffset, lDrop, Rand(-22f, 22f), Rand(30f, 70f));
+                TrackBlock lBlock = Open(BlockLook.Slab, 0f, lNarrow, lOffset, lDrop, Rand(-10f, 10f), Rand(60f, 140f));
                 float lS0 = _s;
                 Span(lLength, Rand(-5f, 5f) * ((_yaw > 30f && _yaw < 150f) ? 1f : 0f));
                 Close();
                 Route(lS0, _s, lOffset);
-                lOffset = Mathf.Clamp(lOffset + Rand(-1f, 1f) * lHalf * 0.8f, -lHalf * 1.1f, lHalf * 1.1f);
-                bool lGap = Chance(0.55f);
-                // Rises only as high as a jump carries you.
-                float lNext = lDrop + Rand(-7f, 14f);
+                lOffset = Mathf.Clamp(lOffset + Rand(-1f, 1f) * lHalf * 0.4f, -lHalf * 0.5f, lHalf * 0.5f);
+                bool lGap = Chance(0.3f);
+                // Always lower than the last one : you drop onto the next block, you never hit its side.
+                float lNext = lDrop + Rand(5f, 26f);
                 if (lGap)
                 {
-                    float lGapLength = M(Rand(0.14f, 0.34f));
+                    float lGapLength = M(Rand(0.1f, 0.22f));
                     Act(_s - M(0.12f), RouteAction.Jump);
                     Span(lGapLength);
                     NoPads(lS0 + lLength * 0.7f, _s + M(0.3f));
                 }
-                else if (lNext < lDrop) Act(_s - M(0.12f), RouteAction.Jump);
                 lDrop = lNext;
             }
             // Back to the line for the next module.
@@ -429,7 +452,7 @@ namespace Com.IsartDigital.Hyperspeed
         // Run off a colossal cliff : look down to dive. The block below lasts long enough to land anywhere on it.
         public CourseBuilder Dive(float pDrop = 320f)
         {
-            Open(BlockLook.Ground, 0f);
+            Open(BlockLook.Ground, 1f);
             Span(M(1.2f), 0f, 5f);
             Span(M(0.3f), 0f, -5f);
             _pitch = 0f;
@@ -458,9 +481,9 @@ namespace Com.IsartDigital.Hyperspeed
                 Span(M(pPlatform * pace));
                 Close();
                 float lLip = _s;
-                _strips.Add(new StripDef { s = lLip - M(0.22f), lateral = 0f, halfWidth = _halfWidth * 0.75f, up = 52f });
+                _strips.Add(new StripDef { s = lLip - M(0.22f), lateral = 0f, halfWidth = _halfWidth * 0.75f, up = 72f });
                 NoPads(lLip - M(0.8f), lLip + M(1.5f));
-                Span(M(Rand(0.55f, 0.85f)));
+                Span(M(Rand(0.45f, 0.65f)));
             }
             Open(BlockLook.Ground, 4f);
             return this;
@@ -531,7 +554,7 @@ namespace Com.IsartDigital.Hyperspeed
             for (int i = 0; i < pCount; i++)
             {
                 float lT = (i + 0.5f) / pCount;
-                _rings.Add(new RingDef { s = lS0 + M(0.5f + i * 0.34f), lateral = lLateral, height = 5f + Mathf.Sin(lT * Mathf.PI) * 9f, radius = 9f });
+                _rings.Add(new RingDef { s = lS0 + M(0.5f + i * 0.34f), lateral = lLateral, height = 10f + Mathf.Sin(lT * Mathf.PI) * 18f, radius = 24f });
             }
             Route(lS0, _s, lLateral);
             NoPads(lS0, _s);
@@ -548,7 +571,7 @@ namespace Com.IsartDigital.Hyperspeed
             for (int i = 0; i < pCount; i++)
             {
                 float lS = lS0 + lLength * (i + 0.6f) / pCount;
-                float lSize = Rand(26f, 40f);
+                float lSize = Rand(26f, 40f) * PROP_SCALE * 0.8f;
                 if (pWall)
                 {
                     int lCount = Mathf.CeilToInt(_halfWidth * 2f / lSize);
@@ -576,7 +599,7 @@ namespace Com.IsartDigital.Hyperspeed
             Span(M(pSeconds * pace));
             float lLength = _s - lS0;
             for (int i = 0; i < pCount; i++)
-                _crates.Add(new CrateDef { s = lS0 + lLength * (i + 0.5f) / pCount, lateral = Rand(-0.75f, 0.75f) * _halfWidth, size = Rand(20f, 30f), moving = true });
+                _crates.Add(new CrateDef { s = lS0 + lLength * (i + 0.5f) / pCount, lateral = Rand(-0.75f, 0.75f) * _halfWidth, size = Rand(20f, 30f) * PROP_SCALE * 0.8f, moving = true });
             NoPads(lS0, _s);
             return this;
         }
@@ -624,11 +647,11 @@ namespace Com.IsartDigital.Hyperspeed
                 Route(lS - lRow * 0.5f, lS + lRow * 0.5f, lGate);
                 for (int lSide = -1; lSide <= 1; lSide += 2)
                 {
-                    float lFrom = lGate + lSide * 20f;
+                    float lFrom = lGate + lSide * 20f * PROP_SCALE;
                     float lRoom = _halfWidth - lSide * lFrom;
-                    if (lRoom < 12f || Chance(0.2f)) continue;
-                    float lWidth = Mathf.Min(lRoom, Rand(12f, 34f));
-                    _props.Add(new BlockDef { s = lS, lateral = lFrom + lSide * lWidth * 0.5f, width = lWidth, length = Rand(10f, 34f), height = Rand(26f, 90f), lean = Rand(-16f, 16f), palette = _random.Next(0, 3) });
+                    if (lRoom < 12f * PROP_SCALE || Chance(0.2f)) continue;
+                    float lWidth = Mathf.Min(lRoom, Rand(12f, 34f) * PROP_SCALE);
+                    _props.Add(new BlockDef { s = lS, lateral = lFrom + lSide * lWidth * 0.5f, width = lWidth, length = Rand(10f, 34f) * PROP_SCALE, height = Rand(26f, 90f) * PROP_SCALE, lean = Rand(-16f, 16f), palette = _random.Next(0, 3) });
                 }
             }
             NoPads(lS0, _s);
@@ -640,7 +663,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             float lS0 = _s;
             float lHalf = _halfWidth;
-            _halfWidth = Mathf.Min(_halfWidth, 24f + 4f * K);
+            _halfWidth = Mathf.Min(_halfWidth, (24f + 4f * K) * 4f);
             TrackBlock lBlock = Open(BlockLook.Pipe, 30f);
             lBlock.wallLean = 16f;
             Span(M(pSeconds * pace));
@@ -657,7 +680,7 @@ namespace Com.IsartDigital.Hyperspeed
             Open(BlockLook.Ground, 5f);
             Span(M(pSeconds));
             for (float lT = pEverySeconds * 0.5f; lT < pSeconds; lT += pEverySeconds)
-                _meteors.Add(new MeteorDef { s = lS0 + M(lT), fromSky = true, radius = Rand(12f, 22f) });
+                _meteors.Add(new MeteorDef { s = lS0 + M(lT), fromSky = true, radius = Rand(12f, 22f) * PROP_SCALE });
             return this;
         }
 
@@ -666,7 +689,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             float lS0 = _s;
             float lHalf = _halfWidth;
-            _halfWidth = Mathf.Max(24f, _halfWidth * 0.8f);
+            _halfWidth = Mathf.Max(24f * WIDTH_SCALE, _halfWidth * 0.8f);
             Open(BlockLook.Road, 8f);
             Span(M(pSeconds * 0.5f), 0f, -10f);
             Span(M(pSeconds * 0.5f), 0f, 10f);

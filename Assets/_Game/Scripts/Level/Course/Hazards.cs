@@ -216,7 +216,7 @@ namespace Com.IsartDigital.Hyperspeed
     // Pendulum swinging across the track from a frame above it.
     public class Hammer : Interactable
     {
-        private const float ARM = 48f;
+        private const float ARM = 140f;
 
         private Transform _pivot;
         private float _phase;
@@ -232,14 +232,14 @@ namespace Com.IsartDigital.Hyperspeed
             lObject.transform.SetPositionAndRotation(pLayout.field.Point(pS, pLayout.field.CenterLateral(pS)) + lUp * (ARM + 6f), Quaternion.LookRotation(lSample.forward, lUp));
             Hammer lHammer = lObject.AddComponent<Hammer>();
             lHammer._phase = pPhase;
-            lHammer._head = 15f;
+            lHammer._head = 45f;
             lHammer.cooldown = 1f;
-            lHammer.halfExtents = new Vector3(lHalf + ARM, ARM + 20f, 24f);
+            lHammer.halfExtents = new Vector3(lHalf + ARM, ARM + 60f, 70f);
 
             Color lFrame = Color.Lerp(pTheme.wall, Color.black, 0.25f);
             MeshData lData = new MeshData();
-            GateKit.Box(lData, new Vector3(-lHalf - 6f, -ARM * 0.5f - 3f, 0f), new Vector3(6f, ARM + 12f, 6f), lFrame);
-            GateKit.Box(lData, new Vector3(lHalf + 6f, -ARM * 0.5f - 3f, 0f), new Vector3(6f, ARM + 12f, 6f), lFrame);
+            GateKit.Box(lData, new Vector3(-lHalf - 6f, -ARM * 0.5f - 3f, 0f), new Vector3(14f, ARM + 30f, 14f), lFrame);
+            GateKit.Box(lData, new Vector3(lHalf + 6f, -ARM * 0.5f - 3f, 0f), new Vector3(14f, ARM + 30f, 14f), lFrame);
             GateKit.Box(lData, new Vector3(0f, 3f, 0f), new Vector3(lHalf * 2f + 18f, 6f, 6f), lFrame);
             GameObject lBeam = new GameObject("Frame");
             lBeam.transform.SetParent(lObject.transform, false);
@@ -249,9 +249,9 @@ namespace Com.IsartDigital.Hyperspeed
             lHammer._pivot = new GameObject("Pivot").transform;
             lHammer._pivot.SetParent(lObject.transform, false);
             MeshData lSwing = new MeshData();
-            GateKit.Box(lSwing, new Vector3(0f, -ARM * 0.5f, 0f), new Vector3(4f, ARM, 4f), lFrame);
-            GateKit.Box(lSwing, new Vector3(0f, -ARM, 0f), new Vector3(30f, 24f, 24f), pTheme.accent);
-            GateKit.Box(lSwing, new Vector3(0f, -ARM, 0f), new Vector3(32f, 7f, 26f), Color.Lerp(pTheme.accent, Color.white, 0.7f));
+            GateKit.Box(lSwing, new Vector3(0f, -ARM * 0.5f, 0f), new Vector3(10f, ARM, 10f), lFrame);
+            GateKit.Box(lSwing, new Vector3(0f, -ARM, 0f), new Vector3(90f, 70f, 70f), pTheme.accent);
+            GateKit.Box(lSwing, new Vector3(0f, -ARM, 0f), new Vector3(96f, 20f, 78f), Color.Lerp(pTheme.accent, Color.white, 0.7f));
             GameObject lHead = new GameObject("Head");
             lHead.transform.SetParent(lHammer._pivot, false);
             lHead.AddComponent<MeshFilter>().sharedMesh = lSwing.ToMesh("Hammer");

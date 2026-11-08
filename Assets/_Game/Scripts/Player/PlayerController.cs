@@ -374,6 +374,7 @@ namespace Com.IsartDigital.Hyperspeed
             _punchCooldown -= pDt;
             _invulnerable -= pDt;
             _railCooldown -= pDt;
+            _recoverTimer -= pDt;
             _boostTimer -= pDt;
             _comboTimer -= pDt;
             if (_comboTimer <= 0f) Combo = 0;
@@ -659,7 +660,7 @@ namespace Com.IsartDigital.Hyperspeed
         private void CheckFallOut()
         {
             if (_layout == null || State == PlayerState.Finished || State == PlayerState.Dead || _autoRun) return;
-            if (State != PlayerState.Air && State != PlayerState.Crash)
+            if (State != PlayerState.Air && State != PlayerState.Crash || _recoverTimer > 0f)
             {
                 _noGroundTime = 0f;
                 return;

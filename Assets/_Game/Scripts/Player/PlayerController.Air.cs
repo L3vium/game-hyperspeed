@@ -21,15 +21,22 @@ namespace Com.IsartDigital.Hyperspeed
             _gravityUp = Vector3.Slerp(_gravityUp, lTargetUp, 1f - Mathf.Exp(-lUpRate * pDt)).normalized;
 
             float lVertical = Vector3.Dot(_velocity, _gravityUp);
-            Diving = State == PlayerState.Air && AimPitch < DIVE_PITCH;
+            bool lRecovering = _recoverTimer > 0f;
+            Diving = State == PlayerState.Air && AimPitch < DIVE_PITCH && !lRecovering;
 
             float lGravity = Ballistics.Gravity(lVertical);
             if (LightForm) lGravity *= 0.25f;
             if (Dashing) lGravity *= 0.2f;
+            // The bounce back to the track is a clean arc : it lands where it was aimed.
+            if (lRecovering)
+            {
+                lGravity = 135f;
+                _gravityUp = Vector3.up;
+            }
             _velocity -= _gravityUp * lGravity * pDt;
 
-            if (State == PlayerState.Air) AirControl(pDt);
-            AirDrag(pDt);
+            if (State == PlayerState.Air && !lRecovering) AirControl(pDt);
+            if (!lRecovering) AirDrag(pDt);
 
             Vector3 lFlat = Vector3.ProjectOnPlane(_velocity, _gravityUp);
             if (lFlat.sqrMagnitude > 1f) _heading = lFlat.normalized;
@@ -147,8 +154,16 @@ namespace Com.IsartDigital.Hyperspeed
             bool lWasCrash = State == PlayerState.Crash;
             bool lWasDiving = Diving;
             Diving = false;
+            _recoverTimer = 0f;
             SetState(_autoRun ? PlayerState.Finished : PlayerState.Ground);
             HasDoubleJump = true;
+            _groundLayer = pCollider != null ? pCollider.gameObject.layer : 0;
+            // The net under the world : it never holds you, it throws you straight back to the track.
+            if (pCollider != null && pCollider.GetComponent<SafetyNet>() != null && !_freeRoam && !_autoRun)
+            {
+                Recover();
+                return;
+            }
 
             float lPower = Mathf.Clamp01(lImpact / 220f);
             Color lDust = RaceContext.Theme != null ? Color.Lerp(RaceContext.Theme.roadA, Color.white, 0.25f) : Color.white;

@@ -34,6 +34,7 @@ namespace Com.IsartDigital.Hyperspeed
                 if (lLit.Count > 0) Spawn(lParent, lOrigin, lLit, lGlow, "SceneryLit");
             }
             GroundSheet.Create(pRoot, pLayout, pTheme);
+            SafetyNet.Create(pRoot, pLayout);
         }
 
         private enum Depth { Near, Middle, Far }
@@ -43,11 +44,14 @@ namespace Com.IsartDigital.Hyperspeed
             GameObject lObject = new GameObject(pName);
             lObject.transform.SetParent(pParent, false);
             lObject.transform.position = pOrigin;
-            lObject.layer = Layers.DEBRIS;
-            lObject.AddComponent<MeshFilter>().sharedMesh = pData.ToMesh(pName);
+            // Solid : anything you can see beside the track can catch you, and you bounce back from it.
+            lObject.layer = Layers.SCENERY;
+            Mesh lMesh = pData.ToMesh(pName);
+            lObject.AddComponent<MeshFilter>().sharedMesh = lMesh;
             MeshRenderer lRenderer = lObject.AddComponent<MeshRenderer>();
             lRenderer.sharedMaterial = pMaterial;
             lRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            lObject.AddComponent<MeshCollider>().sharedMesh = lMesh;
         }
 
         private static float Rand(System.Random pRandom, float pMin, float pMax) => pMin + (float)pRandom.NextDouble() * (pMax - pMin);
@@ -126,6 +130,38 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lAt = lPlayer.transform.position;
             float lLowest = _layout.spine.Evaluate(lPlayer.Progress).position.y;
             transform.position = new Vector3(lAt.x, lLowest - 620f, lAt.z);
+        }
+    }
+
+    // Invisible floor a little under the track, following the runner : falling is (almost) never the end. Touching it
+    // throws you back onto the track ahead (PlayerController.Recover).
+    public class SafetyNet : MonoBehaviour
+    {
+        private const float DEPTH = 190f;
+
+        private LevelLayout _layout;
+
+        public static void Create(Transform pParent, LevelLayout pLayout)
+        {
+            GameObject lObject = new GameObject("SafetyNet");
+            lObject.transform.SetParent(pParent, false);
+            lObject.layer = Layers.SCENERY;
+            BoxCollider lBox = lObject.AddComponent<BoxCollider>();
+            lBox.size = new Vector3(9000f, 20f, 9000f);
+            lBox.center = new Vector3(0f, -10f, 0f);
+            SafetyNet lNet = lObject.AddComponent<SafetyNet>();
+            lNet._layout = pLayout;
+        }
+
+        private void LateUpdate()
+        {
+            PlayerController lPlayer = RaceContext.Player;
+            if (lPlayer == null || _layout == null) return;
+            Vector3 lAt = lPlayer.transform.position;
+            float lS = lPlayer.Progress;
+            // Below the lowest of here and a bit ahead, so a dive onto a lower block is never caught early.
+            float lFloor = Mathf.Min(_layout.field.Point(lS, _layout.field.CenterLateral(lS)).y, _layout.field.Point(lS + 300f, _layout.field.CenterLateral(lS + 300f)).y);
+            transform.position = new Vector3(lAt.x, lFloor - DEPTH, lAt.z);
         }
     }
 
