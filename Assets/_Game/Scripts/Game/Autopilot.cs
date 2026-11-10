@@ -41,6 +41,17 @@ namespace Com.IsartDigital.Hyperspeed
             };
         }
 
+        public void DumpTrace(string pHead)
+        {
+            System.Text.StringBuilder lLog = new System.Text.StringBuilder(pHead);
+            for (int i = 0; i < _trace.Length; i++)
+            {
+                string lLine = _trace[(_traceCursor + i) % _trace.Length];
+                if (lLine != null) lLog.Append("\n   ").Append(lLine);
+            }
+            Debug.Log(lLog.ToString());
+        }
+
         private void OnDisable() => Release();
 
         private void Release()

@@ -19,7 +19,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void OnDisable() => All.Remove(this);
 
-        public bool Overlaps(Vector3 pPosition, float pRadius)
+        public virtual bool Overlaps(Vector3 pPosition, float pRadius)
         {
             if (IsBroken) return false;
             float lReach = radius + pRadius;

@@ -9,8 +9,8 @@ namespace Com.IsartDigital.Hyperspeed
     // castle stones, lava bombs) that stay there to dash through ; platforms that give way behind you.
     public class ChaosDirector : MonoBehaviour
     {
-        private const int SKY_ROCKS = 10;
-        private const int IMMENSE = 3;
+        private const int SKY_ROCKS = 16;
+        private const int IMMENSE = 4;
         private const int MAX_TOPPLERS = 36;
         private const float TOPPLE_AHEAD = 3200f;
 
@@ -66,6 +66,8 @@ namespace Com.IsartDigital.Hyperspeed
         private float _aimedTimer = 6f;
         private float _crumbleTimer;
         private int _nextSlab;
+        private float _boltTimer = 1.5f;
+        private Material _boltMaterial;
 
         public static ChaosDirector Create(Transform pParent, LevelLayout pLayout, Theme pTheme, bool pItems, int pSeed)
         {
@@ -97,6 +99,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (lDt <= 0f) return;
             UpdateSky(lPlayer, lDt);
             UpdateTopplers(lPlayer, lDt);
+            UpdateLightning(lPlayer, lDt);
             if (!RaceContext.Running) return;
             UpdateSlabs(lPlayer, lDt);
             UpdateCrumble(lPlayer, lDt);
@@ -202,7 +205,7 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lAt = pPlayer.transform.position;
             Vector3 lForward = FlatForward(pPlayer.Progress);
             Vector3 lRight = Vector3.Cross(Vector3.up, lForward);
-            float lAhead = pImmense ? R(2600f, 6500f) : R(500f, 2400f) + pPlayer.Speed * 0.8f;
+            float lAhead = pImmense ? R(2600f, 6500f) : R(1400f, 3600f) + pPlayer.Speed * 1.2f;
             float lSide = (R(0f, 1f) < 0.5f ? -1f : 1f) * (pImmense ? R(900f, 4200f) : R(150f, 1700f));
             float lHeight = pImmense ? R(900f, 3200f) : R(250f, 1300f);
             pRock.immense = pImmense;
@@ -354,9 +357,10 @@ namespace Com.IsartDigital.Hyperspeed
         // Platforms give way once you are off them. A rewind puts them back.
         private void UpdateSlabs(PlayerController pPlayer, float pDt)
         {
-            if (CourseBreak.Instance != null) return;
+            if (CourseBreak.Instance != null || RespawnDirector.HoldWorld) return;
             List<TrackChunk> lChunks = TrackBaker.Chunks;
-            float lLine = pPlayer.Progress - 160f;
+            // Measured from where the runner last stood : a jump never drops what is under it.
+            float lLine = pPlayer.GroundProgress - 160f;
             while (_nextSlab < lChunks.Count && lChunks[_nextSlab].s1 < lLine)
             {
                 TrackChunk lChunk = lChunks[_nextSlab++];
@@ -397,6 +401,48 @@ namespace Com.IsartDigital.Hyperspeed
             _nextToppleS = Mathf.Min(_nextToppleS, pS + 200f);
         }
 
+        // ================================================================ lightning
+
+        // Bolts strike the mountains and the far ground all around : a flash, a crack, a burst of rock.
+        private void UpdateLightning(PlayerController pPlayer, float pDt)
+        {
+            _boltTimer -= pDt;
+            if (_boltTimer > 0f) return;
+            _boltTimer = R(1.2f, 3.5f);
+            Vector3 lForward = FlatForward(pPlayer.Progress);
+            Vector3 lRight = Vector3.Cross(Vector3.up, lForward);
+            float lS = pPlayer.Progress + R(600f, 3000f);
+            int lSide = R(0f, 1f) < 0.5f ? -1 : 1;
+            Vector3 lCrest, lOut;
+            float lHeight;
+            Vector3 lTarget;
+            if (Crest(lS, lSide, out lCrest, out lOut, out lHeight)) lTarget = lCrest;
+            else lTarget = pPlayer.transform.position + lForward * R(800f, 3000f) + lRight * lSide * R(600f, 2500f) - Vector3.up * R(0f, 300f);
+            Vector3 lFrom = lTarget + Vector3.up * R(1800f, 2600f) + lRight * R(-500f, 500f);
+            if (_boltMaterial == null) _boltMaterial = Mats.Glow(new Color(2.2f, 2.6f, 4f), true);
+            GameObject lObject = new GameObject("Bolt");
+            lObject.transform.SetParent(transform, false);
+            LineRenderer lLine = lObject.AddComponent<LineRenderer>();
+            lLine.sharedMaterial = _boltMaterial;
+            lLine.positionCount = 22;
+            lLine.widthMultiplier = R(10f, 22f);
+            lLine.widthCurve = new AnimationCurve(new Keyframe(0f, 0.5f), new Keyframe(1f, 1f));
+            lLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            Vector3 lSideways = Vector3.Cross(lTarget - lFrom, lForward).normalized;
+            for (int i = 0; i < lLine.positionCount; i++)
+            {
+                float lT = i / (lLine.positionCount - 1f);
+                Vector3 lPoint = Vector3.Lerp(lFrom, lTarget, lT);
+                if (i > 0 && i < lLine.positionCount - 1) lPoint += (lSideways * R(-1f, 1f) + lForward * R(-0.5f, 0.5f)) * 120f * Mathf.Sin(lT * Mathf.PI);
+                lLine.SetPosition(i, lPoint);
+            }
+            lObject.AddComponent<BoltFlicker>();
+            FX.Shockwave(lTarget + Vector3.up * 5f, Vector3.up, new Color(0.7f, 0.85f, 1.4f), R(120f, 260f), 0.4f);
+            if (R(0f, 1f) < 0.5f) Fracture.Explode(lTarget, R(20f, 50f), _theme.wall, Vector3.up + lOut, 140f, 0.4f);
+            Juice.Flash(new Color(0.85f, 0.9f, 1f), 0.06f);
+            AudioManager.Play("sfx_rock", 0.4f, 0.5f);
+        }
+
         // ================================================================ falling things
 
         private void UpdateFalling(PlayerController pPlayer, float pDt)
@@ -406,7 +452,8 @@ namespace Com.IsartDigital.Hyperspeed
             if (_debrisTimer <= 0f)
             {
                 _debrisTimer = R(0.9f, 1.9f);
-                float lS = pPlayer.Progress + Mathf.Max(500f, lSpeed * 1.8f);
+                // Spawned far ahead and high up : you watch it come down for seconds before you reach it.
+                float lS = pPlayer.Progress + Mathf.Max(1200f, lSpeed * FallingDebris.FALL * 1.05f);
                 TrackBlock lBlock = _layout.field.BlockAt(lS);
                 if (lBlock != null && lBlock.look != BlockLook.Pipe && !_layout.spine.samples[_layout.spine.IndexOf(lS)].localGravity)
                 {
@@ -422,7 +469,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (_aimedTimer <= 0f)
             {
                 _aimedTimer = R(7f, 12f);
-                float lS = pPlayer.Progress + lSpeed * 2.6f;
+                float lS = pPlayer.Progress + lSpeed * 4.5f;
                 if (_layout.field.Solid(lS))
                 {
                     float lAim = R(0f, 1f) < 0.5f ? float.NaN : _layout.field.CenterLateral(lS) + R(-0.8f, 0.8f) * _layout.field.HalfWidth(lS);
@@ -448,14 +495,18 @@ namespace Com.IsartDigital.Hyperspeed
         private LevelLayout _layout;
         private float _s;
 
+        // How long it falls : long enough to be watched all the way down.
+        public const float FALL = 3.4f;
+        private const float AIR_GRAVITY = 60f;
+        private bool _hit;
+
         public static FallingDebris Create(Transform pParent, LevelLayout pLayout, float pS, float pLateral, Theme pTheme, System.Random pRandom)
         {
             Kind lKind = Pick(pTheme.decor, pRandom);
             float lSize = lKind == Kind.Car ? 14f + (float)pRandom.NextDouble() * 12f : lKind == Kind.Tree ? 40f + (float)pRandom.NextDouble() * 50f : lKind == Kind.Slab ? 60f + (float)pRandom.NextDouble() * 60f : 18f + (float)pRandom.NextDouble() * 40f;
             Vector3 lUp = pLayout.field.Normal(pS);
             Vector3 lGround = pLayout.GroundPoint(pS, pLateral);
-            float lHeight = 280f + (float)pRandom.NextDouble() * 220f;
-            const float FALL = 1.35f;
+            float lHeight = 900f + (float)pRandom.NextDouble() * 500f;
 
             GameObject lObject = new GameObject("Debris");
             lObject.transform.SetParent(pParent, false);
@@ -468,7 +519,7 @@ namespace Com.IsartDigital.Hyperspeed
             lDebris._layout = pLayout;
             lDebris._s = pS;
             lDebris._up = lUp;
-            lDebris._velocity = (lGround - lObject.transform.position) / FALL - lUp * 0f;
+            lDebris._velocity = (lGround - lObject.transform.position) / FALL + lUp * 0.5f * AIR_GRAVITY * FALL;
             lDebris._spin = Random.onUnitSphere * Random.Range(60f, 260f);
             Color lColor = Tint(lKind, pTheme, pRandom);
             lDebris.color = lColor;
@@ -483,9 +534,9 @@ namespace Com.IsartDigital.Hyperspeed
             TrailRenderer lTrail = new GameObject("Trail").AddComponent<TrailRenderer>();
             lTrail.transform.SetParent(lObject.transform, false);
             lTrail.sharedMaterial = Mats.Glow(lKind == Kind.LavaBomb ? new Color(3f, 1.2f, 0.2f) : new Color(1.6f, 1.6f, 1.8f, 0.7f), true, 1f);
-            lTrail.widthMultiplier = lSize * 0.6f;
+            lTrail.widthMultiplier = lSize * 0.9f;
             lTrail.widthCurve = new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 0f));
-            lTrail.time = 0.5f;
+            lTrail.time = 1.6f;
             lTrail.minVertexDistance = 3f;
             return lDebris;
         }
@@ -585,7 +636,7 @@ namespace Com.IsartDigital.Hyperspeed
                 return;
             }
             if (_resting || lDt <= 0f) return;
-            _velocity -= _up * 220f * lDt;
+            _velocity -= _up * (_hit ? 220f : AIR_GRAVITY) * lDt;
             transform.position += _velocity * lDt;
             transform.Rotate(_spin * lDt, Space.World);
             _check -= lDt;
@@ -595,6 +646,7 @@ namespace Com.IsartDigital.Hyperspeed
             float lReach = Mathf.Max(0f, -Vector3.Dot(_velocity, _up)) * 0.05f + radius;
             if (!Physics.Raycast(transform.position, -_up, out lHit, lReach, 1 << Layers.DECK, QueryTriggerInteraction.Ignore)) return;
             transform.position = lHit.point + _up * radius;
+            _hit = true;
             FX.Shockwave(lHit.point + _up, _up, Color.white, radius * 4f, 0.35f);
             FX.Shards(lHit.point, RaceContext.Theme != null ? RaceContext.Theme.roadSide : Color.gray, 10, 40f, radius * 0.15f, _up * 40f);
             if (lPlayer != null)
@@ -611,6 +663,27 @@ namespace Com.IsartDigital.Hyperspeed
             }
             _velocity = Vector3.ProjectOnPlane(_velocity, _up) * 0.5f + _up * Mathf.Abs(Vector3.Dot(_velocity, _up)) * 0.3f;
             _spin *= 0.5f;
+        }
+    }
+
+    // A bolt lives a quarter of a second : it flickers, then it is gone.
+    public class BoltFlicker : MonoBehaviour
+    {
+        private float _age;
+        private LineRenderer _line;
+        private float _width;
+
+        private void Start()
+        {
+            _line = GetComponent<LineRenderer>();
+            _width = _line.widthMultiplier;
+        }
+
+        private void Update()
+        {
+            _age += Time.deltaTime;
+            _line.widthMultiplier = _width * (Mathf.Repeat(_age * 30f, 1f) > 0.35f ? 1f : 0.25f) * Mathf.Clamp01(1f - _age / 0.35f);
+            if (_age > 0.35f) Destroy(gameObject);
         }
     }
 }

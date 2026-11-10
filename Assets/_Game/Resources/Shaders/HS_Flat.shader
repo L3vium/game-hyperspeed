@@ -28,6 +28,21 @@ Shader "Hyperspeed/Flat"
 
         float _HS_RoadScroll;
         float _HS_RoadSpeed;
+
+        float HashF(float2 pP) { return frac(sin(dot(pP, float2(127.1, 311.7))) * 43758.5453); }
+
+        // Smooth value noise : soft blobs, no blocks.
+        float SmoothNoise(float2 pP)
+        {
+            float2 lI = floor(pP);
+            float2 lF = frac(pP);
+            float2 lU = lF * lF * (3.0 - 2.0 * lF);
+            float lA = HashF(lI);
+            float lB = HashF(lI + float2(1, 0));
+            float lC = HashF(lI + float2(0, 1));
+            float lD = HashF(lI + float2(1, 1));
+            return lerp(lerp(lA, lB, lU.x), lerp(lC, lD, lU.x), lU.y);
+        }
         ENDHLSL
 
         Pass
@@ -90,20 +105,26 @@ Shader "Hyperspeed/Flat"
                 half3 lAlbedo = _BaseColor.rgb * input.color.rgb;
                 half3 lColor = lerp(lAlbedo * _ShadeColor.rgb, lAlbedo, lBand);
 
-                // Ground detail on the floor of the track (uv = lateral, distance in metres) : tight bands, slab seams
-                // and grain, so the ground itself tells how fast you go. Faded with distance to stay clean far away.
+                // Organic ground on the floor of the track (uv = lateral, distance in metres) : big soft-edged patches of
+                // two tones, and mown chevrons pointing the way, like a well kept lawn. Flat colours, no grain, no tiles.
                 if (_RoadStreaks > 0 && (abs(input.uv.x + 1.0) + abs(input.uv.y)) > 0.001)
                 {
-                    float lFade = saturate(1.0 - distance(input.positionWS, GetCameraPositionWS()) / 420.0);
-                    float lAlt = step(0.5, frac(input.uv.y / 9.0));
-                    lColor *= lerp(1.0, lerp(0.9, 1.04, lAlt), lFade);
-                    float2 lTile = input.uv / float2(22.0, 11.0);
-                    float2 lCell = abs(frac(lTile) - 0.5) * 2.0;
-                    float2 lWidth = max(fwidth(lTile) * 2.0, 0.035);
-                    float lSeam = max(smoothstep(1.0 - lWidth.x, 1.0, lCell.x), smoothstep(1.0 - lWidth.y, 1.0, lCell.y));
-                    lColor = lerp(lColor, lColor * 0.68, lSeam * lFade * 0.85);
-                    float lGrain = frac(sin(dot(floor(input.uv * float2(0.7, 1.4)), float2(12.9898, 78.233))) * 43758.5453);
-                    lColor *= lerp(1.0, 0.92 + 0.14 * lGrain, lFade * 0.7);
+                    float lFade = saturate(1.0 - distance(input.positionWS, GetCameraPositionWS()) / 900.0);
+                    float2 lP = input.uv / float2(70.0, 110.0);
+                    float lN = SmoothNoise(lP) * 0.65 + SmoothNoise(lP * 2.3 + 17.0) * 0.35;
+                    float lEdge = max(fwidth(lN) * 1.5, 0.004);
+                    float lPatch = smoothstep(0.52 - lEdge, 0.52 + lEdge, lN);
+                    lColor *= lerp(1.0, lerp(0.93, 1.06, lPatch), 0.4 + 0.6 * lFade);
+                    // Chevrons : lanes of V marks, the point toward where you run.
+                    float lLane = input.uv.x / 46.0;
+                    float lLaneId = floor(lLane);
+                    float lInLane = (frac(lLane) - 0.5) * 46.0;
+                    float lOn = step(0.5, frac(sin(lLaneId * 37.31) * 917.13));
+                    float lV = (input.uv.y - abs(lInLane) * 0.75) / 16.0;
+                    float lVw = max(fwidth(lV) * 1.2, 0.01);
+                    float lMark = smoothstep(0.62 - lVw, 0.62, frac(lV)) * (1.0 - smoothstep(0.86, 0.86 + lVw, frac(lV)));
+                    lMark *= lOn * (1.0 - smoothstep(19.0, 22.0, abs(lInLane)));
+                    lColor = lerp(lColor, lColor * 1.13 + 0.03, lMark * lFade * 0.8);
                 }
 
                 // Thin lines rushing along the route, denser with speed. Fade with distance : a texture-free ground.
@@ -113,9 +134,9 @@ Shader "Hyperspeed/Flat"
                     float lRnd = frac(sin(lColumn * 91.17) * 4375.85);
                     float lThin = step(frac(input.uv.x * 0.11), 0.09);
                     float lDash = frac(input.uv.y * (0.002 + lRnd * 0.003) + _HS_RoadScroll * (0.0012 + lRnd * 0.0012) + lRnd * 7.0);
-                    float lStreak = step(0.72 - _HS_RoadSpeed * 0.3, lDash) * lThin * step(0.4, lRnd);
-                    float lNear = saturate(1.0 - distance(input.positionWS, GetCameraPositionWS()) * 0.0025);
-                    lColor = lerp(lColor, half3(1, 1, 1), lStreak * _HS_RoadSpeed * 0.7 * lNear);
+                    float lStreak = step(0.72 - _HS_RoadSpeed * 0.4, lDash) * lThin * step(0.4 - _HS_RoadSpeed * 0.3, lRnd);
+                    float lNear = saturate(1.0 - distance(input.positionWS, GetCameraPositionWS()) * 0.002);
+                    lColor = lerp(lColor, half3(1, 1, 1), lStreak * _HS_RoadSpeed * 0.85 * lNear);
                 }
 
                 lColor = lerp(lColor, half3(1, 1, 1) * 1.5, _Flash);

@@ -15,18 +15,25 @@ namespace Com.IsartDigital.Hyperspeed
 
         // Looking down a slope on the ground : belly first, it feeds you harder.
         public bool BellySliding { get; private set; }
+        public bool LastLandingWasDive { get; private set; }
+        private float _diveSlideTimer;
 
         public float LateralSpeed => OnSurface ? _slip : (_layout != null ? Vector3.Dot(_velocity, _layout.spine.Right(Progress)) : 0f);
+
+        // The convoy block under the feet : it carries you along.
+        private MovingPlatform _carrier;
 
         private void GroundStep(float pDt)
         {
             _lastGrounded = Time.time;
+            if (_carrier != null && _carrier.Delta.sqrMagnitude > 0f) transform.position += _carrier.Delta / Mathf.Max(1, _substeps);
             Vector3 lForward = Vector3.ProjectOnPlane(_heading, _up);
             lForward = lForward.sqrMagnitude > 0.0001f ? lForward.normalized : _aimForward;
 
             UpdateDrift(pDt);
             Sliding = _slideHeld && !Drifting && !_freeRoam;
-            BellySliding = !_freeRoam && !Drifting && AimPitch < DIVE_PITCH && Vector3.Dot(lForward, GravityDown()) > 0.08f;
+            _diveSlideTimer -= pDt;
+            BellySliding = !_freeRoam && !Drifting && (_diveSlideTimer > 0f || AimPitch < DIVE_PITCH && Vector3.Dot(lForward, GravityDown()) > 0.08f);
 
             if (_freeRoam)
             {
@@ -174,6 +181,7 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 Stick(lHit, pDt);
                 _groundLayer = lHit.collider.gameObject.layer;
+                _carrier = lHit.collider.GetComponent<MovingPlatform>();
                 return true;
             }
             return false;
@@ -214,6 +222,9 @@ namespace Com.IsartDigital.Hyperspeed
         private int _groundLayer;
         private float _offTrackTime;
         private float _recoverTimer;
+        private float _recoverGrace;
+        // Time spent in the air on a section that carries gravity (loop, corkscrew, twist).
+        private float _localAirTime;
 
         // Running on scenery, or far out of the track : a moment later a bounce throws you back onto it.
         private bool CheckOffTrack(float pDt)
@@ -243,6 +254,8 @@ namespace Com.IsartDigital.Hyperspeed
             const float GRAVITY = 135f;
             _velocity = lFlat / lTime + Vector3.up * (lDelta.y / lTime + 0.5f * GRAVITY * lTime);
             _recoverTimer = lTime * 0.85f;
+            // The whole throw, and a moment after it, never counts as a fall.
+            _recoverGrace = lTime + 0.8f;
             _offTrackTime = 0f;
             _gravityUp = Vector3.up;
             if (lFlat.sqrMagnitude > 1f)
@@ -267,6 +280,7 @@ namespace Com.IsartDigital.Hyperspeed
         // Leaves the ground with the exact tangent velocity of the surface.
         private void TakeOff(TakeoffReason pReason)
         {
+            _carrier = null;
             Vector3 lRight = Vector3.Cross(_up, _moveDir).normalized;
             _velocity = _moveDir * _speed + lRight * _slip;
             _gravityUp = _up;
@@ -282,10 +296,12 @@ namespace Com.IsartDigital.Hyperspeed
                 EndDrift(false);
                 return;
             }
-            if (!Drifting && _slideHeld && Mathf.Abs(Steer) > 0.35f && _speed > 30f)
+            // Ctrl + a turn, from the keys or from the mouse : the drift starts either way.
+            float lTurn = Mathf.Abs(Steer) > 0.35f ? Steer : Mathf.Clamp(MouseTurn / 90f, -1f, 1f);
+            if (!Drifting && _slideHeld && Mathf.Abs(lTurn) > 0.35f && _speed > 30f)
             {
                 Drifting = true;
-                DriftDirection = Steer > 0f ? 1 : -1;
+                DriftDirection = lTurn > 0f ? 1 : -1;
                 DriftCharge = 0f;
                 _driftEntrySpeed = _speed;
                 AudioManager.Play("sfx_drift_start", 0.7f);
@@ -297,7 +313,7 @@ namespace Com.IsartDigital.Hyperspeed
                 return;
             }
             int lTierBefore = DriftTier;
-            DriftCharge += pDt * (0.55f + Mathf.Abs(Steer) * 0.65f);
+            DriftCharge += pDt * (0.55f + Mathf.Max(Mathf.Abs(Steer), Mathf.Clamp01(Mathf.Abs(MouseTurn) / 120f)) * 0.65f);
             if (DriftTier > lTierBefore)
             {
                 AudioManager.Play("sfx_drift_tier", 0.6f, 0.9f + DriftTier * 0.15f, 0f);

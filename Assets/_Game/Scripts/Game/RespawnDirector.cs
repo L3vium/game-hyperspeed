@@ -15,12 +15,22 @@ namespace Com.IsartDigital.Hyperspeed
         private CameraRig _rig;
 
         public bool Busy { get; private set; }
+        public static RespawnDirector Instance { get; private set; }
+        private float _graceUntil = -1f;
+        // While the runner is being brought back, and a moment after, nothing behind it may give way.
+        public static bool HoldWorld => Instance != null && (Instance.Busy || Time.time < Instance._graceUntil);
+
+        private void OnDestroy()
+        {
+            if (Instance == this) Instance = null;
+        }
 
         public static RespawnDirector Create(PlayerController pPlayer, CameraRig pRig)
         {
             RespawnDirector lDirector = new GameObject("RespawnDirector").AddComponent<RespawnDirector>();
             lDirector._player = pPlayer;
             lDirector._rig = pRig;
+            Instance = lDirector;
             pPlayer.OnDied += lDirector.OnDied;
             return lDirector;
         }
@@ -38,7 +48,9 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lVelocity = _player.Velocity;
             Vector3 lHold = _rig.transform.position;
 
-                        Juice.Flash(UIFactory.RED, 0.25f);
+            Juice.Flash(UIFactory.RED, 0.25f);
+            // A clear death : the screen drops to black, then the rewind comes up out of it.
+            if (PostFX.Instance != null) PostFX.Instance.fade = 1f;
             AudioManager.Play("sfx_fall", 0.9f);
             for (float lTime = 0f; lTime < FALL_VIEW; lTime += Time.unscaledDeltaTime)
             {
@@ -57,7 +69,8 @@ namespace Com.IsartDigital.Hyperspeed
             }
             if (CourseBreak.Instance != null) CourseBreak.Instance.RewindTo(lSafe.s);
             if (ChaosDirector.Instance != null) ChaosDirector.Instance.RewindTo(lSafe.s);
-            if (PostFX.Instance != null) PostFX.Instance.rewind = 1f;
+            yield return new WaitForSecondsRealtime(0.12f);
+            if (PostFX.Instance != null) { PostFX.Instance.rewind = 1f; PostFX.Instance.fade = 0f; }
             AudioManager.Play("sfx_rewind", 0.8f);
             Vector3 lStart = _player.transform.position;
             for (float lTime = 0f; lTime < REWIND; lTime += Time.unscaledDeltaTime)
@@ -88,9 +101,14 @@ namespace Com.IsartDigital.Hyperspeed
             }
 
             _player.RespawnAt(lSafe);
+            // Restore again now that progress is back at the safe point : nothing restored can sink again.
+            if (CourseBreak.Instance != null) CourseBreak.Instance.RewindTo(lSafe.s);
+            if (ChaosDirector.Instance != null) ChaosDirector.Instance.RewindTo(lSafe.s);
+            _graceUntil = Time.time + 2.5f;
+            _rig.Snap();
             if (PostFX.Instance != null) PostFX.Instance.rewind = 0f;
             _rig.ClearOverride(SETTLE);
-                        AudioManager.Play("sfx_respawn", 0.8f);
+            AudioManager.Play("sfx_respawn", 0.8f);
             yield return new WaitForSecondsRealtime(SETTLE);
             Busy = false;
         }

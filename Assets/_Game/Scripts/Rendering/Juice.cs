@@ -108,14 +108,15 @@ namespace Com.IsartDigital.Hyperspeed
 
         // Anime impact frame, only ever called by Impacts : the real scene is inked
         // for a few frames (inverted first), thin manga lines around the edges, Vefects scene-sampled sprite.
-        public static void ImpactFrame(float pStrength = 1f)
+        public static void ImpactFrame(float pStrength = 1f, Vector3? pWorldPoint = null)
         {
             Juice lJuice = Instance;
             Theme lTheme = RaceContext.Theme;
             if (PostFX.Instance != null)
             {
                 if (lTheme != null) PostFX.Instance.ImpactColor(lTheme.accent);
-                PostFX.Instance.Impact(pStrength > 0.9f ? 4 : 3);
+                // Short ink on a block : the 3D burst in the world does the talking.
+                PostFX.Instance.Impact(pWorldPoint.HasValue ? 2 : pStrength > 0.9f ? 4 : 3);
             }
             lJuice.ShowImpactOverlay(pStrength);
             Shake(0.2f + 0.2f * pStrength);
@@ -123,9 +124,28 @@ namespace Com.IsartDigital.Hyperspeed
             if (lPrefab != null && CameraRig.Instance != null && pStrength > 0.55f)
             {
                 Transform lCam = CameraRig.Instance.transform;
-                GameObject lFx = Instantiate(lPrefab, lCam);
-                lFx.transform.localPosition = new Vector3(0f, 0f, 3f);
-                lFx.transform.localRotation = Quaternion.identity;
+                GameObject lFx;
+                if (pWorldPoint.HasValue)
+                {
+                    // Set in the world on the block : it bends and inks the terrain and the pieces around it in 3D.
+                    Vector3 lAt = pWorldPoint.Value;
+                    float lDistance = Mathf.Max(4f, Vector3.Distance(lCam.position, lAt));
+                    lFx = Instantiate(lPrefab, lAt, Quaternion.LookRotation(lAt - lCam.position, lCam.up));
+                    lFx.transform.localScale = Vector3.one * (lDistance / 3f) * 0.75f;
+                    foreach (ParticleSystem lSystem in lFx.GetComponentsInChildren<ParticleSystem>())
+                    {
+                        ParticleSystem.MainModule lMain = lSystem.main;
+                        lMain.scalingMode = ParticleSystemScalingMode.Hierarchy;
+                    }
+                    FX.Shockwave(lAt, (lCam.position - lAt).normalized, Color.white, lDistance * 0.35f, 0.25f);
+                    if (lTheme != null) FX.Shockwave(lAt, Vector3.up, lTheme.accent, lDistance * 0.5f, 0.35f);
+                }
+                else
+                {
+                    lFx = Instantiate(lPrefab, lCam);
+                    lFx.transform.localPosition = new Vector3(0f, 0f, 3f);
+                    lFx.transform.localRotation = Quaternion.identity;
+                }
                 // The plugin distorts what is on screen : give it the colours of the place too.
                 if (lTheme != null)
                 {

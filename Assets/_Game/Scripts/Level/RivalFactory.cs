@@ -31,7 +31,7 @@ namespace Com.IsartDigital.Hyperspeed
                 case RivalKind.RaceCar: return new Placement { lateral = 24f };
                 case RivalKind.Train: return new Placement { lateral = -55f };
                 case RivalKind.Birds: return new Placement { flying = true, lateral = 24f, height = 16f, bob = 3f };
-                case RivalKind.Plane: return new Placement { flying = true, fromSky = true, lateral = 40f, height = 40f, bob = 3f };
+                case RivalKind.Plane: return new Placement { flying = true, fromSky = true, lateral = 40f, height = 70f, bob = 3f };
                 case RivalKind.FighterJet: return new Placement { flying = true, fromSky = true, lateral = -30f, height = 22f, bob = 2f };
                 case RivalKind.Bullet: return new Placement { flying = true, lateral = 16f, height = 8f, bob = 0.2f };
                 case RivalKind.Rockets: return new Placement { flying = true, fromSky = true, lateral = 0f, height = 14f, bob = 2f };
@@ -113,13 +113,16 @@ namespace Com.IsartDigital.Hyperspeed
 
         private static float ModelScale(RivalKind pKind)
         {
+            // Small and bright : the rival is a glowing mark on the track, not a building. The airliner is the exception,
+            // an immense thing flying over the whole stage.
             switch (pKind)
             {
-                case RivalKind.Bullet: return 8f * GROW;
-                case RivalKind.Moto: return 4f * GROW;
+                case RivalKind.Bullet: return 8f * GROW * 0.5f;
+                case RivalKind.Moto: return 4f * GROW * 0.5f;
                 case RivalKind.TRex: return 4.5f * GROW;
-                case RivalKind.Birds: return 5f * GROW;
-                default: return WORLD_SCALE * GROW;
+                case RivalKind.Birds: return 5f * GROW * 0.5f;
+                case RivalKind.Plane: return WORLD_SCALE * GROW * 3f;
+                default: return WORLD_SCALE * GROW * 0.5f;
             }
         }
 
@@ -173,7 +176,8 @@ namespace Com.IsartDigital.Hyperspeed
             lObject.transform.localPosition = pOffset;
             lObject.transform.localRotation = Quaternion.identity;
             lObject.transform.localScale = Vector3.one * lScale;
-            Material lMaterial = Mats.Flat(new Color(0.62f, 0.58f, 0.78f), false);
+            // Toon with a strong rim : the rival's silhouette catches the light and reads against any ground.
+            Material lMaterial = Mats.Toon(new Color(0.95f, 0.9f, 1f), new Color(0.55f, 0.48f, 0.78f), 0f, 0.75f);
             foreach (Renderer lRenderer in lObject.GetComponentsInChildren<Renderer>())
             {
                 Material[] lMaterials = new Material[lRenderer.sharedMaterials.Length];

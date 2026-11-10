@@ -213,6 +213,90 @@ namespace Com.IsartDigital.Hyperspeed
         }
     }
 
+    public enum PaneKind { Glass, Ice, Door }
+
+    // A wall to break through : panes of glass, blocks of ice, plated doors. Dash and they burst without costing you
+    // anything ; run into them and they still give way, but they take a good part of your speed.
+    public class Pane : Breakable
+    {
+        private Vector3 _half;
+
+        public override bool Overlaps(Vector3 pPosition, float pRadius)
+        {
+            if (IsBroken) return false;
+            Vector3 lLocal = transform.InverseTransformPoint(pPosition);
+            return Mathf.Abs(lLocal.x) <= _half.x + pRadius && Mathf.Abs(lLocal.y) <= _half.y + pRadius && Mathf.Abs(lLocal.z) <= _half.z + pRadius;
+        }
+
+        public static Pane Create(Transform pParent, LevelLayout pLayout, float pS, float pLateral, float pWidth, float pHeight, PaneKind pKind, Theme pTheme)
+        {
+            float lDepth = pKind == PaneKind.Ice ? pWidth * 0.55f : pKind == PaneKind.Door ? 4f : 1.6f;
+            GameObject lObject = new GameObject(pKind.ToString());
+            lObject.transform.SetParent(pParent, false);
+            Vector3 lUp = pLayout.field.Normal(pS);
+            lObject.transform.SetPositionAndRotation(pLayout.field.Point(pS, pLateral) + lUp * pHeight * 0.5f, Quaternion.LookRotation(pLayout.spine.Forward(pS), lUp));
+            Pane lPane = lObject.AddComponent<Pane>();
+            lPane._half = new Vector3(pWidth * 0.5f, pHeight * 0.5f, lDepth * 0.5f);
+            lPane.radius = Mathf.Min(pWidth, pHeight) * 0.5f;
+            lPane.big = true;
+
+            MeshData lFrame = new MeshData();
+            MeshData lFace = new MeshData();
+            Color lEdge = Color.Lerp(pTheme.shade, Color.black, 0.3f);
+            float lBar = Mathf.Max(1.2f, pWidth * 0.05f);
+            Material lFaceMaterial;
+            switch (pKind)
+            {
+                case PaneKind.Glass:
+                    lPane.color = new Color(0.75f, 0.95f, 1f);
+                    GateKit.Box(lFace, Vector3.zero, new Vector3(pWidth - lBar, pHeight - lBar, lDepth * 0.4f), Color.white);
+                    lFaceMaterial = Mats.Glow(new Color(0.55f, 0.95f, 1.3f, 0.32f), false, 0f, 1f);
+                    // Diagonal glints.
+                    GateKit.Box(lFrame, new Vector3(-pWidth * 0.18f, pHeight * 0.1f, -lDepth * 0.3f), new Vector3(lBar * 0.4f, pHeight * 0.6f, 0.2f), Color.white);
+                    break;
+                case PaneKind.Ice:
+                    lPane.color = new Color(0.7f, 0.9f, 1f);
+                    GateKit.Box(lFace, Vector3.zero, new Vector3(pWidth, pHeight, lDepth), Color.white);
+                    lFaceMaterial = Mats.Glow(new Color(0.6f, 0.9f, 1.25f, 0.6f), false, 0f, 1f, true);
+                    lBar = 0f;
+                    break;
+                default:
+                    lPane.color = Color.Lerp(pTheme.accent, Color.white, 0.2f);
+                    // Plated door : bands in the colours of the place, hazard stripes across.
+                    for (int i = 0; i < 5; i++)
+                    {
+                        float lY = -pHeight * 0.5f + pHeight * (i + 0.5f) / 5f;
+                        GateKit.Box(lFace, new Vector3(0f, lY, 0f), new Vector3(pWidth - lBar, pHeight / 5f * 0.92f, lDepth), i % 2 == 0 ? pTheme.decorB : Color.Lerp(pTheme.decorB, Color.black, 0.35f));
+                    }
+                    for (int i = -3; i <= 3; i++)
+                        GateKit.Box(lFace, new Vector3(i * pWidth * 0.13f, 0f, -lDepth * 0.5f - 0.1f), new Vector3(pWidth * 0.05f, pHeight * 0.18f, 0.2f), i % 2 == 0 ? UIFactory.YELLOW : Color.black);
+                    lFaceMaterial = Mats.Flat(pTheme.shade, false);
+                    break;
+            }
+            if (lBar > 0f)
+            {
+                float lHalfW = pWidth * 0.5f;
+                float lHalfH = pHeight * 0.5f;
+                GateKit.Box(lFrame, new Vector3(-lHalfW, 0f, 0f), new Vector3(lBar, pHeight, lDepth + 0.4f), lEdge);
+                GateKit.Box(lFrame, new Vector3(lHalfW, 0f, 0f), new Vector3(lBar, pHeight, lDepth + 0.4f), lEdge);
+                GateKit.Box(lFrame, new Vector3(0f, lHalfH, 0f), new Vector3(pWidth + lBar, lBar, lDepth + 0.4f), lEdge);
+                GateKit.Box(lFrame, new Vector3(0f, -lHalfH, 0f), new Vector3(pWidth + lBar, lBar, lDepth + 0.4f), lEdge);
+            }
+            GameObject lFaceObject = new GameObject("Face");
+            lFaceObject.transform.SetParent(lObject.transform, false);
+            lFaceObject.AddComponent<MeshFilter>().sharedMesh = lFace.ToMesh("PaneFace");
+            lFaceObject.AddComponent<MeshRenderer>().sharedMaterial = lFaceMaterial;
+            if (lFrame.Count > 0)
+            {
+                GameObject lFrameObject = new GameObject("Frame");
+                lFrameObject.transform.SetParent(lObject.transform, false);
+                lFrameObject.AddComponent<MeshFilter>().sharedMesh = lFrame.ToMesh("PaneFrame");
+                lFrameObject.AddComponent<MeshRenderer>().sharedMaterial = Mats.Flat(pTheme.shade, false);
+            }
+            return lPane;
+        }
+    }
+
     // Pendulum swinging across the track from a frame above it.
     public class Hammer : Interactable
     {
@@ -267,10 +351,17 @@ namespace Com.IsartDigital.Hyperspeed
         protected override void OnTouch(PlayerController pPlayer)
         {
             if (pPlayer.LightForm) return;
-            Vector3 lHead = _pivot.TransformPoint(new Vector3(0f, -ARM, 0f));
+            // The hit matches what you see : the whole head block and the arm holding it.
             Vector3 lCenter = pPlayer.transform.position + pPlayer.Up;
-            if ((lHead - lCenter).sqrMagnitude > _head * _head) return;
-            pPlayer.Crash(lHead);
+            Vector3 lLocal = _pivot.InverseTransformPoint(lCenter);
+            const float PAD = 3f;
+            bool lHead = Mathf.Abs(lLocal.x) <= 48f + PAD && Mathf.Abs(lLocal.y + ARM) <= 35f + PAD && Mathf.Abs(lLocal.z) <= 39f + PAD;
+            bool lArm = Mathf.Abs(lLocal.x) <= 5f + PAD && Mathf.Abs(lLocal.z) <= 5f + PAD && lLocal.y <= 0f && lLocal.y >= -ARM;
+            if (!lHead && !lArm) return;
+            Vector3 lPush = _pivot.TransformDirection(Vector3.right) * Mathf.Sign(Mathf.Cos(Time.time * 2.1f + _phase));
+            pPlayer.Crash(_pivot.TransformPoint(new Vector3(0f, -ARM, 0f)));
+            FX.Shockwave(lCenter, lPush, Color.white, 30f, 0.3f);
+            Juice.Shake(0.8f);
         }
     }
 }

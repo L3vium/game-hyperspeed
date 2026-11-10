@@ -72,6 +72,8 @@ namespace Com.IsartDigital.Hyperspeed
         public float TopSpeed { get; private set; }
         public bool Invulnerable => _invulnerable > 0f;
         public float Progress { get; private set; }
+        // Progress where the runner last had its feet on something : platforms behind give way from there.
+        public float GroundProgress { get; private set; }
         public float Lateral { get; private set; }
         public float DistanceFromPath => Mathf.Abs(Lateral);
         public bool FreeRoam => _freeRoam;
@@ -94,6 +96,7 @@ namespace Com.IsartDigital.Hyperspeed
         public event System.Action OnDied;
         public event System.Action OnHyper;
         public event System.Action OnLight;
+        public event System.Action OnPerfectStart;
 
         private Vector3 _velocity;
         private Vector3 _up = Vector3.up;
@@ -122,6 +125,7 @@ namespace Com.IsartDigital.Hyperspeed
         private bool _freeRoam;
         private bool _barrier;
         private float _overLight;
+        private int _substeps = 1;
 
         // Where the mouse looks : a direction lying on the surface you stand on, and a pitch above that surface.
         private Vector3 _aimForward = Vector3.forward;
@@ -147,7 +151,8 @@ namespace Com.IsartDigital.Hyperspeed
                 if (_layout == null || _freeRoam) return PhysUp;
                 SpineSample lSample = _layout.spine.samples[_layout.spine.IndexOf(Progress)];
                 if (lSample.localGravity) return PhysUp;
-                if (!OnSurface) return Vector3.up;
+                // A short hop keeps the view it had : the frame only goes back to world up on a real flight.
+                if (!OnSurface) return _airTime < 0.6f ? _smoothCameraUp : Vector3.up;
                 Vector3 lForward = lSample.forward;
                 Vector3 lRight = Vector3.Cross(Vector3.up, lForward);
                 if (lRight.sqrMagnitude < 0.01f) return lSample.up;
@@ -190,6 +195,7 @@ namespace Com.IsartDigital.Hyperspeed
             _speed = 0f;
             _slip = 0f;
             Progress = pS;
+            GroundProgress = pS;
             Lateral = pLateral;
             transform.rotation = Quaternion.LookRotation(_heading, _up);
         }
@@ -235,7 +241,8 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _speed = Mathf.Max(_speed, _profile.cruise * 1.7f);
             _boostTimer = 2f;
-            Juice.Popup("PERFECT START", UIFactory.YELLOW, 1f);
+            OnPerfectStart?.Invoke();
+            Juice.Pulse(1f);
             Juice.Rollback(14f);
             Juice.FovKick(12f);
             AudioManager.Play("sfx_perfect_start", 1f);
@@ -275,6 +282,7 @@ namespace Com.IsartDigital.Hyperspeed
 
             float lDistance = TotalSpeed * lDt;
             int lSubsteps = Mathf.Clamp(Mathf.CeilToInt(lDistance / 1.2f), 1, 28);
+            _substeps = lSubsteps;
             float lSubDt = lDt / lSubsteps;
             for (int i = 0; i < lSubsteps; i++)
             {
@@ -347,10 +355,15 @@ namespace Com.IsartDigital.Hyperspeed
 
         private bool _jumpPressed, _dashPressed, _slidePressed, _slideHeld, _punchPressed, _dashHeld;
 
+        // How fast the mouse is turning the view, in degrees per second (smoothed).
+        public float MouseTurn { get; private set; }
+
         private void ReadInput(float pDt)
         {
             bool lCanAct = State != PlayerState.Crash && State != PlayerState.Finished && !_autoRun && !InputLocked;
             Steer = lCanAct ? HSInput.Steer : 0f;
+            float lMouseTurn = lCanAct && !HSInput.BotAimActive ? HSInput.LookDelta.x / Mathf.Max(0.0001f, pDt) : 0f;
+            MouseTurn = Mathf.Lerp(MouseTurn, lMouseTurn, 1f - Mathf.Exp(-12f * pDt));
             _jumpPressed = lCanAct && HSInput.JumpPressed;
             _dashPressed = lCanAct && HSInput.DashPressed && !_freeRoam;
             _dashHeld = lCanAct && HSInput.DashHeld && !_freeRoam;
@@ -375,6 +388,7 @@ namespace Com.IsartDigital.Hyperspeed
             _invulnerable -= pDt;
             _railCooldown -= pDt;
             _recoverTimer -= pDt;
+            _recoverGrace -= pDt;
             _boostTimer -= pDt;
             _comboTimer -= pDt;
             if (_comboTimer <= 0f) Combo = 0;
@@ -427,25 +441,39 @@ namespace Com.IsartDigital.Hyperspeed
                 Breakable lBreakable = Breakable.All[i];
                 if (!lBreakable.Overlaps(lCenter, 1.5f)) continue;
                 if (lSmash) Burst(lBreakable);
-                else
-                {
-                    lBreakable.Smash(_heading, Speed * 0.5f);
-                    Crash(lBreakable.transform.position);
-                }
+                else BodyHit(lBreakable);
             }
 
             if (Punching) PunchHits();
         }
 
-        // Dashing through something big : it explodes, and it is worth a big kick.
+        // Dashing through it : it explodes in an impact frame and you lose nothing at all.
         private void Burst(Breakable pBreakable)
         {
-            bool lBig = pBreakable.big;
+            Vector3 lAt = pBreakable.transform.position;
             pBreakable.Smash(_heading, Speed);
             AddCombo();
-            Juice.Shake(lBig ? 0.6f : 0.3f);
-            if (lBig) Impacts.Request(ImpactReason.BlockBroken);
-            ApplyBoost(_profile.cruise * 0.32f, AimDirection, 0f, null, true);
+            _dashEnergy = Mathf.Min(DASH_ENERGY, _dashEnergy + 0.4f);
+            Juice.Freeze(0.05f);
+            Juice.Shake(0.55f);
+            Juice.Pulse(1.2f);
+            Juice.FovKick(8f);
+            Impacts.Request(ImpactReason.Smash, lAt);
+            AudioManager.Play("sfx_punch_hit", 0.9f);
+        }
+
+        // Running into it without a dash : it still breaks, but it takes a good part of your speed.
+        private void BodyHit(Breakable pBreakable)
+        {
+            pBreakable.Smash(_heading, Speed * 0.5f);
+            if (Invulnerable || CheatInvincible) return;
+            if (OnSurface) _speed = Mathf.Max(_profile.cruise * 0.55f, _speed * 0.75f);
+            else _velocity *= 0.75f;
+            _invulnerable = 0.3f;
+            Juice.Shake(0.35f);
+            Juice.Hitstop(0.04f);
+            AudioManager.Play("sfx_crash", 0.6f, 1.2f);
+            FX.Sparks(pBreakable.transform.position, Color.white, 20, 26f);
         }
 
         // One punch : wide reach, it explodes and you pick up speed.
@@ -541,6 +569,7 @@ namespace Com.IsartDigital.Hyperspeed
                 return true;
             }
             float lHeadOn = -Vector3.Dot(pDir, pHit.normal);
+            if (Autopilot.Enabled) Debug.Log("[HS-HIT] " + pHit.collider.name + " headOn=" + lHeadOn.ToString("F2") + " s=" + Progress.ToString("F0") + " v=" + Speed.ToString("F0"));
             if (lHeadOn > 0.72f && !Invulnerable)
             {
                 Crash(pHit.point);
@@ -631,8 +660,16 @@ namespace Com.IsartDigital.Hyperspeed
                 Progress = _rail.SpineS(_railDistance);
                 _layout.spine.ProjectNear(transform.position, Progress, out lLateral);
             }
-            else Progress = _layout.spine.Project(transform.position, Progress, out lLateral);
+            else
+            {
+                float lPrevious = Progress;
+                float lNew = _layout.spine.Project(transform.position, Progress, out lLateral);
+                // In the air the projection may hop to another part of the line : never further than the flight allows.
+                if (!OnSurface) lNew = Mathf.Min(lNew, lPrevious + TotalSpeed * Time.deltaTime * 1.5f + 2f);
+                Progress = lNew;
+            }
             Lateral = lLateral;
+            if (OnSurface) GroundProgress = Progress;
 
             if (_barrier)
             {
@@ -660,14 +697,14 @@ namespace Com.IsartDigital.Hyperspeed
         private void CheckFallOut()
         {
             if (_layout == null || State == PlayerState.Finished || State == PlayerState.Dead || _autoRun) return;
-            if (State != PlayerState.Air && State != PlayerState.Crash || _recoverTimer > 0f)
+            if (State != PlayerState.Air && State != PlayerState.Crash || _recoverTimer > 0f || _recoverGrace > 0f)
             {
                 _noGroundTime = 0f;
                 return;
             }
             bool lFalling = Vector3.Dot(_velocity, _gravityUp) < 0f;
             _noGroundTime = !HasLandingPrediction && lFalling ? _noGroundTime + Time.deltaTime : 0f;
-            if (_noGroundTime > 1.6f || _layout.IsLost(transform.position, Progress))
+            if (_noGroundTime > 0.7f || _layout.IsLost(transform.position, Progress))
             {
                 if (Autopilot.Enabled) Debug.Log("[HS-LD] fall-out s=" + Progress.ToString("F0") + " lat=" + Lateral.ToString("F0") + " pos=" + transform.position.ToString("F0") + " vel=" + _velocity.ToString("F0") + " state=" + State);
                 Die();

@@ -39,8 +39,8 @@ namespace Com.IsartDigital.Hyperspeed
         private void Update()
         {
             PlayerController lPlayer = RaceContext.Player;
-            if (lPlayer == null || !RaceContext.Running) return;
-            float lLine = lPlayer.Progress - _behind;
+            if (lPlayer == null || !RaceContext.Running || RespawnDirector.HoldWorld) return;
+            float lLine = lPlayer.GroundProgress - _behind;
             List<TrackChunk> lChunks = TrackBaker.Chunks;
             while (_next < lChunks.Count && lChunks[_next].s1 < lLine)
             {

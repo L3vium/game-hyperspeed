@@ -17,6 +17,22 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _airTime += pDt;
             Vector3 lTargetUp = _layout != null ? _layout.GravityUp(Progress) : Vector3.up;
+            // Lost in the air inside a loop or a corkscrew for too long : the track throws you back on, ahead.
+            _localAirTime = lTargetUp != Vector3.up && _recoverTimer <= 0f ? _localAirTime + pDt : 0f;
+            if (_localAirTime > 1.3f && !_freeRoam && !_autoRun)
+            {
+                _localAirTime = 0f;
+                if (Autopilot.Enabled) Debug.Log("[HS-REC] stuck in a carried section s=" + Progress.ToString("F0"));
+                Recover();
+                return;
+            }
+            // Thrown far off a loop or a twist : its pull no longer holds, the world's gravity takes over, and the view
+            // turns with it toward the ground you are heading for.
+            if (_layout != null && lTargetUp != Vector3.up)
+            {
+                float lFar = _layout.field.TotalHalfWidth(Progress) * 1.3f + 60f;
+                if ((transform.position - _layout.spine.Evaluate(Progress).position).sqrMagnitude > lFar * lFar) lTargetUp = Vector3.up;
+            }
             float lUpRate = lTargetUp == Vector3.up ? 3.5f : 9f;
             _gravityUp = Vector3.Slerp(_gravityUp, lTargetUp, 1f - Mathf.Exp(-lUpRate * pDt)).normalized;
 
@@ -143,6 +159,8 @@ namespace Com.IsartDigital.Hyperspeed
             // A dive feeds the run, but falling alone can never carry you to light speed.
             float lFlatNow = Vector3.ProjectOnPlane(_velocity, _gravityUp).magnitude;
             float lLanding = Mathf.Min(lTangent.magnitude, Mathf.Max(_profile.cruise * 2.2f, Diving ? 0f : lFlatNow));
+            // A dive flows into the ground : most of the fall's speed carries on along it, never a dead stop.
+            if (Diving) lLanding = Mathf.Min(Mathf.Max(lTangent.magnitude, _velocity.magnitude * 0.85f), Mathf.Max(_profile.cruise * 2.4f, lFlatNow * 1.15f));
             _up = pNormal;
             _gravityUp = pNormal;
             transform.position = pPoint;
@@ -153,6 +171,8 @@ namespace Com.IsartDigital.Hyperspeed
 
             bool lWasCrash = State == PlayerState.Crash;
             bool lWasDiving = Diving;
+            LastLandingWasDive = lWasDiving;
+            if (lWasDiving) _diveSlideTimer = 0.45f;
             Diving = false;
             _recoverTimer = 0f;
             SetState(_autoRun ? PlayerState.Finished : PlayerState.Ground);
@@ -181,7 +201,8 @@ namespace Com.IsartDigital.Hyperspeed
                 Juice.Rollback(10f);
                 AudioManager.Play("sfx_land_perfect", 0.9f);
             }
-            if (lImpact > 22f && !lWasCrash)
+            // Only a dive or a long drop hits hard : a plain jump lands softly and keeps the run flowing.
+            if ((lWasDiving ? lImpact > 22f : lImpact > 90f) && !lWasCrash)
             {
                 // A real hit on the ground : ring, column of debris, dust.
                 float lSize = Mathf.Lerp(14f, 80f, lPower);

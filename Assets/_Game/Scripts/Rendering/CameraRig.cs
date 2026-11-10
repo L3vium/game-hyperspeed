@@ -62,6 +62,10 @@ namespace Com.IsartDigital.Hyperspeed
         private bool _finishMode;
         private Vector3 _finishPosition;
         private float _blockDistance = 1f;
+        // 0 on open ground, 1 inside a loop / twist : the view tucks in and rises so it stays inside the curve.
+        private float _curl;
+        private float _finishOrbit;
+        private float _windTime;
 
         private bool _override;
         private float _overrideBlend;
@@ -153,6 +157,7 @@ namespace Com.IsartDigital.Hyperspeed
         public void SetFinishMode(bool pValue)
         {
             _finishMode = pValue;
+            _finishOrbit = 0f;
             _finishPosition = transform.position;
         }
 
@@ -170,6 +175,9 @@ namespace Com.IsartDigital.Hyperspeed
         {
             float lDistance = (freeLook ? 14f : Mathf.Lerp(18f, 60f, Mathf.Sqrt(pSpeed)) + _lightBlend * 20f + _lag) * distanceScale;
             float lHeight = (freeLook ? 4f : Mathf.Lerp(7f, 16f, pSpeed)) * distanceScale;
+            // In a loop the line behind you curves away under the track : come closer and higher instead.
+            lDistance *= Mathf.Lerp(1f, 0.42f, _curl);
+            lHeight *= Mathf.Lerp(1f, 1.6f, _curl);
             return _focus + _up * lHeight - _look * lDistance;
         }
 
@@ -211,8 +219,10 @@ namespace Com.IsartDigital.Hyperspeed
             if (lFrozen) return;
 
             float lSpeed = target.Speed01;
-            // The up only turns where gravity turns (the target gives a stable frame), and slowly.
-            _up = Vector3.Slerp(_up, target.CameraUp, 1f - Mathf.Exp(-4f * lDt)).normalized;
+            _curl = Mathf.MoveTowards(_curl, CurlTarget(), lDt * 2.5f);
+            // The up only turns where gravity turns (the target gives a stable frame) : slowly on open ground, tightly
+            // inside loops so the view never lags outside the curve.
+            _up = Vector3.Slerp(_up, target.CameraUp, 1f - Mathf.Exp(-Mathf.Lerp(4f, 11f, _curl) * lDt)).normalized;
             // The mouse is followed with some weight : the view swings, it never snaps.
             _look = Vector3.Slerp(_look, target.AimDirection, 1f - Mathf.Exp(-12f * lDt)).normalized;
             UpdateFocus(lDt);
@@ -230,9 +240,12 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lLook = LookPoint(lSpeed);
             if (_finishMode)
             {
-                lDesired = _finishPosition;
-                lLook = target.FocusPosition;
-                _base = Vector3.SmoothDamp(_base, lDesired, ref _velocity, 0.6f, Mathf.Infinity, lDt);
+                // Victory : a slow orbit around the runner, who keeps on running.
+                _finishOrbit += lDt * 22f;
+                Vector3 lBack = Quaternion.AngleAxis(_finishOrbit, _up) * -_look;
+                lDesired = _focus + lBack * 16f + _up * 5f;
+                lLook = target.FocusPosition + _up * 1f;
+                _base = Vector3.SmoothDamp(_base, lDesired, ref _velocity, 0.35f, Mathf.Infinity, lDt);
                 _offset = _base - _focus;
             }
             else
@@ -248,10 +261,17 @@ namespace Com.IsartDigital.Hyperspeed
             float lTime = Time.unscaledTime * 24f;
             Vector3 lShakeOffset = new Vector3(Mathf.PerlinNoise(lTime, 0.1f) - 0.5f, Mathf.PerlinNoise(0.3f, lTime) - 0.5f, 0f) * lShake * 1.4f;
             Quaternion lShakeRot = Quaternion.Euler((Mathf.PerlinNoise(lTime, 5.2f) - 0.5f) * lShake * 5f, (Mathf.PerlinNoise(7.1f, lTime) - 0.5f) * lShake * 5f, (Mathf.PerlinNoise(lTime, 9.4f) - 0.5f) * lShake * 8f);
-            Vector3 lPosition = _base + lRotation * lShakeOffset;
-            lRotation *= lShakeRot;
+            // Diving : a slow sway, like the wind pushing the camera around.
+            _windTime += lDt * 0.6f;
+            float lWind = _dive;
+            Vector3 lWindOffset = new Vector3(Mathf.PerlinNoise(_windTime, 3.3f) - 0.5f, Mathf.PerlinNoise(8.1f, _windTime) - 0.5f, 0f) * lWind * 3.2f;
+            Quaternion lWindRot = Quaternion.Euler((Mathf.PerlinNoise(_windTime, 11f) - 0.5f) * lWind * 5f, 0f, (Mathf.PerlinNoise(13f, _windTime) - 0.5f) * lWind * 9f);
+            Vector3 lPosition = _base + lRotation * (lShakeOffset + lWindOffset);
+            lRotation *= lShakeRot * lWindRot;
+            if (!_finishMode) lPosition = KeepAboveSurface(lPosition);
 
-            float lFovTarget = Mathf.Lerp(FOV_MIN, FOV_MAX, Mathf.Sqrt(lSpeed)) + _hyperBlend * FOV_HYPER + _kick + _dive * 10f;
+            float lCalm = _player != null ? Mathf.InverseLerp(260f, 450f, _player.Profile.cruise) : 1f;
+            float lFovTarget = Mathf.Lerp(FOV_MIN - 8f + lCalm * 8f, FOV_MAX, Mathf.Sqrt(lSpeed)) + _hyperBlend * FOV_HYPER + _lightBlend * 10f + _kick + _dive * 10f;
             if (freeLook) lFovTarget = 84f;
             _fov = Mathf.SmoothDamp(_fov, lFovTarget, ref _fovVelocity, 0.22f, FOV_RATE, lDt);
 
@@ -292,6 +312,28 @@ namespace Com.IsartDigital.Hyperspeed
                 lWanted = Mathf.Clamp01((lHit.distance - 0.5f) / lLength);
             _blockDistance = lWanted < _blockDistance ? Mathf.Lerp(_blockDistance, lWanted, 1f - Mathf.Exp(-40f * pDt)) : Mathf.Lerp(_blockDistance, lWanted, 1f - Mathf.Exp(-3f * pDt));
             return lFocus + lDelta * _blockDistance;
+        }
+
+        private float CurlTarget()
+        {
+            if (_player == null || _layout == null || freeLook) return 0f;
+            Spine lSpine = _layout.spine;
+            float lAhead = Mathf.Max(30f, _player.Speed * 0.35f);
+            if (lSpine.samples[lSpine.IndexOf(_player.Progress)].localGravity) return 1f;
+            if (lSpine.samples[lSpine.IndexOf(_player.Progress + lAhead)].localGravity) return 0.6f;
+            return 0f;
+        }
+
+        // Last guard : the camera never ends up under or inside the surface the runner is on.
+        private Vector3 KeepAboveSurface(Vector3 pPosition)
+        {
+            Vector3 lFrom = _focus + _up * 3f;
+            Vector3 lDelta = pPosition - lFrom;
+            float lLength = lDelta.magnitude;
+            RaycastHit lHit;
+            if (lLength > 0.5f && Physics.SphereCast(lFrom, 0.6f, lDelta / lLength, out lHit, lLength + 1f, 1 << Layers.DECK, QueryTriggerInteraction.Ignore))
+                pPosition = lFrom + lDelta / lLength * Mathf.Max(0.5f, lHit.distance - 1.5f) + lHit.normal * 1.5f;
+            return pPosition;
         }
 
         private void ApplyShot(float pDt)
