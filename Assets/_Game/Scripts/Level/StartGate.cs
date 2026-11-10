@@ -33,14 +33,14 @@ namespace Com.IsartDigital.Hyperspeed
             lGate._barrierMaterial.SetFloat("_Scroll", 0.8f);
             lGate._barrierMaterial.SetFloat("_Cull", 0f);
             GameObject lQuad = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            Destroy(lQuad.GetComponent<Collider>());
+            DestroyImmediate(lQuad.GetComponent<Collider>());
             lQuad.transform.SetParent(lGate._barrier, false);
             lQuad.transform.localScale = new Vector3(lHalf * 2f, lHeight, 1f);
             lQuad.GetComponent<Renderer>().sharedMaterial = lGate._barrierMaterial;
 
             // The limit you can run up to during the count : a bright band across the ground.
             GameObject lLine = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            Destroy(lLine.GetComponent<Collider>());
+            DestroyImmediate(lLine.GetComponent<Collider>());
             lLine.transform.SetParent(lRoot, false);
             lLine.transform.localPosition = new Vector3(0f, 0.2f, -3f);
             lLine.transform.localScale = new Vector3(lHalf * 2f, 0.3f, 2.4f);
