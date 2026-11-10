@@ -309,11 +309,11 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 if (pColumn == 0 || pColumn == FLOOR_COLUMNS - 1) return (lBand & 1) == 0 ? pTheme.roadEdge : pTheme.roadSide;
                 if ((pColumn == FLOOR_COLUMNS / 2 - 1 || pColumn == FLOOR_COLUMNS / 2) && (lBand & 3) == 0) return Color.Lerp(pTheme.road, Color.white, 0.55f);
-                return Color.Lerp(pTheme.road, Color.white, lCheck ? 0.05f : 0f);
+                return pTheme.road;
             }
             float lNoise = Mathf.PerlinNoise(pS / 140f + 11.3f + pBlock.seed, pColumn * 0.37f + 3.7f);
             Color lColor = lNoise < 0.42f ? pTheme.roadB : lNoise > 0.6f ? pTheme.groundC : pTheme.roadA;
-            if (lCheck) lColor = Color.Lerp(lColor, Color.white, 0.09f);
+            // No checker : flat colour, the shader adds soft patches and mown chevrons.
             if (pBlock.look == BlockLook.Slab && (pColumn == 0 || pColumn == FLOOR_COLUMNS - 1)) lColor = Color.Lerp(lColor, pTheme.roadEdge, 0.65f);
             return lColor;
         }

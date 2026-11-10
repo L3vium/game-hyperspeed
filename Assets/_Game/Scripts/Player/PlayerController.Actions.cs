@@ -168,6 +168,7 @@ namespace Com.IsartDigital.Hyperspeed
         public void Crash(Vector3 pPoint, string pLabel = null)
         {
             if (Invulnerable || CheatInvincible || State == PlayerState.Crash || State == PlayerState.Frozen || State == PlayerState.Finished || State == PlayerState.Dead) return;
+            if (Autopilot.Enabled) Debug.Log("[HS-CRASH] s=" + Progress.ToString("F0") + " v=" + Speed.ToString("F0") + " state=" + State + " at=" + pPoint.ToString("F0") + " lat=" + Lateral.ToString("F0"));
             Vector3 lUp = OnSurface ? _up : _gravityUp;
             Vector3 lAway = Vector3.ProjectOnPlane(transform.position - pPoint, lUp).normalized;
             float lSpeed = Mathf.Max(Speed * 0.4f, _profile.cruise * 0.55f);

@@ -105,10 +105,10 @@ namespace Com.IsartDigital.Hyperspeed
 
             // Neck and neck : right beside you, a nose ahead then a nose behind. Chasers only ever hunt from behind.
             float lSwap = Mathf.Sin(_elapsed * Mathf.PI * 2f / 9f);
-            float lTarget = chaser ? lCruise * 0.45f : lCruise * 0.07f * lSwap;
+            float lTarget = chaser ? lCruise * 0.9f : lCruise * 0.07f * lSwap;
             // Before the last straight it pulls level and stays there ; in the very last metres it is yours to take.
             if (lClimax && !chaser) lTarget = lLastMeters ? lCruise * 0.18f : -lCruise * 0.03f;
-            float lWanted = speed * Mathf.Clamp(1f + (lGap - lTarget) / (lCruise * 1.2f), 0.8f, 1.6f);
+            float lWanted = speed * Mathf.Clamp(1f + (lGap - lTarget) / (lCruise * 1.2f), 0.8f, chaser ? 1.35f : 1.6f);
             // Far behind after a big mistake of yours : it keeps its lead and does not run away. Far behind because you
             // are much faster : it only gains a little, never teleports.
             if (lGap > lCruise * 2.5f) lWanted = Mathf.Min(lWanted, speed * 1.3f);
@@ -116,6 +116,9 @@ namespace Com.IsartDigital.Hyperspeed
             float lPace = Mathf.Max(speed, RaceContext.Player != null ? RaceContext.Player.Speed * 0.97f : speed);
             if (lGap > lCruise * 2.5f) lPace = speed;
             lWanted *= lPace / speed;
+            // Ahead of you after a mistake : it waits, a little, so the fight comes back to you. A huge mistake costs more.
+            if (!chaser && lGap < -lCruise * 0.3f && RaceContext.Player != null)
+                lWanted = Mathf.Max(speed * 0.6f, RaceContext.Player.Speed * (lGap < -lCruise * 4f ? 0.95f : 0.82f));
             float lBefore = _rate;
             _rate = Mathf.MoveTowards(_rate, lWanted, lCruise * 2.2f * pDt);
             if (_wobble != null) _wobble.Accelerate((_rate - lBefore) / Mathf.Max(0.0001f, pDt) / lCruise);

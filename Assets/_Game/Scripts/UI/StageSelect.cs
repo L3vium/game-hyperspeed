@@ -14,7 +14,7 @@ namespace Com.IsartDigital.Hyperspeed
         private const float CARD_HEIGHT = 640f;
         // The arrows touch : each card's point sits in the notch of the next.
         private const float CARD_STEP = 1000f;
-        private const float FRONT_SCALE = 1.22f;
+        private const float FRONT_SCALE = 1.1f;
 
         private class Card
         {
@@ -66,7 +66,7 @@ namespace Com.IsartDigital.Hyperspeed
             _root = UIFactory.Stretch(UIFactory.CreateRect(pCanvas, "Stages", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
             _panel = _root.gameObject.AddComponent<PerspectivePanel>();
             _panel.baseEuler = new Vector3(6f, -27f, 4f);
-            _root.localScale = Vector3.one * 0.8f;
+            _root.localScale = Vector3.one * 0.7f;
             _panel.amountX = 2.5f;
             _panel.amountY = 2f;
 
@@ -76,12 +76,12 @@ namespace Com.IsartDigital.Hyperspeed
             UIKit.Chevrons(lBack, "Chevrons", new Color(0.8f, 0.04f, 0.09f), new Color(0.72f, 0.03f, 0.08f), 40f);
             UIKit.Tile(_root, "SlashA", new Color(1f, 1f, 1f, 0.1f), new Vector2(0.5f, 0.5f), new Vector2(-240f, 520f), new Vector2(3600f, 70f), 0.5f, 8f);
 
-            _row = UIFactory.CreateRect(_root, "Row", new Vector2(0.5f, 0.5f), new Vector2(-260f, 130f), Vector2.zero);
+            _row = UIFactory.CreateRect(_root, "Row", new Vector2(0.5f, 0.5f), new Vector2(-300f, 190f), Vector2.zero);
             _cards = new Card[LevelDatabase.Count];
             for (int i = 0; i < _cards.Length; i++) _cards[i] = BuildCard(i);
 
             // The band under the front card : code, name, tagline, two lines of description ; best time and rank big on the right.
-            _info = UIFactory.CreateRect(_root, "Info", new Vector2(0.5f, 0.5f), new Vector2(-120f, -380f), new Vector2(1800f, 280f));
+            _info = UIFactory.CreateRect(_root, "Info", new Vector2(0.5f, 0.5f), new Vector2(-120f, -330f), new Vector2(1800f, 280f));
             _info.localRotation = Quaternion.Euler(0f, 0f, 3f);
             UIKit.Tile(_info, "Plate", UIKit.WHITE, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(1700f, 250f), 0.4f);
             UIKit.Tile(_info, "Band", UIKit.INK, new Vector2(0.5f, 0.5f), new Vector2(-540f, 96f), new Vector2(620f, 66f), 0.4f);
@@ -103,13 +103,13 @@ namespace Com.IsartDigital.Hyperspeed
             _description.fontSizeMax = 26f;
             _description.textWrappingMode = TextWrappingModes.Normal;
 
-            UIKit.Text(_info, "BEST", 34f, UIKit.RED_DARK, new Vector2(1f, 0.5f), new Vector2(-420f, 70f), new Vector2(300f, 40f), UIKit.Font.Heavy, TextAlignmentOptions.Right);
-            _best = UIKit.Text(_info, "", 72f, UIKit.INK, new Vector2(1f, 0.5f), new Vector2(-420f, 10f), new Vector2(460f, 84f), UIKit.Font.Heavy, TextAlignmentOptions.Right);
-            _rank = UI3DText.Create(_info, " ", 170f, new Vector2(1f, 0.5f), new Vector2(-150f, 10f), new Vector2(230f, 220f), UIKit.RED, UIKit.RED_DARK, 18, 4f);
+            UIKit.Text(_info, "BEST", 34f, UIKit.RED_DARK, new Vector2(1f, 0.5f), new Vector2(-470f, 70f), new Vector2(300f, 40f), UIKit.Font.Heavy, TextAlignmentOptions.Right);
+            _best = UIKit.Text(_info, "", 72f, UIKit.INK, new Vector2(1f, 0.5f), new Vector2(-520f, 10f), new Vector2(400f, 84f), UIKit.Font.Heavy, TextAlignmentOptions.Right);
+            _rank = UI3DText.Create(_info, " ", 170f, new Vector2(1f, 0.5f), new Vector2(-190f, 14f), new Vector2(220f, 220f), UIKit.RED, UIKit.RED_DARK, 18, 4f);
             _rank.tiltX = 6f;
             _rank.tiltY = 4f;
 
-            _go = UIFactory.CreateRect(_root, "Go", new Vector2(0.5f, 0.5f), new Vector2(760f, -640f), new Vector2(680f, 250f));
+            _go = UIFactory.CreateRect(_root, "Go", new Vector2(0.5f, 0.5f), new Vector2(820f, -600f), new Vector2(680f, 250f));
             _go.localRotation = Quaternion.Euler(0f, 0f, 3f);
             UIShape lGoShadow = UIFactory.CreateShape(_go, "Shadow", UIShape.ShapeKind.Chevron, UIKit.INK, new Vector2(0.5f, 0.5f), new Vector2(18f, -14f), new Vector2(700f, 260f));
             lGoShadow.skew = 0.38f;

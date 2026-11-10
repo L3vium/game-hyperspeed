@@ -126,7 +126,7 @@ namespace Com.IsartDigital.Hyperspeed
 
             // Big callouts at the top centre, instructions at the bottom : anime style, in 3D.
             _notify = UIBanner.Create(lRoot3D, "Notify", new Vector2(0.5f, 1f), new Vector2(0f, -190f), new Vector2(900f, 120f), 96f);
-            _hint = UIBanner.Create(lRoot3D, "Hint", new Vector2(0.5f, 0f), new Vector2(0f, 170f), new Vector2(1100f, 90f), 58f);
+            _hint = UIBanner.Create(lRoot3D, "Hint", new Vector2(0.5f, 0f), new Vector2(260f, 330f), new Vector2(900f, 80f), 50f);
         }
 
         private string RivalShortName()

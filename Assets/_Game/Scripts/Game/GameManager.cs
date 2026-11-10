@@ -191,7 +191,11 @@ namespace Com.IsartDigital.Hyperspeed
             else if (_beaten && _raceTime - _beatenTime > 20f)
                 StartCoroutine(EndRoutine(false, "TOO SLOW"));
             else if (_level.chaser && !_player.Invulnerable && !_player.CheatInvincible && !_respawn.Busy && !_rival.Passing && _rival.distance >= _player.Progress - 2f && _rival.distance > 0f)
+            {
+                if (_autopilot != null) _autopilot.DumpTrace("[HS-TRACE]");
+                Debug.Log("[HS-CAUGHT] state=" + _player.State + " v=" + _player.Speed.ToString("F0") + " s=" + _player.Progress.ToString("F0") + " lat=" + _player.Lateral.ToString("F0") + " rival=" + _rival.distance.ToString("F0") + " air=" + _player.AirTime.ToString("F1"));
                 StartCoroutine(EndRoutine(false, CaughtWord()));
+            }
         }
 
         // The last straight, neck and neck : bars close in from top and bottom, the colours burn.

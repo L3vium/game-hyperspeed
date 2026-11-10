@@ -441,11 +441,18 @@ namespace Com.IsartDigital.Hyperspeed
             float lOffset = 0f;
             float lDrop = 0f;
             float lHalf = _halfWidth;
+            float lPrevDrop = 0f, lPrevOffset = 0f, lPrevHalf = lHalf, lPrevTilt = 0f;
             while (_s < lEnd)
             {
                 float lLength = M(Rand(0.8f, 1.9f) / pDensity);
                 float lNarrow = lHalf * Rand(0.55f, 0.95f);
-                TrackBlock lBlock = Open(BlockLook.Slab, 0f, lNarrow, lOffset, lDrop, Rand(-10f, 10f), Rand(60f, 140f));
+                float lTilt = Rand(-10f, 10f);
+                lDrop = Mathf.Max(lDrop, StepDown(lPrevDrop, lPrevOffset, lPrevHalf, lPrevTilt, lOffset, lNarrow, lTilt));
+                TrackBlock lBlock = Open(BlockLook.Slab, 0f, lNarrow, lOffset, lDrop, lTilt, Rand(60f, 140f));
+                lPrevDrop = lDrop;
+                lPrevOffset = lOffset;
+                lPrevHalf = lNarrow;
+                lPrevTilt = lTilt;
                 float lS0 = _s;
                 Span(lLength, Rand(-5f, 5f) * ((_yaw > 30f && _yaw < 150f) ? 1f : 0f));
                 Close();
@@ -463,8 +470,8 @@ namespace Com.IsartDigital.Hyperspeed
                 }
                 lDrop = lNext;
             }
-            // Back to the line for the next module.
-            float lBack = lDrop;
+            // Back to the line for the next module, below the last slab.
+            float lBack = Mathf.Max(lDrop, StepDown(lPrevDrop, lPrevOffset, lPrevHalf, lPrevTilt, 0f, lHalf, 0f));
             Close();
             Span(M(0.2f), 0f, 0f, 0f, Vector3.down * lBack);
             Open(BlockLook.Ground, 4f);
@@ -739,12 +746,19 @@ namespace Com.IsartDigital.Hyperspeed
             float lOffset = 0f;
             float lDrop = 0f;
             float lHalf = _halfWidth;
+            // The ground before : the first platform must sit below it everywhere, even its raised edge.
+            float lPrevDrop = 0f, lPrevOffset = 0f, lPrevHalf = lHalf, lPrevTilt = 0f;
             while (_s < lEnd)
             {
                 float lLength = M(Rand(1f, 2f));
                 float lNarrow = lHalf * Rand(0.45f, 0.8f);
-                float lTilt = Rand(14f, 24f) * (Chance(0.5f) ? 1f : -1f);
+                float lTilt = Rand(10f, 18f) * (Chance(0.5f) ? 1f : -1f);
+                lDrop = Mathf.Max(lDrop, StepDown(lPrevDrop, lPrevOffset, lPrevHalf, lPrevTilt, lOffset, lNarrow, lTilt));
                 Open(BlockLook.Slab, 0f, lNarrow, lOffset, lDrop, lTilt, Rand(70f, 150f));
+                lPrevDrop = lDrop;
+                lPrevOffset = lOffset;
+                lPrevHalf = lNarrow;
+                lPrevTilt = lTilt;
                 float lBlockS = _s;
                 Span(lLength);
                 Close();
@@ -759,7 +773,8 @@ namespace Com.IsartDigital.Hyperspeed
                 }
                 lDrop = lNext;
             }
-            float lBack = lDrop;
+            // The ground after : below the last platform too.
+            float lBack = Mathf.Max(lDrop, StepDown(lPrevDrop, lPrevOffset, lPrevHalf, lPrevTilt, 0f, lHalf, 0f));
             Close();
             Span(M(0.2f), 0f, 0f, 0f, Vector3.down * lBack);
             Open(BlockLook.Ground, 4f);
@@ -771,6 +786,21 @@ namespace Com.IsartDigital.Hyperspeed
             }
             NoPads(lS0, _s);
             return this;
+        }
+
+        // The smallest drop for block B so that, wherever it overlaps block A sideways, B's floor is under A's : you
+        // always fall onto the next block, you never run into its face. Floor height is -drop - (lateral - offset) * sin.
+        private static float StepDown(float pDropA, float pOffA, float pHalfA, float pTiltA, float pOffB, float pHalfB, float pTiltB)
+        {
+            float lFrom = Mathf.Max(pOffA - pHalfA, pOffB - pHalfB);
+            float lTo = Mathf.Min(pOffA + pHalfA, pOffB + pHalfB);
+            if (lTo < lFrom) return pDropA + 8f;
+            float lSinA = Mathf.Sin(pTiltA * Mathf.Deg2Rad);
+            float lSinB = Mathf.Sin(pTiltB * Mathf.Deg2Rad);
+            float lNeed = float.MinValue;
+            foreach (float lX in new[] { lFrom, lTo })
+                lNeed = Mathf.Max(lNeed, pDropA + (lX - pOffA) * lSinA - (lX - pOffB) * lSinB + 8f);
+            return lNeed;
         }
 
         // A raised lane above the track, reached from a launch strip : full of rings, faster for those who take it.

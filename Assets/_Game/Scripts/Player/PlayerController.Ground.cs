@@ -222,6 +222,9 @@ namespace Com.IsartDigital.Hyperspeed
         private int _groundLayer;
         private float _offTrackTime;
         private float _recoverTimer;
+        private float _recoverGrace;
+        // Time spent in the air on a section that carries gravity (loop, corkscrew, twist).
+        private float _localAirTime;
 
         // Running on scenery, or far out of the track : a moment later a bounce throws you back onto it.
         private bool CheckOffTrack(float pDt)
@@ -251,6 +254,8 @@ namespace Com.IsartDigital.Hyperspeed
             const float GRAVITY = 135f;
             _velocity = lFlat / lTime + Vector3.up * (lDelta.y / lTime + 0.5f * GRAVITY * lTime);
             _recoverTimer = lTime * 0.85f;
+            // The whole throw, and a moment after it, never counts as a fall.
+            _recoverGrace = lTime + 0.8f;
             _offTrackTime = 0f;
             _gravityUp = Vector3.up;
             if (lFlat.sqrMagnitude > 1f)

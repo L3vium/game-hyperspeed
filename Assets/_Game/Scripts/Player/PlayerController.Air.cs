@@ -17,6 +17,15 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _airTime += pDt;
             Vector3 lTargetUp = _layout != null ? _layout.GravityUp(Progress) : Vector3.up;
+            // Lost in the air inside a loop or a corkscrew for too long : the track throws you back on, ahead.
+            _localAirTime = lTargetUp != Vector3.up && _recoverTimer <= 0f ? _localAirTime + pDt : 0f;
+            if (_localAirTime > 1.3f && !_freeRoam && !_autoRun)
+            {
+                _localAirTime = 0f;
+                if (Autopilot.Enabled) Debug.Log("[HS-REC] stuck in a carried section s=" + Progress.ToString("F0"));
+                Recover();
+                return;
+            }
             // Thrown far off a loop or a twist : its pull no longer holds, the world's gravity takes over, and the view
             // turns with it toward the ground you are heading for.
             if (_layout != null && lTargetUp != Vector3.up)

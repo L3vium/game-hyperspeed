@@ -388,6 +388,7 @@ namespace Com.IsartDigital.Hyperspeed
             _invulnerable -= pDt;
             _railCooldown -= pDt;
             _recoverTimer -= pDt;
+            _recoverGrace -= pDt;
             _boostTimer -= pDt;
             _comboTimer -= pDt;
             if (_comboTimer <= 0f) Combo = 0;
@@ -568,6 +569,7 @@ namespace Com.IsartDigital.Hyperspeed
                 return true;
             }
             float lHeadOn = -Vector3.Dot(pDir, pHit.normal);
+            if (Autopilot.Enabled) Debug.Log("[HS-HIT] " + pHit.collider.name + " headOn=" + lHeadOn.ToString("F2") + " s=" + Progress.ToString("F0") + " v=" + Speed.ToString("F0"));
             if (lHeadOn > 0.72f && !Invulnerable)
             {
                 Crash(pHit.point);
@@ -695,7 +697,7 @@ namespace Com.IsartDigital.Hyperspeed
         private void CheckFallOut()
         {
             if (_layout == null || State == PlayerState.Finished || State == PlayerState.Dead || _autoRun) return;
-            if (State != PlayerState.Air && State != PlayerState.Crash || _recoverTimer > 0f)
+            if (State != PlayerState.Air && State != PlayerState.Crash || _recoverTimer > 0f || _recoverGrace > 0f)
             {
                 _noGroundTime = 0f;
                 return;
