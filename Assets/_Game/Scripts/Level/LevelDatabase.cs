@@ -204,6 +204,18 @@ namespace Com.IsartDigital.Hyperspeed
         // Scattered pads : rare at first so the first stages stay under control.
         public static float PadDensity(int pIndex) => 0.3f + 0.7f * pIndex / (Levels.Length - 1);
 
+        // The stage's recipe, ready to build or to bake into editable data.
+        public static CourseBuilder Recipe(int pIndex, UnityEngine.Transform pRoot)
+        {
+            LevelDefinition lLevel = Get(pIndex);
+            CourseBuilder lBuilder = new CourseBuilder(pRoot, lLevel.theme(), Profile(lLevel), lLevel.seed)
+            {
+                pace = Pace(pIndex), widthScale = WidthScale(pIndex), padDensity = PadDensity(pIndex)
+            };
+            lLevel.build(lBuilder);
+            return lBuilder;
+        }
+
         // "1-3" : world and stage within it.
         public static string Code(int pIndex)
         {

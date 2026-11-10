@@ -67,9 +67,10 @@ namespace Com.IsartDigital.Hyperspeed
             Random.InitState(_level.seed);
             Transform lTrackRoot = new GameObject("Course").transform;
             lTrackRoot.SetParent(lRoot, false);
-            CourseBuilder lBuilder = new CourseBuilder(lTrackRoot, lTheme, lProfile, _level.seed) { pace = LevelDatabase.Pace(_levelIndex), widthScale = LevelDatabase.WidthScale(_levelIndex), padDensity = LevelDatabase.PadDensity(_levelIndex) };
-            _level.build(lBuilder);
-            _layout = lBuilder.Build();
+            // A stage shaped in the Level Design window wins over its recipe.
+            StageAsset lAsset = StageAsset.Load(_levelIndex);
+            if (lAsset != null) _layout = StageBuilder.Build(lAsset.data, lTheme, lProfile, lTrackRoot);
+            else _layout = LevelDatabase.Recipe(_levelIndex, lTrackRoot).Build();
             Random.state = lState;
             RaceContext.Layout = _layout;
             if (_level.collapse) CourseBreak.Create(_layout);
