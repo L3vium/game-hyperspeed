@@ -41,6 +41,8 @@ namespace Com.IsartDigital.Hyperspeed
         private struct BlockDef { public float s, lateral, width, length, height, lean; public int palette; }
         private struct ArchDef { public float s; public bool lit; }
         private struct PaneDef { public float s, lateral, width, height; public PaneKind kind; }
+        private struct MoverDef { public float s, lateral, width, length, height, speed; }
+        private struct BridgeDef { public float s0, s1, lateral, height, halfWidth; }
 
         private readonly Transform _root;
         private readonly Theme _theme;
@@ -62,6 +64,8 @@ namespace Com.IsartDigital.Hyperspeed
         private readonly List<ArchDef> _arches = new List<ArchDef>();
         private readonly List<float> _gravityGates = new List<float>();
         private readonly List<PaneDef> _panes = new List<PaneDef>();
+        private readonly List<MoverDef> _movers = new List<MoverDef>();
+        private readonly List<BridgeDef> _bridges = new List<BridgeDef>();
 
         // A hoop of light right before the track takes over gravity : you know the world is about to turn.
         private void GravityGate(float pS) => _gravityGates.Add(pS);
@@ -81,6 +85,10 @@ namespace Com.IsartDigital.Hyperspeed
 
         // Stretches the open modules (not the jumps) : later stages last as long as the plan says despite their speed.
         public float pace = 1f;
+        // How many scattered pads : few on the first stages, so their speed stays under control.
+        public float padDensity = 1f;
+        // Every stage is this much wider than its recipe : small and tight early, huge when the runner is fastest.
+        public float widthScale = 1f;
 
         public float K => _p.k;
         public float Cruise => _p.cruise;
@@ -206,7 +214,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         public CourseBuilder Start(float pWidth, float pAltitude)
         {
-            _halfWidth = pWidth * 0.5f * WIDTH_SCALE;
+            _halfWidth = pWidth * 0.5f * WIDTH_SCALE * widthScale;
             _yaw = 90f;
             _pos = new Vector3(-8000f, pAltitude, 0f);
             _s = -PLAZA;
@@ -229,7 +237,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         public CourseBuilder Width(float pWidth)
         {
-            _halfWidth = pWidth * 0.5f * WIDTH_SCALE;
+            _halfWidth = pWidth * 0.5f * WIDTH_SCALE * widthScale;
             return this;
         }
 
@@ -263,13 +271,13 @@ namespace Com.IsartDigital.Hyperspeed
 
         // Banked turn. The heading stays within a half circle : the stage always gets away from its own past, so legs
         // never cross. Asked the other way, it turns toward the side that has room.
-        public CourseBuilder Turn(Side pSide, float pDegrees, float pBank = 28f)
+        public CourseBuilder Turn(Side pSide, float pDegrees, float pBank = 28f, float pRadiusScale = 1f)
         {
             int lSide = (int)pSide;
             if (TurnRoom(lSide) < pDegrees && TurnRoom(-lSide) > TurnRoom(lSide)) lSide = -lSide;
             float lDegrees = Mathf.Min(pDegrees, TurnRoom(lSide));
             if (lDegrees < 5f) return this;
-            float lRadius = Mathf.Max(Mathf.Max(_halfWidth * 2.4f + 30f, _p.cruise * 3f), 950f);
+            float lRadius = Mathf.Max(Mathf.Max(_halfWidth * 2.4f + 30f, _p.cruise * 3f), 950f) * pRadiusScale;
             float lLength = lRadius * lDegrees * Mathf.Deg2Rad;
             if (_open == null || _open.look == BlockLook.Slab) Open(BlockLook.Ground, 10f);
             Span(lLength * 0.25f, lSide * lDegrees * 0.15f, 0f, lSide * pBank);
@@ -504,7 +512,7 @@ namespace Com.IsartDigital.Hyperspeed
         }
 
         // A hole with a rope over it. Jump onto it : it never catches you on its own. Below, a low block and a launch.
-        public CourseBuilder Rope(float pSeconds = 2.2f)
+        public CourseBuilder Rope(float pSeconds = 4f)
         {
             float lS0 = _s;
             Open(BlockLook.Road, 3f);
@@ -528,7 +536,7 @@ namespace Com.IsartDigital.Hyperspeed
         }
 
         // Rope in the sky above the track : a launch strip throws you straight up, the rest is on you.
-        public CourseBuilder SkyRope(float pSeconds = 2.4f)
+        public CourseBuilder SkyRope(float pSeconds = 4f)
         {
             float lS0 = _s;
             float lLateral = Rand(-_halfWidth * 0.3f, _halfWidth * 0.3f);
@@ -686,6 +694,102 @@ namespace Com.IsartDigital.Hyperspeed
             return this;
         }
 
+        // A wide, slow-banking turn you can see the end of : the place to drift.
+        public CourseBuilder BigTurn(Side pSide, float pDegrees = 100f)
+        {
+            Open(BlockLook.Ground, 9f);
+            return Turn(pSide, pDegrees, 18f, 1.7f);
+        }
+
+        // Natural ground : it rolls, banks and wanders a little, never a straight road.
+        public CourseBuilder Meadow(float pSeconds)
+        {
+            pSeconds *= pace;
+            Open(BlockLook.Ground, 6f);
+            float lEnd = _s + M(pSeconds);
+            while (_s < lEnd)
+            {
+                float lLength = M(Rand(0.9f, 1.7f));
+                float lYaw = Rand(-12f, 12f);
+                if (TurnRoom(lYaw > 0f ? 1 : -1) < Mathf.Abs(lYaw) + 5f) lYaw = -lYaw;
+                float lPitch = Rand(-9f, 9f);
+                float lRoll = Rand(-11f, 11f);
+                Span(lLength * 0.5f, lYaw * 0.5f, lPitch, lRoll);
+                Span(lLength * 0.5f, lYaw * 0.5f, -lPitch, -lRoll);
+                // Boulders and spurs at the edges : they rush past and show the speed.
+                if (Chance(0.6f))
+                {
+                    int lSide = Chance(0.5f) ? 1 : -1;
+                    float lSize = Rand(8f, 20f) * PROP_SCALE;
+                    _props.Add(new BlockDef { s = _s - lLength * Rand(0.2f, 0.8f), lateral = lSide * _halfWidth * Rand(0.72f, 0.92f), width = lSize, length = lSize * Rand(0.8f, 1.6f), height = lSize * Rand(0.6f, 1.4f), lean = Rand(-14f, 14f), palette = _random.Next(0, 3) });
+                }
+            }
+            _pitch = 0f;
+            _roll = 0f;
+            return this;
+        }
+
+        // Huge platforms at different heights, rolled hard to one side or the other, some of them rolling forward like a
+        // convoy you can land on. Always lower than the last : you drop onto them.
+        public CourseBuilder Platforms(float pSeconds, int pMovers = 2)
+        {
+            pSeconds *= pace;
+            float lS0 = _s;
+            float lEnd = _s + M(pSeconds);
+            float lOffset = 0f;
+            float lDrop = 0f;
+            float lHalf = _halfWidth;
+            while (_s < lEnd)
+            {
+                float lLength = M(Rand(1f, 2f));
+                float lNarrow = lHalf * Rand(0.45f, 0.8f);
+                float lTilt = Rand(14f, 24f) * (Chance(0.5f) ? 1f : -1f);
+                Open(BlockLook.Slab, 0f, lNarrow, lOffset, lDrop, lTilt, Rand(70f, 150f));
+                float lBlockS = _s;
+                Span(lLength);
+                Close();
+                Route(lBlockS, _s, lOffset - Mathf.Sign(lTilt) * lNarrow * 0.2f);
+                lOffset = Mathf.Clamp(lOffset + Rand(-1f, 1f) * lHalf * 0.45f, -lHalf * 0.45f, lHalf * 0.45f);
+                float lNext = lDrop + Rand(8f, 28f);
+                if (Chance(0.35f))
+                {
+                    Act(_s - M(0.12f), RouteAction.Jump);
+                    Span(M(Rand(0.1f, 0.2f)));
+                    NoPads(lBlockS + lLength * 0.7f, _s + M(0.3f));
+                }
+                lDrop = lNext;
+            }
+            float lBack = lDrop;
+            Close();
+            Span(M(0.2f), 0f, 0f, 0f, Vector3.down * lBack);
+            Open(BlockLook.Ground, 4f);
+            float lSpan = _s - lS0;
+            for (int i = 0; i < pMovers; i++)
+            {
+                float lWidth = lHalf * Rand(0.18f, 0.28f);
+                _movers.Add(new MoverDef { s = lS0 + lSpan * (i + 0.3f) / pMovers, lateral = (i % 2 == 0 ? 1f : -1f) * lHalf * Rand(0.45f, 0.7f), width = lWidth, length = lWidth * Rand(2.2f, 3.2f), height = 8f, speed = _p.cruise * Rand(0.4f, 0.6f) });
+            }
+            NoPads(lS0, _s);
+            return this;
+        }
+
+        // A raised lane above the track, reached from a launch strip : full of rings, faster for those who take it.
+        public CourseBuilder Shortcut(float pSeconds = 4f)
+        {
+            float lS0 = _s;
+            Open(BlockLook.Road, 4f);
+            Span(M(pSeconds * pace + 1f));
+            float lLateral = Rand(-0.45f, 0.45f) * _halfWidth;
+            float lHeight = 20f;
+            _strips.Add(new StripDef { s = lS0 + M(0.35f), lateral = lLateral, halfWidth = _halfWidth * 0.14f, up = 72f });
+            BridgeDef lBridge = new BridgeDef { s0 = lS0 + M(0.8f), s1 = _s - M(0.2f), lateral = lLateral, height = lHeight, halfWidth = _halfWidth * 0.16f };
+            _bridges.Add(lBridge);
+            for (float lS = lBridge.s0 + M(0.4f); lS < lBridge.s1 - M(0.2f); lS += M(0.45f))
+                _rings.Add(new RingDef { s = lS, lateral = lLateral, height = lHeight + 9f, radius = 16f });
+            NoPads(lS0, _s);
+            return this;
+        }
+
         // Meteorites coming at you : dash through them.
         public CourseBuilder Meteors(float pSeconds, float pEverySeconds = 2f)
         {
@@ -702,6 +806,8 @@ namespace Com.IsartDigital.Hyperspeed
         public CourseBuilder FinalRush(float pSeconds = 7f)
         {
             float lS0 = _s;
+            // The last straight : the rival comes alongside, the bars close in, the colours burn.
+            _layout.climaxS = lS0 - M(1.2f);
             float lHalf = _halfWidth;
             _halfWidth = Mathf.Max(24f * WIDTH_SCALE, _halfWidth * 0.8f);
             Open(BlockLook.Road, 8f);
@@ -761,6 +867,9 @@ namespace Com.IsartDigital.Hyperspeed
                 foreach (LaserDef lLaser in _lasers) LaserGate.Create(lProps, _layout, lLaser.s, lLaser.height, lLaser.beams, lLaser.spin, _theme);
                 foreach (HammerDef lHammer in _hammers) Hammer.Create(lProps, _layout, lHammer.s, lHammer.phase, _theme);
                 PlaceBreakWalls();
+                foreach (MoverDef lMover in _movers) MovingPlatform.Create(lProps, _layout, lMover.s, lMover.lateral, lMover.width, lMover.length, lMover.height, lMover.speed, _theme);
+                foreach (BridgeDef lBridge in _bridges) BuildBridge(lBridge, lProps);
+                PlaceJumpStrips(lProps);
                 _layout.acts.Sort((pA, pB) => pA.s.CompareTo(pB.s));
                 foreach (PaneDef lPane in _panes) Pane.Create(lProps, _layout, lPane.s, lPane.lateral, lPane.width, lPane.height, lPane.kind, _theme);
                 PlacePads(lProps);
@@ -771,7 +880,7 @@ namespace Com.IsartDigital.Hyperspeed
             foreach (float lGate in _gravityGates) GateKit.GravityHoop(lProps, _layout, lGate, _theme);
 
             StartGate.Create(lProps, _layout, _theme);
-            GateKit.Portal(lProps, _layout, _layout.finishS, lField.TotalHalfWidth(_layout.finishS), 60f, _theme.accent, Color.white, "FINISH");
+            GateKit.FinishGate(lProps, _layout, _layout.finishS, lField.TotalHalfWidth(_layout.finishS));
             CourseScenery.Build(_layout, _theme, _root, _seed * 7 + 3);
             ChaosDirector.Create(_root, _layout, _theme, !_noItems, _seed * 13 + 5);
 
@@ -795,7 +904,7 @@ namespace Com.IsartDigital.Hyperspeed
             GameObject lObject = new GameObject("Rope");
             lObject.transform.SetParent(pParent, false);
             GrindRail lRail = lObject.AddComponent<GrindRail>();
-            lRail.catchRadius = 6f;
+            lRail.catchRadius = 14f;
             float lStep = Mathf.Max(8f, 10f * K);
             for (float lS = pDef.s0; lS < pDef.s1; lS += lStep)
             {
@@ -804,7 +913,7 @@ namespace Com.IsartDigital.Hyperspeed
                 float lHeight = Mathf.Lerp(pDef.height0, pDef.height1, lT);
                 lRail.AddPoint(lSample.position + lSample.Right * pDef.lateral + lSample.up * lHeight, lSample.up, lS);
             }
-            lRail.Finish(_theme.accent, 1f);
+            lRail.Finish(_theme.accent, 4f);
             _layout.rails.Add(lRail);
         }
 
@@ -827,6 +936,62 @@ namespace Com.IsartDigital.Hyperspeed
             }
         }
 
+        // Launch strips here and there on open ground, wherever there is solid track to land on.
+        private void PlaceJumpStrips(Transform pParent)
+        {
+            for (float lS = M(4f); lS < _layout.finishS - M(3f); lS += M(Rand(6f, 10f)))
+            {
+                if (!PadAllowed(lS) || !_layout.field.Solid(lS + M(0.6f)) || !_layout.field.Solid(lS + M(1.2f))) continue;
+                TrackBlock lBlock = _layout.field.BlockAt(lS);
+                if (lBlock == null || lBlock.look == BlockLook.Slab) continue;
+                float lLateral = lBlock.offset + Rand(-0.5f, 0.5f) * lBlock.halfWidth;
+                JumpStrip.Create(pParent, _layout, lS, lLateral, lBlock.halfWidth * 0.2f, 60f, _theme.roadEdge);
+            }
+        }
+
+        // The raised lane : a thick deck following the line, a glowing edge on each side.
+        private void BuildBridge(BridgeDef pDef, Transform pParent)
+        {
+            MeshData lData = new MeshData();
+            MeshData lGlow = new MeshData();
+            float lThick = 6f;
+            Vector3 lPrevL = Vector3.zero, lPrevR = Vector3.zero, lPrevDown = Vector3.zero;
+            bool lFirst = true;
+            for (float lS = pDef.s0; lS <= pDef.s1 + 0.1f; lS += 8f)
+            {
+                SpineSample lSample = _layout.spine.Evaluate(Mathf.Min(lS, pDef.s1));
+                Vector3 lUp = lSample.up;
+                Vector3 lCenter = lSample.position + lSample.Right * pDef.lateral + lUp * pDef.height;
+                Vector3 lL = lCenter - lSample.Right * pDef.halfWidth;
+                Vector3 lR = lCenter + lSample.Right * pDef.halfWidth;
+                Vector3 lDown = -lUp * lThick;
+                if (!lFirst)
+                {
+                    lData.FacetQuad(lPrevL, lL, lR, lPrevR, lUp, Color.Lerp(_theme.roadA, Color.white, 0.15f));
+                    lData.FacetQuad(lPrevL + lPrevDown, lPrevL, lL, lL + lDown, -lSample.Right, _theme.roadSide);
+                    lData.FacetQuad(lPrevR, lPrevR + lPrevDown, lR + lDown, lR, lSample.Right, _theme.roadSide);
+                    lData.FacetQuad(lPrevL + lPrevDown, lL + lDown, lR + lDown, lPrevR + lPrevDown, -lUp, Color.Lerp(_theme.roadSide, Color.black, 0.3f));
+                    lGlow.FacetQuad(lPrevL + lUp * 0.2f, lL + lUp * 0.2f, lL + lUp * 0.2f + lSample.Right * 2f, lPrevL + lUp * 0.2f + lSample.Right * 2f, lUp, Color.white);
+                    lGlow.FacetQuad(lPrevR + lUp * 0.2f - lSample.Right * 2f, lR + lUp * 0.2f - lSample.Right * 2f, lR + lUp * 0.2f, lPrevR + lUp * 0.2f, lUp, Color.white);
+                }
+                lPrevL = lL;
+                lPrevR = lR;
+                lPrevDown = lDown;
+                lFirst = false;
+            }
+            GameObject lObject = new GameObject("ShortcutBridge");
+            lObject.transform.SetParent(pParent, false);
+            lObject.layer = Layers.PROP;
+            Mesh lMesh = lData.ToMesh("Bridge");
+            lObject.AddComponent<MeshFilter>().sharedMesh = lMesh;
+            lObject.AddComponent<MeshRenderer>().sharedMaterial = Mats.Flat(_theme.shade, true);
+            lObject.AddComponent<MeshCollider>().sharedMesh = lMesh;
+            GameObject lEdges = new GameObject("Edges");
+            lEdges.transform.SetParent(lObject.transform, false);
+            lEdges.AddComponent<MeshFilter>().sharedMesh = lGlow.ToMesh("BridgeEdges");
+            lEdges.AddComponent<MeshRenderer>().sharedMaterial = Mats.Glow(Color.Lerp(_theme.accent, Color.white, 0.3f) * 3f, false, 0f, 0f, true);
+        }
+
         private bool PadAllowed(float pS)
         {
             if (!_layout.field.Solid(pS)) return false;
@@ -843,8 +1008,8 @@ namespace Com.IsartDigital.Hyperspeed
                 if (!_layout.field.Solid(lPad.s)) continue;
                 BoostPad.CreateDraped(pParent, _layout, lPad.s, lPad.lateral, lPad.width, lPad.length, _theme.accent, lPad.boost);
             }
-            // Small pads spread over the whole stage, near the line.
-            float lStep = M(1.7f);
+            // Small pads spread over the whole stage, near the line. Few on the first stages.
+            float lStep = M(1.7f) / Mathf.Max(0.2f, padDensity);
             for (float lS = M(2f); lS < _layout.finishS - M(1f); lS += lStep * Rand(0.8f, 1.2f))
             {
                 if (!PadAllowed(lS)) continue;

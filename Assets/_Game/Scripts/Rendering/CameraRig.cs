@@ -64,6 +64,7 @@ namespace Com.IsartDigital.Hyperspeed
         private float _blockDistance = 1f;
         // 0 on open ground, 1 inside a loop / twist : the view tucks in and rises so it stays inside the curve.
         private float _curl;
+        private float _finishOrbit;
         private float _windTime;
 
         private bool _override;
@@ -156,6 +157,7 @@ namespace Com.IsartDigital.Hyperspeed
         public void SetFinishMode(bool pValue)
         {
             _finishMode = pValue;
+            _finishOrbit = 0f;
             _finishPosition = transform.position;
         }
 
@@ -238,9 +240,12 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lLook = LookPoint(lSpeed);
             if (_finishMode)
             {
-                lDesired = _finishPosition;
-                lLook = target.FocusPosition;
-                _base = Vector3.SmoothDamp(_base, lDesired, ref _velocity, 0.6f, Mathf.Infinity, lDt);
+                // Victory : a slow orbit around the runner, who keeps on running.
+                _finishOrbit += lDt * 22f;
+                Vector3 lBack = Quaternion.AngleAxis(_finishOrbit, _up) * -_look;
+                lDesired = _focus + lBack * 16f + _up * 5f;
+                lLook = target.FocusPosition + _up * 1f;
+                _base = Vector3.SmoothDamp(_base, lDesired, ref _velocity, 0.35f, Mathf.Infinity, lDt);
                 _offset = _base - _focus;
             }
             else

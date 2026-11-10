@@ -20,9 +20,13 @@ namespace Com.IsartDigital.Hyperspeed
 
         public float LateralSpeed => OnSurface ? _slip : (_layout != null ? Vector3.Dot(_velocity, _layout.spine.Right(Progress)) : 0f);
 
+        // The convoy block under the feet : it carries you along.
+        private MovingPlatform _carrier;
+
         private void GroundStep(float pDt)
         {
             _lastGrounded = Time.time;
+            if (_carrier != null && _carrier.Delta.sqrMagnitude > 0f) transform.position += _carrier.Delta / Mathf.Max(1, _substeps);
             Vector3 lForward = Vector3.ProjectOnPlane(_heading, _up);
             lForward = lForward.sqrMagnitude > 0.0001f ? lForward.normalized : _aimForward;
 
@@ -177,6 +181,7 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 Stick(lHit, pDt);
                 _groundLayer = lHit.collider.gameObject.layer;
+                _carrier = lHit.collider.GetComponent<MovingPlatform>();
                 return true;
             }
             return false;
@@ -270,6 +275,7 @@ namespace Com.IsartDigital.Hyperspeed
         // Leaves the ground with the exact tangent velocity of the surface.
         private void TakeOff(TakeoffReason pReason)
         {
+            _carrier = null;
             Vector3 lRight = Vector3.Cross(_up, _moveDir).normalized;
             _velocity = _moveDir * _speed + lRight * _slip;
             _gravityUp = _up;

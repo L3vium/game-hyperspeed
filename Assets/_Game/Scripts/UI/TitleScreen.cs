@@ -133,11 +133,13 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void BuildUI()
         {
-            _canvas = UIFactory.CreateCanvas("TitleCanvas", 20, transform);
             _canvas3D = UIPerspective.Create("Title3D", 19, transform, _camera);
+            Canvas lStages = UIPerspective.Create("Stages3D", 21, transform, _camera);
+            // Settings and credits float with the mouse too : created last, drawn on top.
+            _canvas = UIPerspective.Create("TitleFlat3D", 22, transform, _camera);
             BuildMain();
             BuildSettings();
-            _select = StageSelect.Create(UIPerspective.Create("Stages3D", 21, transform, _camera), Launch, () => SetScreen(ScreenId.Main));
+            _select = StageSelect.Create(lStages, Launch, () => SetScreen(ScreenId.Main));
             BuildStages();
             if (GameSession.CheatsEnabled) _cheats = DevCheatBar.Create();
         }
@@ -215,6 +217,7 @@ namespace Com.IsartDigital.Hyperspeed
         private void BuildSettings()
         {
             _settings = UIFactory.Stretch(UIFactory.CreateRect(_canvas.transform, "Settings", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
+            _settings.gameObject.AddComponent<PerspectivePanel>();
             UIKit.FullScreen(_settings, "Dim", new Color(0.04f, 0.02f, 0.06f, 0.72f));
             TextMeshProUGUI lTitle = UIKit.Text(_settings, "SETTINGS", 120f, UIKit.WHITE, new Vector2(0.5f, 1f), new Vector2(0f, -110f), new Vector2(1100f, 150f), UIKit.Font.Heavy);
             lTitle.enableAutoSizing = true;
@@ -238,6 +241,7 @@ namespace Com.IsartDigital.Hyperspeed
             _settingsNav.Add((RectTransform)lCreditsRow.transform, new Vector2(0f, -2f), () => ShowCredits(true), lCreditsRow.SetSelected);
 
             _credits = UIFactory.Stretch(UIFactory.CreateRect(_canvas.transform, "Credits", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
+            _credits.gameObject.AddComponent<PerspectivePanel>();
             UIKit.FullScreen(_credits, "Dim", new Color(0.04f, 0.02f, 0.06f, 0.92f));
             TextAsset lCredits = Resources.Load<TextAsset>("Credits");
             RectTransform lTextRect = UIFactory.Stretch(UIFactory.CreateRect(_credits, "Text", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));

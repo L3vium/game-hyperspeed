@@ -8,7 +8,7 @@ namespace Com.IsartDigital.Hyperspeed
     {
         private struct Spot { public float s; public bool sky; public float radius; public float lateral; }
 
-        private const float WARNING_TIME = 3f;
+        private const float WARNING_TIME = 4.5f;
 
         private readonly List<Spot> _spots = new List<Spot>();
         private LevelLayout _layout;
@@ -85,7 +85,8 @@ namespace Com.IsartDigital.Hyperspeed
             float lAim = float.IsNaN(pAimLateral) ? pPlayer.Lateral + Random.Range(-1f, 1f) * pRadius * 0.8f : pAimLateral;
             Vector3 lUp = pLayout.field.Normal(pS);
             Vector3 lHit = pLayout.GroundPoint(pS, lAim) + lUp * pRadius * 0.9f;
-            Vector3 lFrom = lHit + pLayout.spine.Forward(pS) * lSpeed * 1.2f + pLayout.spine.Right(pS) * Random.Range(-1f, 1f) * 60f + lUp * 240f;
+            // From high and far : a fire streak you see coming across the whole sky.
+            Vector3 lFrom = lHit + pLayout.spine.Forward(pS) * lSpeed * 1.6f + pLayout.spine.Right(pS) * Random.Range(-1f, 1f) * 200f + lUp * 900f;
             lObject.transform.position = lFrom;
             lMeteor._velocity = (lHit - lFrom) / lTime;
             lMeteor._spin = Random.onUnitSphere * 160f;

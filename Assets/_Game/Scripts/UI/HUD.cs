@@ -33,8 +33,10 @@ namespace Com.IsartDigital.Hyperspeed
         private RectTransform _playerMarker;
         private RectTransform _rivalMarker;
         private RectTransform _rivalPointer;
-        private RectTransform _hintPanel;
-        private TextMeshProUGUI _hintText;
+        private UIBanner _notify;
+        private UIBanner _hint;
+        private float _lastHyperNotice = -100f;
+        private Canvas _endCanvas;
         private int _hintIndex;
         private float _hintTimer;
 
@@ -54,6 +56,13 @@ namespace Com.IsartDigital.Hyperspeed
             lHud._level = pLevel;
             lHud.Build();
             Juice.OnPopup += lHud.ShowPopup;
+            pPlayer.OnPerfectStart += () => lHud.Notify("PERFECT START", UIKit.GOLD);
+            pPlayer.OnHyper += () =>
+            {
+                if (Time.unscaledTime - lHud._lastHyperNotice < 8f) return;
+                lHud._lastHyperNotice = Time.unscaledTime;
+                lHud.Notify("HYPERSPEED", UIKit.CYAN);
+            };
             return lHud;
         }
 
@@ -87,14 +96,7 @@ namespace Com.IsartDigital.Hyperspeed
             _rivalPointer = UIFactory.CreateRect(_root, "RivalPointer", new Vector2(0f, 0f), Vector2.zero, new Vector2(40f, 40f));
             UIFactory.CreateShape(_rivalPointer, "Arrow", UIShape.ShapeKind.Triangle, UIKit.RED, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(26f, 22f), 180f);
 
-            // Hints (bottom center, small white tile)
-            _hintPanel = UIFactory.CreateRect(_root, "Hint", new Vector2(0.5f, 0f), new Vector2(0f, 62f), new Vector2(920f, 56f));
-            UIKit.Tile(_hintPanel, "Back", new Color(0f, 0f, 0f, 0.45f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(900f, 44f), 0.45f);
-            _hintText = UIKit.Text(_hintPanel, "", 24f, UIKit.WHITE, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(850f, 44f), UIKit.Font.Bold);
-            _hintText.enableAutoSizing = true;
-            _hintText.fontSizeMin = 14f;
-            _hintText.fontSizeMax = 24f;
-            _hintPanel.gameObject.SetActive(false);
+
         }
 
         // Speed on a plane tilted in real perspective, bottom left, leaning with the action.
@@ -119,8 +121,12 @@ namespace Com.IsartDigital.Hyperspeed
             _tag = UIKit.Text(_speedo, "", 30f, UIKit.WHITE, new Vector2(0f, 0.5f), new Vector2(330f, -94f), new Vector2(300f, 36f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
             UIFactory.Outline(_tag, UIKit.INK, 0.25f);
 
-            _countWord = UI3DText.Create(lRoot3D, " ", 220f, new Vector2(0.5f, 0.5f), new Vector2(0f, 240f), new Vector2(700f, 240f), UIKit.WHITE, UIKit.RED_DARK, 14, 3.4f);
+            _countWord = UI3DText.Create(lRoot3D, " ", 300f, new Vector2(0.5f, 0.5f), new Vector2(0f, 200f), new Vector2(900f, 320f), UIKit.WHITE, UIKit.RED_DARK, 22, 5f);
             _countWord.gameObject.SetActive(false);
+
+            // Big callouts at the top centre, instructions at the bottom : anime style, in 3D.
+            _notify = UIBanner.Create(lRoot3D, "Notify", new Vector2(0.5f, 1f), new Vector2(0f, -190f), new Vector2(900f, 120f), 96f);
+            _hint = UIBanner.Create(lRoot3D, "Hint", new Vector2(0.5f, 0f), new Vector2(0f, 170f), new Vector2(1100f, 90f), 58f);
         }
 
         private string RivalShortName()
@@ -250,19 +256,17 @@ namespace Com.IsartDigital.Hyperspeed
                 string lHint = _path.hints[_hintIndex].Value;
                 _hintIndex++;
                 if (string.IsNullOrEmpty(lHint)) return;
-                _hintText.text = lHint;
-                _hintTimer = 4f;
-                _hintPanel.gameObject.SetActive(true);
-                _hintPanel.anchoredPosition = new Vector2(-1500f, 62f);
+                _hint.Show(lHint, UIKit.CYAN, 3.4f);
                 AudioManager.Play("ui_hint", 0.5f);
             }
-            if (_hintTimer > 0f)
-            {
-                _hintTimer -= pDt;
-                float lTargetX = _hintTimer > 0.4f ? 0f : 1700f;
-                _hintPanel.anchoredPosition = Vector2.Lerp(_hintPanel.anchoredPosition, new Vector2(lTargetX, 62f), 1f - Mathf.Exp(-14f * pDt));
-                if (_hintTimer <= 0f) _hintPanel.gameObject.SetActive(false);
-            }
+        }
+
+        // Top centre, big, in 3D : the moments that matter.
+        public void Notify(string pText, Color pColor)
+        {
+            if (_notify == null) return;
+            _notify.Show(pText, pColor, 1.3f);
+            AudioManager.Play("ui_hint", 0.7f, 1.2f);
         }
 
         // A rare word, small, next to the speed.
@@ -283,7 +287,9 @@ namespace Com.IsartDigital.Hyperspeed
             _countWord.SetText(pText);
             _countWord.SetFace(pGo ? UIKit.GOLD : UIKit.WHITE);
             _countWord.SetAlpha(1f);
-            _countWord.punch = pGo ? 1.6f : 1.1f;
+            _countWord.punch = pGo ? 0.6f : 0.2f;
+            _countWord.Slam(pGo ? 3.2f : 2.4f, pGo ? 90f : (pText == "2" ? -60f : 60f));
+            _countWord.Kick(pGo ? -3f : -1.5f);
             _countTimer = pGo ? 0.9f : 1.4f;
         }
 
@@ -297,9 +303,20 @@ namespace Com.IsartDigital.Hyperspeed
 
         // ---------------------------------------------------------------- end screens
 
+        // Results and pause stand on their own perspective canvas : the whole screen floats with the mouse.
+        private RectTransform TiltRoot(string pName, int pOrder)
+        {
+            Camera lGame = CameraRig.Instance != null ? CameraRig.Instance.Cam : Camera.main;
+            Canvas lCanvas = UIPerspective.Create(pName, pOrder, transform, lGame);
+            RectTransform lHolder = UIFactory.Stretch(UIFactory.CreateRect(lCanvas.transform, "Tilt", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
+            lHolder.gameObject.AddComponent<PerspectivePanel>();
+            if (pOrder < 400) _endCanvas = lCanvas;
+            return lHolder;
+        }
+
         private RectTransform EndPanel(string pName, string pWord, Color pWordColor)
         {
-            RectTransform lPanel = UIFactory.Stretch(UIFactory.CreateRect(_root, pName, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
+            RectTransform lPanel = UIFactory.Stretch(UIFactory.CreateRect(TiltRoot("End3D", 30), pName, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
             UIKit.FullScreen(lPanel, "Dim", new Color(0f, 0f, 0f, 0.35f));
             UIShape lRed = UIKit.Tile(lPanel, "Red", UIKit.RED, new Vector2(0.5f, 0.5f), new Vector2(-470f, 0f), new Vector2(1300f, 1300f), 0.15f);
             UIKit.Chevrons(lRed.transform, "Chevrons", UIKit.RED, new Color(0.8f, 0.04f, 0.09f), 60f);
@@ -347,9 +364,12 @@ namespace Com.IsartDigital.Hyperspeed
                 RectTransform lRank = UIFactory.CreateRect(lPanel, "Rank", new Vector2(0.5f, 0.5f), new Vector2(520f, 40f), new Vector2(500f, 500f));
                 UIShape lCard = UIFactory.CreateShape(lRank, "Card", UIShape.ShapeKind.Chevron, UIKit.WHITE, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(520f, 380f));
                 lCard.skew = 0.4f;
-                UIKit.Icon(lRank, "trophy", UIKit.GOLD, new Vector2(0.5f, 0.5f), new Vector2(-110f, 30f), 180f);
-                TextMeshProUGUI lLetter = UIKit.Text(lRank, GameSession.RankLetter(pRank), 260f, UIKit.RED, new Vector2(0.5f, 0.5f), new Vector2(90f, 10f), new Vector2(300f, 320f), UIKit.Font.Heavy);
-                lLetter.gameObject.AddComponent<UIJitter>().amount = 2f;
+                UIKit.Icon(lRank, "trophy", UIKit.GOLD, new Vector2(0.5f, 0.5f), new Vector2(-150f, 30f), 160f);
+                // The letter in real 3D : it drops from the sky, crushes on the card, the screen shakes.
+                UI3DText lLetter = UI3DText.Create(lRank, GameSession.RankLetter(pRank), 380f, new Vector2(0.5f, 0.5f), new Vector2(90f, 20f), new Vector2(360f, 420f), pRank >= 4 ? UIKit.GOLD : UIKit.RED, UIKit.RED_DARK, 24, 5f);
+                lLetter.tiltX = 14f;
+                lLetter.tiltY = 10f;
+                lLetter.gameObject.AddComponent<UIRankDrop>().letter = lLetter;
                 UIKit.Text(lRank, "RANK", 40f, UIKit.INK, new Vector2(0.5f, 0.5f), new Vector2(0f, -140f), new Vector2(300f, 50f), UIKit.Font.Heavy);
             }
 
@@ -371,11 +391,19 @@ namespace Com.IsartDigital.Hyperspeed
 
         public GameObject ShowPause(System.Action pResume, System.Action pRetry, System.Action pMenu)
         {
-            Canvas lCanvas = UIFactory.CreateCanvas("PauseCanvas", 500, transform);
-            RectTransform lPanel = UIFactory.Stretch(UIFactory.CreateRect(lCanvas.transform, "Pause", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
-            UIKit.FullScreen(lPanel, "Dim", new Color(0f, 0f, 0f, 0.25f));
+            RectTransform lTilt = TiltRoot("Pause3D", 500);
+            RectTransform lPanel = UIFactory.Stretch(UIFactory.CreateRect(lTilt, "Pause", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
+            UIKit.FullScreen(lPanel, "Dim", new Color(0f, 0f, 0f, 0.25f)).rectTransform.localScale = Vector3.one * 1.3f;
             UIKit.Tile(lPanel, "Strip", new Color(UIKit.RED.r, UIKit.RED.g, UIKit.RED.b, 0.88f), new Vector2(0f, 0.5f), new Vector2(330f, 0f), new Vector2(620f, 1400f), 0.12f);
-            UIKit.Text(lPanel, "PAUSE", 170f, UIKit.WHITE, new Vector2(0f, 0.5f), new Vector2(340f, 280f), new Vector2(620f, 200f), UIKit.Font.Heavy);
+            UIKit.Text(lPanel, "PAUSE", 170f, UIKit.WHITE, new Vector2(0f, 0.5f), new Vector2(340f, 330f), new Vector2(620f, 200f), UIKit.Font.Heavy);
+            // Where you are : stage code and name.
+            int lIndex = GameSession.SelectedLevel;
+            TextMeshProUGUI lCode = UIKit.Text(lPanel, "STAGE " + LevelDatabase.Code(lIndex), 64f, UIKit.GOLD, new Vector2(0f, 0.5f), new Vector2(330f, 220f), new Vector2(600f, 74f), UIKit.Font.Heavy);
+            UIFactory.Outline(lCode, UIKit.INK, 0.2f);
+            TextMeshProUGUI lName = UIKit.Text(lPanel, _level != null ? _level.title : "", 40f, UIKit.WHITE, new Vector2(0f, 0.5f), new Vector2(330f, 165f), new Vector2(600f, 50f), UIKit.Font.Heavy);
+            lName.enableAutoSizing = true;
+            lName.fontSizeMin = 18f;
+            lName.fontSizeMax = 40f;
             
             NavTile lResume = Button(lPanel, "RESUME", new Vector2(0f, 0.5f), new Vector2(320f, 80f), new Vector2(480f, 96f), UIKit.WHITE, UIKit.INK);
             NavTile lRetry = Button(lPanel, "RESTART", new Vector2(0f, 0.5f), new Vector2(305f, -40f), new Vector2(480f, 96f), UIKit.WHITE, UIKit.INK);
@@ -386,7 +414,7 @@ namespace Com.IsartDigital.Hyperspeed
             lNav.Add((RectTransform)lMenu.transform, new Vector2(0f, -1f), pMenu, lMenu.SetSelected);
             lNav.onBack = pResume;
             lNav.Select(0);
-            return lCanvas.gameObject;
+            return lTilt.GetComponentInParent<Canvas>().gameObject;
         }
     }
 
@@ -461,6 +489,48 @@ namespace Com.IsartDigital.Hyperspeed
             RectTransform lRect = (RectTransform)transform;
             if (!_init) { _base = lRect.anchoredPosition; _init = true; }
             if (Time.frameCount % 3 == 0) lRect.anchoredPosition = _base + Random.insideUnitCircle * amount;
+        }
+    }
+
+    // The rank letter : waits for the panel, falls hard, crushes, the screen shakes, then it settles and breathes.
+    public class UIRankDrop : MonoBehaviour
+    {
+        public UI3DText letter;
+        private float _time;
+        private bool _landed;
+        private Vector2 _home;
+        private bool _init;
+
+        private void Update()
+        {
+            RectTransform lRect = (RectTransform)transform;
+            if (!_init)
+            {
+                _home = lRect.anchoredPosition;
+                _init = true;
+            }
+            _time += Time.unscaledDeltaTime;
+            const float DELAY = 0.45f;
+            const float FALL = 0.2f;
+            if (_time < DELAY)
+            {
+                letter.SetAlpha(0f);
+                return;
+            }
+            letter.SetAlpha(1f);
+            float lT = Mathf.Clamp01((_time - DELAY) / FALL);
+            lRect.anchoredPosition = _home + new Vector2(0f, (1f - lT * lT) * 900f);
+            if (!_landed && lT >= 1f)
+            {
+                _landed = true;
+                letter.Kick(-9f);
+                letter.punch = 0.5f;
+                Juice.Shake(0.8f);
+                Juice.Pulse(1.4f);
+                Juice.Flash(Color.white, 0.25f);
+                AudioManager.Play("sfx_rank", 1f, 0.8f);
+            }
+            if (_landed) lRect.anchoredPosition = _home + new Vector2(0f, Mathf.Sin(_time * 2.2f) * 6f);
         }
     }
 

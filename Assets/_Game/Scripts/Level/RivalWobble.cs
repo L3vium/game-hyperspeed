@@ -172,22 +172,28 @@ namespace Com.IsartDigital.Hyperspeed
             foreach (Renderer lRenderer in pModel.GetComponentsInChildren<Renderer>()) lBounds.Encapsulate(lRenderer.bounds);
             Vector3 lLocal = pModel.InverseTransformPoint(lBounds.center);
             Vector3 lHalf = lBounds.extents;
-            Color[] lColors = { new Color(0.4f, 1.6f, 3f, 0.9f), new Color(2.8f, 0.5f, 2.2f, 0.9f), new Color(3f, 2.4f, 0.6f, 0.9f) };
-            Color lColor = lColors[(int)pKind % lColors.Length];
+            // Wind, not neon : thin pale lines peeling off the edges. Only the airliner leaves real wingtip vapour.
+            Color lWind = new Color(1f, 1f, 1f, 0.35f);
+            if (pKind == RivalKind.Plane)
+            {
+                for (int lSide = -1; lSide <= 1; lSide += 2)
+                    Streak(new Vector3(lLocal.x + lSide * lHalf.x * 0.98f, lLocal.y, lLocal.z), new Color(1f, 1f, 1f, 0.6f), Mathf.Max(1f, lHalf.y * 0.05f), 1.4f, false);
+                return;
+            }
             for (int lSide = -1; lSide <= 1; lSide += 2)
             {
-                Streak(new Vector3(lLocal.x + lSide * lHalf.x * 0.9f, lLocal.y, lLocal.z - lHalf.z * 0.8f), lColor, Mathf.Max(2f, lHalf.y * 0.5f), 0.7f);
-                Streak(new Vector3(lLocal.x + lSide * lHalf.x * 0.5f, lLocal.y + lHalf.y * 0.7f, lLocal.z - lHalf.z * 0.6f), new Color(2.2f, 2.2f, 2.4f, 0.8f), Mathf.Max(0.6f, lHalf.y * 0.12f), 0.45f);
+                Streak(new Vector3(lLocal.x + lSide * lHalf.x * 0.9f, lLocal.y + lHalf.y * 0.2f, lLocal.z - lHalf.z * 0.8f), lWind, Mathf.Max(0.3f, lHalf.y * 0.06f), 0.35f, false);
+                Streak(new Vector3(lLocal.x + lSide * lHalf.x * 0.4f, lLocal.y + lHalf.y * 0.8f, lLocal.z - lHalf.z * 0.6f), lWind, Mathf.Max(0.2f, lHalf.y * 0.04f), 0.25f, false);
             }
         }
 
-        private void Streak(Vector3 pLocal, Color pColor, float pWidth, float pTime)
+        private void Streak(Vector3 pLocal, Color pColor, float pWidth, float pTime, bool pAdditive = true)
         {
             GameObject lObject = new GameObject("Streak");
             lObject.transform.SetParent(transform, false);
             lObject.transform.localPosition = pLocal;
             TrailRenderer lTrail = lObject.AddComponent<TrailRenderer>();
-            lTrail.sharedMaterial = Mats.Glow(pColor, true);
+            lTrail.sharedMaterial = Mats.Glow(pColor, pAdditive, 1f);
             lTrail.widthMultiplier = pWidth;
             lTrail.widthCurve = new AnimationCurve(new Keyframe(0f, 1f), new Keyframe(1f, 0f));
             lTrail.time = pTime;

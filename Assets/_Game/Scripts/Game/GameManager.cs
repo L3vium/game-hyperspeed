@@ -36,6 +36,10 @@ namespace Com.IsartDigital.Hyperspeed
         private float _roadScroll;
         private float _hyperBlend;
         private bool _slowCheat;
+        // The rival crossed first : you still run to the line, then it is over.
+        private bool _beaten;
+        private float _beatenTime;
+        private bool _climax;
 
         public bool Paused => _paused;
 
@@ -63,7 +67,7 @@ namespace Com.IsartDigital.Hyperspeed
             Random.InitState(_level.seed);
             Transform lTrackRoot = new GameObject("Course").transform;
             lTrackRoot.SetParent(lRoot, false);
-            CourseBuilder lBuilder = new CourseBuilder(lTrackRoot, lTheme, lProfile, _level.seed) { pace = LevelDatabase.Pace(_levelIndex) };
+            CourseBuilder lBuilder = new CourseBuilder(lTrackRoot, lTheme, lProfile, _level.seed) { pace = LevelDatabase.Pace(_levelIndex), widthScale = LevelDatabase.WidthScale(_levelIndex), padDensity = LevelDatabase.PadDensity(_levelIndex) };
             _level.build(lBuilder);
             _layout = lBuilder.Build();
             Random.state = lState;
@@ -174,12 +178,37 @@ namespace Com.IsartDigital.Hyperspeed
             _hud.SetRaceTime(_raceTime);
             AudioManager.SetMusicPitch(1f + _player.Speed01 * 0.08f);
 
+            UpdateClimax();
+            if (!_level.chaser && _rival.Finished && !_beaten)
+            {
+                _beaten = true;
+                _beatenTime = _raceTime;
+                Juice.Popup("TOO SLOW", UIFactory.RED, 1f);
+                _hud.Notify("IT CROSSED FIRST", UIFactory.RED);
+            }
             if (_player.Progress >= _layout.finishS && _player.State != PlayerState.Dead && !_respawn.Busy)
-                StartCoroutine(EndRoutine(true, "FINISH!!"));
-            else if (!_level.chaser && _rival.Finished)
+                StartCoroutine(EndRoutine(!_beaten, _beaten ? "TOO SLOW" : "FINISH!!"));
+            else if (_beaten && _raceTime - _beatenTime > 20f)
                 StartCoroutine(EndRoutine(false, "TOO SLOW"));
             else if (_level.chaser && !_player.Invulnerable && !_player.CheatInvincible && !_respawn.Busy && !_rival.Passing && _rival.distance >= _player.Progress - 2f && _rival.distance > 0f)
                 StartCoroutine(EndRoutine(false, CaughtWord()));
+        }
+
+        // The last straight, neck and neck : bars close in from top and bottom, the colours burn.
+        private void UpdateClimax()
+        {
+            if (PostFX.Instance == null || _layout.climaxS <= 0f) return;
+            bool lIn = _player.Progress > _layout.climaxS && _player.Progress < _layout.finishS && !_beaten;
+            if (lIn && !_climax)
+            {
+                _climax = true;
+                _hud.Notify("FINAL SPRINT", UIFactory.YELLOW);
+                Juice.Pulse(1f);
+                Juice.Shake(0.3f);
+            }
+            float lNeck = Mathf.Clamp01(1f - Mathf.Abs(_rival.Gap) / (_layout.profile.cruise * 1.2f));
+            PostFX.Instance.letterbox = lIn ? Mathf.Lerp(0.1f, 0.16f, lNeck) : 0f;
+            PostFX.Instance.intensity = lIn ? Mathf.Lerp(0.35f, 0.8f, lNeck) : 0f;
         }
 
         private string CaughtWord()
@@ -266,7 +295,15 @@ namespace Com.IsartDigital.Hyperspeed
                 Juice.SlowMo(0.25f, 1f);
                 yield return new WaitForSecondsRealtime(1.1f);
                 _rig.SetFinishMode(true);
+                // Cinema : the runner keeps running, the camera goes round it, the bars close in, the colours burn.
+                if (PostFX.Instance != null)
+                {
+                    PostFX.Instance.letterbox = 0.3f;
+                    PostFX.Instance.intensity = 1f;
+                }
                 AudioManager.PlayMusic("music_win", 0.55f);
+                // Let the shot breathe before the results come in.
+                yield return new WaitForSecondsRealtime(1.8f);
             }
             else
             {
@@ -275,6 +312,7 @@ namespace Com.IsartDigital.Hyperspeed
                 Juice.Shake(0.6f);
                 AudioManager.Play("sfx_lose", 1f);
                 Juice.SlowMo(0.3f, 0.8f);
+                if (PostFX.Instance != null) { PostFX.Instance.letterbox = 0f; PostFX.Instance.intensity = 0f; }
                 yield return new WaitForSecondsRealtime(0.9f);
                 AudioManager.PlayMusic("music_lose", 0.5f);
             }

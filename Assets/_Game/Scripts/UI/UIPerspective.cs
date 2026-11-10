@@ -38,7 +38,27 @@ namespace Com.IsartDigital.Hyperspeed
             lCanvas.renderMode = RenderMode.ScreenSpaceCamera;
             lCanvas.worldCamera = lCamera;
             lCanvas.planeDistance = PLANE;
+            lCanvas.gameObject.AddComponent<UIStackLink>().Init(lCamera, lBase);
             return lCanvas;
+        }
+    }
+
+    // Destroying a perspective canvas also takes its camera out of the stack.
+    public class UIStackLink : MonoBehaviour
+    {
+        private Camera _camera;
+        private UniversalAdditionalCameraData _base;
+
+        public void Init(Camera pCamera, UniversalAdditionalCameraData pBase)
+        {
+            _camera = pCamera;
+            _base = pBase;
+        }
+
+        private void OnDestroy()
+        {
+            if (_base != null && _camera != null) _base.cameraStack.Remove(_camera);
+            if (_camera != null) Destroy(_camera.gameObject);
         }
     }
 
@@ -48,9 +68,16 @@ namespace Com.IsartDigital.Hyperspeed
         private readonly List<TextMeshProUGUI> _layers = new List<TextMeshProUGUI>();
         private Quaternion _baseRotation = Quaternion.identity;
 
-        public float tiltX = 20f;
-        public float tiltY = 14f;
+        public float tiltX = 10f;
+        public float tiltY = 7f;
         public float punch;
+        // Slam in : comes from big and turned, lands with an overshoot.
+        private float _slamT = 1f;
+        private float _slamScale = 1f;
+        private float _slamYaw;
+        // Squash & stretch on a spring (vertical scale, volume kept).
+        private float _squash = 1f;
+        private float _squashVelocity;
 
         public RectTransform Rect => (RectTransform)transform;
 
@@ -89,6 +116,21 @@ namespace Com.IsartDigital.Hyperspeed
 
         public void SetFace(Color pColor) => _layers[_layers.Count - 1].color = pColor;
 
+        public void SetSide(Color pColor)
+        {
+            for (int i = 0; i < _layers.Count - 1; i++) _layers[i].color = Color.Lerp(pColor, Color.black, (_layers.Count - 1 - i) / (float)_layers.Count * 0.4f);
+        }
+
+        public void Slam(float pFromScale = 2.4f, float pFromYaw = 60f)
+        {
+            _slamT = 0f;
+            _slamScale = pFromScale;
+            _slamYaw = pFromYaw;
+        }
+
+        // Negative squashes (lands), positive stretches.
+        public void Kick(float pAmount) => _squashVelocity += pAmount;
+
         public void SetAlpha(float pAlpha)
         {
             foreach (TextMeshProUGUI lLayer in _layers) lLayer.alpha = pAlpha;
@@ -97,9 +139,24 @@ namespace Com.IsartDigital.Hyperspeed
         private void Update()
         {
             Vector2 lTilt = UIMouse.Tilt;
-            punch = Mathf.MoveTowards(punch, 0f, Time.unscaledDeltaTime * 3.5f);
-            transform.localRotation = _baseRotation * Quaternion.Euler(lTilt.y * tiltY, -lTilt.x * tiltX, 0f);
-            transform.localScale = Vector3.one * (1f + punch * punch * 0.5f);
+            float lDt = Time.unscaledDeltaTime;
+            punch = Mathf.MoveTowards(punch, 0f, lDt * 3.5f);
+            _slamT = Mathf.MoveTowards(_slamT, 1f, lDt / 0.3f);
+            float lE = OutBack(_slamT);
+            float lSlamScale = Mathf.LerpUnclamped(_slamScale, 1f, lE);
+            float lSlamYaw = Mathf.LerpUnclamped(_slamYaw, 0f, lE);
+            _squashVelocity += ((1f - _squash) * 260f - _squashVelocity * 13f) * lDt;
+            _squash = Mathf.Clamp(_squash + _squashVelocity * lDt, 0.55f, 1.5f);
+            transform.localRotation = _baseRotation * Quaternion.Euler(lTilt.y * tiltY, -lTilt.x * tiltX + lSlamYaw, -lSlamYaw * 0.2f);
+            float lScale = (1f + punch * punch * 0.5f) * lSlamScale;
+            transform.localScale = new Vector3(lScale / Mathf.Sqrt(_squash), lScale * _squash, lScale);
+        }
+
+        private static float OutBack(float pT)
+        {
+            const float C1 = 1.70158f;
+            const float C3 = C1 + 1f;
+            return 1f + C3 * Mathf.Pow(pT - 1f, 3f) + C1 * Mathf.Pow(pT - 1f, 2f);
         }
     }
 
@@ -108,9 +165,9 @@ namespace Com.IsartDigital.Hyperspeed
     public class PerspectivePanel : MonoBehaviour
     {
         public Vector3 baseEuler;
-        public float amountX = 7f;
-        public float amountY = 5f;
-        public Vector2 slide = new Vector2(26f, 16f);
+        public float amountX = 3.5f;
+        public float amountY = 2.5f;
+        public Vector2 slide = new Vector2(14f, 8f);
 
         private void Update()
         {

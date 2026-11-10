@@ -30,7 +30,8 @@ namespace Com.IsartDigital.Hyperspeed
                     lTarget = new Vector2(lMouse.x / Mathf.Max(1f, Screen.width) * 2f - 1f, lMouse.y / Mathf.Max(1f, Screen.height) * 2f - 1f);
                     lTarget = Vector2.ClampMagnitude(lTarget, 1.2f);
                 }
-                _value = Vector2.Lerp(_value, lTarget, 1f - Mathf.Exp(-9f * Time.unscaledDeltaTime));
+                // Heavy and slow : the screens float with the mouse, they never jerk.
+                _value = Vector2.Lerp(_value, lTarget, 1f - Mathf.Exp(-3.5f * Time.unscaledDeltaTime));
                 return _value;
             }
         }

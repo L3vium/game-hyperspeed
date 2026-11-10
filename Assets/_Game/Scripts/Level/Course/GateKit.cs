@@ -36,6 +36,74 @@ namespace Com.IsartDigital.Hyperspeed
             return lRoot.transform;
         }
 
+        // The finish : a colossal yellow and black gate with a giant word, glowing pillars and two beams of light into the
+        // sky. It reads from the other end of the stage.
+        public static Transform FinishGate(Transform pParent, LevelLayout pLayout, float pS, float pHalf)
+        {
+            Color lYellow = new Color(1f, 0.86f, 0.1f);
+            Color lInk = new Color(0.06f, 0.05f, 0.08f);
+            float lHeight = Mathf.Max(180f, pHalf * 0.75f);
+            Vector3 lBase = pLayout.field.Point(pS, pLayout.field.CenterLateral(pS));
+            Vector3 lNormal = pLayout.field.Normal(pS);
+            GameObject lRoot = new GameObject("FinishGate");
+            lRoot.transform.SetParent(pParent, false);
+            lRoot.transform.SetPositionAndRotation(lBase, Quaternion.LookRotation(pLayout.spine.Forward(pS), lNormal));
+
+            float lPillar = lHeight * 0.12f;
+            float lBeam = lHeight * 0.26f;
+            MeshData lData = new MeshData();
+            // Hazard bands up the pillars and along the beam.
+            int lBands = 10;
+            for (int i = 0; i < lBands; i++)
+            {
+                float lY = lHeight * (i + 0.5f) / lBands;
+                Color lC = i % 2 == 0 ? lYellow : lInk;
+                Box(lData, new Vector3(-pHalf - lPillar * 0.5f, lY, 0f), new Vector3(lPillar, lHeight / lBands, lPillar), lC);
+                Box(lData, new Vector3(pHalf + lPillar * 0.5f, lY, 0f), new Vector3(lPillar, lHeight / lBands, lPillar), lC);
+            }
+            int lCells = 24;
+            float lSpan = pHalf * 2f + lPillar * 2f;
+            for (int i = 0; i < lCells; i++)
+            {
+                float lX = -lSpan * 0.5f + lSpan * (i + 0.5f) / lCells;
+                Box(lData, new Vector3(lX, lHeight + lBeam * 0.25f, 0f), new Vector3(lSpan / lCells, lBeam * 0.5f, lPillar * 0.9f), i % 2 == 0 ? Color.white : lInk);
+                Box(lData, new Vector3(lX, lHeight + lBeam * 0.75f, 0f), new Vector3(lSpan / lCells, lBeam * 0.5f, lPillar * 0.9f), i % 2 == 0 ? lInk : Color.white);
+            }
+            // A chequered line on the ground.
+            for (int i = 0; i < lCells; i++)
+            {
+                float lX = -pHalf + pHalf * 2f * (i + 0.5f) / lCells;
+                Box(lData, new Vector3(lX, 0.3f, 0f), new Vector3(pHalf * 2f / lCells, 0.6f, 12f), i % 2 == 0 ? Color.white : lInk);
+                Box(lData, new Vector3(lX, 0.3f, 12f), new Vector3(pHalf * 2f / lCells, 0.6f, 12f), i % 2 == 0 ? lInk : Color.white);
+            }
+            GameObject lMesh = new GameObject("Arch");
+            lMesh.transform.SetParent(lRoot.transform, false);
+            lMesh.AddComponent<MeshFilter>().sharedMesh = lData.ToMesh("FinishGate");
+            lMesh.AddComponent<MeshRenderer>().sharedMaterial = Mats.Flat(new Color(1f, 0.95f, 0.85f), false);
+
+            // Glow trims and beams of light.
+            MeshData lGlow = new MeshData();
+            Box(lGlow, new Vector3(-pHalf, lHeight * 0.5f, -lPillar * 0.55f), new Vector3(2.5f, lHeight, 1f), Color.white);
+            Box(lGlow, new Vector3(pHalf, lHeight * 0.5f, -lPillar * 0.55f), new Vector3(2.5f, lHeight, 1f), Color.white);
+            Box(lGlow, new Vector3(0f, lHeight - 1f, -lPillar * 0.5f), new Vector3(lSpan, 2.5f, 1f), Color.white);
+            GameObject lTrim = new GameObject("Trim");
+            lTrim.transform.SetParent(lRoot.transform, false);
+            lTrim.AddComponent<MeshFilter>().sharedMesh = lGlow.ToMesh("FinishTrim");
+            lTrim.AddComponent<MeshRenderer>().sharedMaterial = Mats.Glow(new Color(3f, 2.4f, 0.4f), false, 0f, 0f, true);
+            for (int lSide = -1; lSide <= 1; lSide += 2)
+            {
+                GameObject lBeamObject = Mats.Primitive(PrimitiveType.Cylinder, lRoot.transform, new Vector3(lSide * (pHalf + lPillar * 0.5f), lHeight + 1500f, 0f), new Vector3(lPillar * 0.8f, 1500f, lPillar * 0.8f), Mats.Glow(new Color(2.4f, 1.9f, 0.3f, 0.45f), true, 1f, 1f));
+                lBeamObject.name = "SkyBeam";
+            }
+
+            Transform lText = Text3D.Create(lRoot.transform, "FINISH", lBeam * 0.9f, lSpan * 0.8f, lYellow, lInk, 14, 0.02f);
+            lText.localPosition = new Vector3(0f, lHeight + lBeam * 0.5f, -lPillar * 0.5f - 1f);
+            Transform lBack = Text3D.Create(lRoot.transform, "FINISH", lBeam * 0.9f, lSpan * 0.8f, lYellow, lInk, 4, 0.02f);
+            lBack.localPosition = new Vector3(0f, lHeight + lBeam * 0.5f, lPillar * 0.5f + 1f);
+            lBack.localRotation = Quaternion.Euler(0f, 180f, 0f);
+            return lRoot.transform;
+        }
+
         // Lit arch over the track : a frame that rushes past, for tunnels and big moments.
         public static void Arch(Transform pParent, LevelLayout pLayout, float pS, Theme pTheme)
         {

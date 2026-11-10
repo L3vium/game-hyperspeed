@@ -48,6 +48,7 @@ namespace Com.IsartDigital.Hyperspeed
             lRival.distance = pStartDistance;
             lRival._model = RivalFactory.Build(pKind, lRival.transform);
             lRival._wobble = RivalWobble.Attach(lRival._model, pKind);
+            if (pKind != RivalKind.Plane && pKind != RivalKind.Supernova && pKind != RivalKind.Time) RivalBeacon.Attach(lRival.transform, lRival._model);
             AudioManager.CreateLoop3D(RivalFactory.EngineSound(pKind), lRival.transform, 1f);
             lRival._placement = RivalFactory.GetPlacement(pKind);
             lRival._lateral = lRival._placement.lateral;
@@ -97,27 +98,23 @@ namespace Com.IsartDigital.Hyperspeed
             float lGap = Gap;
             bool lNearEnd = RaceContext.PlayerProgress > pLayout.finishS * 0.88f;
 
-            _surgeClock -= pDt;
-            if (_surgeClock <= 0f && !lNearEnd && lGap < lCruise * 3f && lGap > -lCruise * 2f)
-            {
-                _surgeClock = SURGE_EVERY * Random.Range(0.8f, 1.2f);
-                _surgeLeft = SURGE_TIME;
-                Passing = true;
-                AudioManager.Play("sfx_pass", 0.8f);
-            }
-            _surgeLeft -= pDt;
-            bool lSurging = _surgeLeft > 0f;
+            // No surges any more : it never tries to really get away from you.
+            bool lSurging = false;
+            bool lClimax = pLayout.climaxS > 0f && RaceContext.PlayerProgress > pLayout.climaxS;
+            bool lLastMeters = lClimax && RaceContext.PlayerProgress > Mathf.Lerp(pLayout.climaxS, pLayout.finishS, 0.55f);
 
-            // Neck and neck : it swaps between just behind and just in front of you (a third of a second at cruise),
-            // flooring it when you are ahead, easing off when it leads. Chasers only ever hunt from behind.
-            float lSwap = Mathf.Sin(_elapsed * Mathf.PI * 2f / 12f);
-            float lTarget = chaser ? lCruise * 0.45f : lCruise * 0.3f * (lSwap >= 0f ? 1f : -1f);
-            if (lSurging) lTarget = -lCruise * 0.6f;
-            // The last stretch is yours to win : it drops just behind and fights from there.
-            if (lNearEnd && !chaser) lTarget = lCruise * 0.5f;
-            float lWanted = speed * Mathf.Clamp(1f + (lGap - lTarget) / (lCruise * 1.2f), 0.75f, lSurging ? 2.6f : 2.2f);
+            // Neck and neck : right beside you, a nose ahead then a nose behind. Chasers only ever hunt from behind.
+            float lSwap = Mathf.Sin(_elapsed * Mathf.PI * 2f / 9f);
+            float lTarget = chaser ? lCruise * 0.45f : lCruise * 0.07f * lSwap;
+            // Before the last straight it pulls level and stays there ; in the very last metres it is yours to take.
+            if (lClimax && !chaser) lTarget = lLastMeters ? lCruise * 0.18f : -lCruise * 0.03f;
+            float lWanted = speed * Mathf.Clamp(1f + (lGap - lTarget) / (lCruise * 1.2f), 0.8f, 1.6f);
+            // Far behind after a big mistake of yours : it keeps its lead and does not run away. Far behind because you
+            // are much faster : it only gains a little, never teleports.
+            if (lGap > lCruise * 2.5f) lWanted = Mathf.Min(lWanted, speed * 1.3f);
             // Base pace follows the runner, so "faster" and "slower" mean against you, not against a fixed number.
-            float lPace = Mathf.Max(speed, RaceContext.Player != null ? RaceContext.Player.Speed * 0.92f : speed);
+            float lPace = Mathf.Max(speed, RaceContext.Player != null ? RaceContext.Player.Speed * 0.97f : speed);
+            if (lGap > lCruise * 2.5f) lPace = speed;
             lWanted *= lPace / speed;
             float lBefore = _rate;
             _rate = Mathf.MoveTowards(_rate, lWanted, lCruise * 2.2f * pDt);
@@ -159,11 +156,21 @@ namespace Com.IsartDigital.Hyperspeed
             float lStart = Mathf.Clamp(_placement.lateral * 4f, -lHalf * 0.7f, lHalf * 0.7f);
             float lRoute = lLayout.RouteLateral(lS) + Mathf.Clamp(_placement.lateral * 1.6f + Mathf.Sin(lS * 0.0031f) * lHalf * 0.25f, -lHalf * 0.6f, lHalf * 0.6f);
             float lLateralTarget = lS < lLayout.startLineS + 40f ? lStart : Mathf.Clamp(lRoute, lCenter - lHalf * 0.85f, lCenter + lHalf * 0.85f);
+            // Close to you : it comes alongside, at arm's length, on its own side.
+            if (Mathf.Abs(Gap) < lLayout.profile.cruise * 0.8f && RaceContext.Player != null && !_placement.flying)
+            {
+                float lSide = _placement.lateral >= 0f ? 1f : -1f;
+                lLateralTarget = Mathf.Clamp(RaceContext.Player.Lateral + lSide * Mathf.Max(14f, lHalf * 0.07f), lCenter - lHalf * 0.85f, lCenter + lHalf * 0.85f);
+            }
+            // The airliner flies : wide sweeps from one side of the valley to the other.
+            if (kind == RivalKind.Plane) lLateralTarget = lCenter + Mathf.Sin(_bobTime * 0.25f) * lHalf * 0.6f;
             if (pDt > 0f) _lateral = Mathf.MoveTowards(_lateral, lLateralTarget, Mathf.Max(speed * 0.5f, 30f) * pDt);
 
             _bobTime += pDt;
             float lBob = Mathf.Sin(_bobTime * 2.3f) * _placement.bob;
             float lHeight = (_placement.height + lBob + (_placement.flying && _placement.fromSky ? 18f : 0f)) * RivalFactory.GROW;
+            // Climbs and dives over the track.
+            if (kind == RivalKind.Plane) lHeight += Mathf.Sin(_bobTime * 0.33f) * 120f + Mathf.Sin(_bobTime * 0.9f) * 25f;
             Vector3 lPosition = lLayout.field.Point(lS, _lateral) + lUp * lHeight;
             if (distance < lLayout.spine.StartS) lPosition -= lForward * (lLayout.spine.StartS - distance);
             if (distance > lLayout.spine.EndS) lPosition += lForward * (distance - lLayout.spine.EndS);
@@ -173,6 +180,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (pDt > 0f) _bank = Mathf.Lerp(_bank, Mathf.Clamp(-lYaw * 0.6f, -35f, 35f), pDt * 3f);
             if (_wobble != null && pDt > 0f) _wobble.Turn(lYaw);
             float lBankScale = _placement.flying || kind == RivalKind.Moto ? 1f : 0.15f;
+            if (kind == RivalKind.Plane) _bank = Mathf.Lerp(_bank, -Mathf.Cos(_bobTime * 0.25f) * 40f, pDt * 2f);
             Vector3 lFlat = Vector3.ProjectOnPlane(lForward, lUp);
             transform.SetPositionAndRotation(lPosition, Quaternion.LookRotation(lFlat.sqrMagnitude > 0.001f ? lFlat : lForward, lUp) * Quaternion.Euler(0f, 0f, _bank * lBankScale));
         }

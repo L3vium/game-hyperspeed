@@ -96,6 +96,7 @@ namespace Com.IsartDigital.Hyperspeed
         public event System.Action OnDied;
         public event System.Action OnHyper;
         public event System.Action OnLight;
+        public event System.Action OnPerfectStart;
 
         private Vector3 _velocity;
         private Vector3 _up = Vector3.up;
@@ -124,6 +125,7 @@ namespace Com.IsartDigital.Hyperspeed
         private bool _freeRoam;
         private bool _barrier;
         private float _overLight;
+        private int _substeps = 1;
 
         // Where the mouse looks : a direction lying on the surface you stand on, and a pitch above that surface.
         private Vector3 _aimForward = Vector3.forward;
@@ -239,7 +241,8 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _speed = Mathf.Max(_speed, _profile.cruise * 1.7f);
             _boostTimer = 2f;
-            Juice.Popup("PERFECT START", UIFactory.YELLOW, 1f);
+            OnPerfectStart?.Invoke();
+            Juice.Pulse(1f);
             Juice.Rollback(14f);
             Juice.FovKick(12f);
             AudioManager.Play("sfx_perfect_start", 1f);
@@ -279,6 +282,7 @@ namespace Com.IsartDigital.Hyperspeed
 
             float lDistance = TotalSpeed * lDt;
             int lSubsteps = Mathf.Clamp(Mathf.CeilToInt(lDistance / 1.2f), 1, 28);
+            _substeps = lSubsteps;
             float lSubDt = lDt / lSubsteps;
             for (int i = 0; i < lSubsteps; i++)
             {

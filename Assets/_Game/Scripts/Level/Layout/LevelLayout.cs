@@ -32,6 +32,8 @@ namespace Com.IsartDigital.Hyperspeed
         public readonly List<KeyValuePair<float, string>> hints = new List<KeyValuePair<float, string>>();
 
         public float finishS;
+        // Where the last straight begins : the neck and neck climax.
+        public float climaxS = -1f;
         public float startLineS;
         public float spawnS;
 
