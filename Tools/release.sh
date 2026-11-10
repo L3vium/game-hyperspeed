@@ -24,8 +24,10 @@ if [ "$DEV" = "$MAIN" ]; then
     echo "dev and main are the same commit : nothing to release." >&2
     exit 1
 fi
-if ! git merge-base --is-ancestor main dev; then
-    echo "main has commits that dev does not have : merge main into dev first." >&2
+# main may hold earlier release merges that dev does not : fine, as long as main has no content dev lacks.
+BASE=$(git merge-base main dev)
+if ! git diff --quiet "$BASE" main; then
+    echo "main has changes that dev does not have : merge main into dev first." >&2
     exit 1
 fi
 
@@ -45,7 +47,7 @@ if git rev-parse -q --verify "refs/tags/$VERSION" >/dev/null; then
     exit 1
 fi
 
-# main is an ancestor of dev : the merged tree is dev's tree, with both as parents.
+# main has nothing dev lacks : the merged tree is dev's tree, with both as parents.
 TITLE="Release $VERSION : $SUMMARY"
 MERGE=$(git commit-tree "dev^{tree}" -p main -p dev -m "$TITLE" -m "Merge branch 'dev' into main.")
 git update-ref refs/heads/main "$MERGE" "$MAIN"
