@@ -13,14 +13,14 @@ namespace Com.IsartDigital.Hyperspeed
 
         public static Mesh Boulder(int pIndex)
         {
-            if (_boulders == null) _boulders = Build(0.32f, 1.0f, 101);
+            if (_boulders == null || _boulders[0] == null) _boulders = Build(0.32f, 1.0f, 101);
             return _boulders[Mathf.Abs(pIndex) % VARIANTS];
         }
 
         // Tall, thin variants (crystals, spires, broken pillars).
         public static Mesh Shard(int pIndex)
         {
-            if (_shards == null) _shards = Build(0.22f, 2.6f, 307);
+            if (_shards == null || _shards[0] == null) _shards = Build(0.22f, 2.6f, 307);
             return _shards[Mathf.Abs(pIndex) % VARIANTS];
         }
 

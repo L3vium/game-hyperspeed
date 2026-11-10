@@ -111,7 +111,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             if (pTheme.decor == DecorKind.Space || pTheme.decor == DecorKind.Void) return;
             GameObject lObject = GameObject.CreatePrimitive(PrimitiveType.Quad);
-            Destroy(lObject.GetComponent<Collider>());
+            DestroyImmediate(lObject.GetComponent<Collider>());
             lObject.name = "GroundSheet";
             lObject.transform.SetParent(pParent, false);
             lObject.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
