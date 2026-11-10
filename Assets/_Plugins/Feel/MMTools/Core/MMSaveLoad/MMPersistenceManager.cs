@@ -77,6 +77,9 @@ namespace MoreMountains.Tools
 			protected static void InitializeStatics()
 			{
 				_instance = null;
+				_resourceItemPath = "Persistence/";
+				_saveFolderName = "MMTools/";
+				_saveFileExtension = ".persistence";
 			}
 		
 			/// <summary>
@@ -253,7 +256,7 @@ namespace MoreMountains.Tools
 			/// <returns></returns>
 			protected virtual IMMPersistent[] FindAllPersistentObjects()
 			{
-				return FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include, FindObjectsSortMode.None).OfType<IMMPersistent>().ToArray();
+				return FindObjectsByType<MonoBehaviour>(FindObjectsInactive.Include).OfType<IMMPersistent>().ToArray();
 			}
 
 			/// <summary>
@@ -328,4 +331,3 @@ namespace MoreMountains.Tools
 		#endregion
 	}	
 }
-

@@ -5,6 +5,9 @@ using System.Collections.Generic;
 using UnityEngine.SceneManagement;
 using UnityEngine.Events;
 using UnityEngine.Serialization;
+#if UNITY_EDITOR
+using UnityEditor.SceneManagement;
+#endif
 
 namespace MoreMountains.Tools
 {	
@@ -89,6 +92,11 @@ namespace MoreMountains.Tools
 		[Tooltip("the name of the anti spill scene to use when loading additively." +
 		         "If left empty, that scene will be automatically created, but you can specify any scene to use for that. Usually you'll want your own anti spill scene to be just an empty scene, but you can customize its lighting settings for example.")]
 		public string AntiSpillSceneName = "";
+		/// if this is true, when in the editor, the loading screen, destination and anti spill scenes will be loaded via EditorSceneManager.LoadSceneInPlayMode / LoadSceneAsyncInPlayMode, letting you load scenes that aren't in the build settings.
+		/// Scene names can then be either a scene name or its full asset path (Assets/.../MyScene.unity). This has no effect in builds.
+		[Tooltip("if this is true, when in the editor, the loading screen, destination and anti spill scenes will be loaded via EditorSceneManager.LoadSceneInPlayMode / LoadSceneAsyncInPlayMode, letting you load scenes that aren't in the build settings. " +
+		         "Scene names can then be either a scene name or its full asset path (Assets/.../MyScene.unity). This has no effect in builds.")]
+		public bool EditorMode = false;
 	}
 
 	/// <summary>
@@ -201,7 +209,10 @@ namespace MoreMountains.Tools
 		protected const float _asyncProgressLimit = 0.9f;
 		protected MMSceneLoadingAntiSpill _antiSpill = new MMSceneLoadingAntiSpill();
 		protected static string _antiSpillSceneName = "";
-		
+		protected static bool _editorMode = false;
+		protected static string _sceneToLoadPath = "";
+		protected static string _loadingScreenScenePath = "";
+
 		protected static Dictionary<HoldModes, bool> _holds = new Dictionary<HoldModes, bool>
 		{
 			{HoldModes.AfterEntryFade, false},
@@ -217,6 +228,7 @@ namespace MoreMountains.Tools
 		protected static void InitializeStatics()
 		{
 			_loadingInProgress = false;
+			DebugMode = false;
 			_interpolateProgress = false;
 			_progressInterpolationSpeed = 0f;
 			_speedIntervals = new List<MMSceneLoadingSpeedInterval>();
@@ -228,11 +240,22 @@ namespace MoreMountains.Tools
 			_afterSceneActivationDelay = 0f;
 			_exitFadeTween = null;
 			_exitFadeDuration = 0f;
+			_fadeMode = FadeModes.FadeInThenOut;
 			_sceneToLoadName = "";
 			_loadingScreenSceneName = "";
 			_scenesInBuild = new List<string>();
 			_initialScenes = null;
 			_antiSpillSceneName = "";
+			_editorMode = false;
+			_sceneToLoadPath = "";
+			_loadingScreenScenePath = "";
+			_holds = new Dictionary<HoldModes, bool>
+			{
+				{HoldModes.AfterEntryFade, false},
+				{HoldModes.AfterUnloadOriginScene, false},
+				{HoldModes.BeforeSceneActivation, false},
+				{HoldModes.BeforeExitFade, false}
+			};
 		}
 
 		/// <summary>
@@ -245,7 +268,7 @@ namespace MoreMountains.Tools
 			LoadScene(sceneToLoadName, settings.LoadingSceneName, settings.ThreadPriority, settings.SecureLoad, settings.InterpolateProgress,
 				settings.BeforeEntryFadeDelay, settings.EntryFadeDuration, settings.AfterEntryFadeDelay, settings.BeforeSceneActivationDelay, settings.AfterSceneActivationDelay,
 				settings.ExitFadeDuration, settings.EntryFadeTween, settings.ExitFadeTween, settings.ProgressBarSpeed, settings.FadeMode, settings.UnloadMethod, settings.AntiSpillSceneName,
-				settings.SpeedIntervals, settings.DebugMode);
+				settings.SpeedIntervals, settings.DebugMode, settings.EditorMode);
 		}
         
 		/// <summary>
@@ -267,13 +290,40 @@ namespace MoreMountains.Tools
 			MMAdditiveSceneLoadingManagerSettings.UnloadMethods unloadMethod = MMAdditiveSceneLoadingManagerSettings.UnloadMethods.AllScenes,
 			string antiSpillSceneName = "",
 			List<MMSceneLoadingSpeedInterval> speedIntervals = null,
-			bool debugMode = false)
+			bool debugMode = false,
+			bool editorMode = false)
 		{
 			if (_loadingInProgress)
 			{
-				Debug.LogError("MMLoadingSceneManagerAdditive : a request to load a new scene was emitted while a scene load was already in progress");  
+				Debug.LogError("MMLoadingSceneManagerAdditive : a request to load a new scene was emitted while a scene load was already in progress");
 				return;
 			}
+
+			_editorMode = false;
+			#if UNITY_EDITOR
+				if (editorMode)
+				{
+					string sceneToLoadPath = MMScene.GetEditorScenePath(sceneToLoadName);
+					if (string.IsNullOrEmpty(sceneToLoadPath))
+					{
+						Debug.LogError("MMLoadingSceneManagerAdditive : impossible to load the '"+sceneToLoadName+"' scene, " +
+						               "there is no such scene in the project.");
+						return;
+					}
+					string loadingScreenScenePath = MMScene.GetEditorScenePath(loadingSceneName);
+					if (string.IsNullOrEmpty(loadingScreenScenePath))
+					{
+						Debug.LogError("MMLoadingSceneManagerAdditive : impossible to load the '"+loadingSceneName+"' scene, " +
+						               "there is no such scene in the project.");
+						return;
+					}
+					_editorMode = true;
+					_sceneToLoadPath = sceneToLoadPath;
+					_loadingScreenScenePath = loadingScreenScenePath;
+					sceneToLoadName = System.IO.Path.GetFileNameWithoutExtension(sceneToLoadPath);
+					loadingSceneName = System.IO.Path.GetFileNameWithoutExtension(loadingScreenScenePath);
+				}
+			#endif
 
 			if (entryFadeTween == null)
 			{
@@ -285,7 +335,7 @@ namespace MoreMountains.Tools
 				exitFadeTween = new MMTweenType(MMTween.MMTweenCurve.EaseInOutCubic);
 			}
 
-			if (secureLoad)
+			if (secureLoad && !_editorMode)
 			{
 				_scenesInBuild = MMScene.GetScenesInBuild();
 	            
@@ -324,9 +374,17 @@ namespace MoreMountains.Tools
 			_antiSpillSceneName = antiSpillSceneName;
 			_speedIntervals = speedIntervals;
 
+			#if UNITY_EDITOR
+				if (_editorMode)
+				{
+					EditorSceneManager.LoadSceneInPlayMode(_loadingScreenScenePath, new LoadSceneParameters(LoadSceneMode.Additive));
+					return;
+				}
+			#endif
+
 			SceneManager.LoadScene(_loadingScreenSceneName, LoadSceneMode.Additive);
 		}
-		
+
 		public static void SetHold(HoldModes holdMode, bool state)
 		{
 			if (_holds.ContainsKey(holdMode))
@@ -455,7 +513,7 @@ namespace MoreMountains.Tools
 		/// </summary>
 		protected virtual IEnumerator LoadSequence()
 		{
-			_antiSpill?.PrepareAntiFill(_sceneToLoadName, _antiSpillSceneName);
+			_antiSpill?.PrepareAntiFill(_sceneToLoadName, _antiSpillSceneName, _editorMode);
 			InitiateLoad();
 			yield return ProcessDelayBeforeEntryFade();
 			yield return EntryFade();
@@ -587,7 +645,7 @@ namespace MoreMountains.Tools
 			MMSceneLoadingManager.LoadingSceneEvent.Trigger(_sceneToLoadName, MMSceneLoadingManager.LoadingStatus.LoadDestinationScene);
 			OnLoadDestinationScene?.Invoke();
 
-			_loadDestinationAsyncOperation = SceneManager.LoadSceneAsync(_sceneToLoadName, LoadSceneMode.Additive );
+			_loadDestinationAsyncOperation = LoadDestinationSceneAsync();
 			_loadDestinationAsyncOperation.completed += OnLoadOperationComplete;
 
 			_loadDestinationAsyncOperation.allowSceneActivation = false;
@@ -617,6 +675,22 @@ namespace MoreMountains.Tools
 			MMLoadingSceneDebug("MMLoadingSceneManagerAdditive : interpolated load complete");
 			MMSceneLoadingManager.LoadingSceneEvent.Trigger(_sceneToLoadName, MMSceneLoadingManager.LoadingStatus.InterpolatedLoadProgressComplete);
 			OnInterpolatedLoadProgressComplete?.Invoke();
+		}
+
+		/// <summary>
+		/// Starts the async load of the destination scene, via EditorSceneManager.LoadSceneAsyncInPlayMode if in editor mode, via the regular SceneManager otherwise
+		/// </summary>
+		/// <returns></returns>
+		protected virtual AsyncOperation LoadDestinationSceneAsync()
+		{
+			#if UNITY_EDITOR
+				if (_editorMode)
+				{
+					return EditorSceneManager.LoadSceneAsyncInPlayMode(_sceneToLoadPath, new LoadSceneParameters(LoadSceneMode.Additive));
+				}
+			#endif
+
+			return SceneManager.LoadSceneAsync(_sceneToLoadName, LoadSceneMode.Additive);
 		}
 
 		/// <summary>

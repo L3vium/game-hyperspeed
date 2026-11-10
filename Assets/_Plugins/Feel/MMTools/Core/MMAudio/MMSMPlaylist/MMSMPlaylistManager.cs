@@ -86,6 +86,7 @@ namespace MoreMountains.Tools
 		public string CurrentSongName;
 		/// the current state of this playlist
 		[MMReadOnly]
+		[System.NonSerialized]
 		public MMStateMachine<PlaylistManagerStates> PlaylistManagerState;
 		
 		/// the time of the currently playing song
@@ -186,6 +187,15 @@ namespace MoreMountains.Tools
 		protected float _lastTestVolumeControl = 1f;
 		protected float _lastTestPlaybackSpeedControl = 1f;
 		internal bool _listeningToEvents = false;
+		protected bool _initialized = false;
+
+		#if UNITY_EDITOR
+		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+		private static void InitializeStatics()
+		{
+			_instance = null;
+		}
+		#endif
 
 		#region INITIALIZATION
 
@@ -282,6 +292,7 @@ namespace MoreMountains.Tools
 				InitializeRandomSeed();
 				Playlist.Initialization();
 				InitializePlaylistManagerState();
+				_initialized = true;
 			}
 
 			/// <summary>
@@ -452,7 +463,6 @@ namespace MoreMountains.Tools
 
 		#endregion
 		
-		
 		#region CONTROLS
 		
 			/// <summary>
@@ -499,7 +509,7 @@ namespace MoreMountains.Tools
 				_options.MmSoundManagerTrack = Playlist.Track;
 				_options.Volume *= VolumeMultiplier;
 				_options.Pitch *= PitchMultiplier;
-				_options.Persistent = Persistent;
+				_options.Persistent |= Persistent;
 			
 				_currentlyPlayingAudioSource = MMSoundManagerSoundPlayEvent.Trigger(Playlist.Songs[songIndex].Clip, _options);
 				
@@ -791,7 +801,16 @@ namespace MoreMountains.Tools
 				PitchMultiplier = newPitchMultiplier;
 				if (applyPitchMultiplierInstantly)
 				{
-					_currentlyPlayingAudioSource.pitch = Playlist.Songs[CurrentSongIndex].Options.Pitch * PitchMultiplier; 
+					float newPitch = Playlist.Songs[CurrentSongIndex].Options.Pitch * PitchMultiplier;
+					// we go through the sound manager so that its track pitch multiplier is preserved
+					if (MMSoundManager.HasInstance)
+					{
+						MMSoundManager.Current.SetSoundPitch(_currentlyPlayingAudioSource, newPitch);
+					}
+					else
+					{
+						_currentlyPlayingAudioSource.pitch = newPitch;
+					}
 				}
 			}
 
@@ -857,6 +876,11 @@ namespace MoreMountains.Tools
 			protected virtual void OnApplicationPause(bool pauseStatus)
 			{
 				if (!AutoHandleApplicationPause)
+				{
+					return;
+				}
+
+				if (!_initialized)
 				{
 					return;
 				}

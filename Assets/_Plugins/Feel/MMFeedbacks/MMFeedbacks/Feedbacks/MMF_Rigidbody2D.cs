@@ -28,6 +28,8 @@ namespace MoreMountains.Feedbacks
 		public override bool HasAutomatedTargetAcquisition => true;
 		
 		protected override void AutomateTargetAcquisition() => TargetRigidbody2D = FindAutomatedTarget<Rigidbody2D>();
+		public override bool HasAutomatedMultipleTargetAcquisition => true;
+		protected override void AutomateMultipleTargetAcquisition() => ExtraTargetRigidbodies2D = FindAutomatedTargets<Rigidbody2D>(ExtraTargetRigidbodies2D, TargetRigidbody2D);
 
 		public enum Modes { AddForce, AddRelativeForce, AddTorque}
 

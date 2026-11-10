@@ -4,6 +4,9 @@ using UnityEngine.UI;
 #endif
 using System.Collections;
 using UnityEngine.SceneManagement;
+#if UNITY_EDITOR
+using UnityEditor.SceneManagement;
+#endif
 
 namespace MoreMountains.Tools
 {	
@@ -73,19 +76,35 @@ namespace MoreMountains.Tools
 		#endif
 
 		protected static MMTweenType _tween;
+		protected static bool _editorMode = false;
+		protected static string _sceneToLoadPath = "";
+
+		#if UNITY_EDITOR
+		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+		private static void InitializeStatics()
+		{
+			LoadingScreenSceneName = "LoadingScreen";
+			_sceneToLoad = "";
+			_tween = null;
+			_editorMode = false;
+			_sceneToLoadPath = "";
+		}
+		#endif
 
 		/// <summary>
 		/// Call this static method to load a scene from anywhere
 		/// </summary>
 		/// <param name="sceneToLoad">Level name.</param>
-		public static void LoadScene(string sceneToLoad)
+		/// <param name="editorMode">if true, when in the editor, the loading screen and destination scenes will be loaded via EditorSceneManager.LoadSceneInPlayMode / LoadSceneAsyncInPlayMode, letting you load scenes that aren't in the build settings. Scene names can then be either a scene name or its full asset path (Assets/.../MyScene.unity). This has no effect in builds.</param>
+		public static void LoadScene(string sceneToLoad, bool editorMode = false)
 		{
-			_sceneToLoad = sceneToLoad;					
-			Application.backgroundLoadingPriority = ThreadPriority.High;
 			if (LoadingScreenSceneName!=null)
 			{
-				LoadingSceneEvent.Trigger(sceneToLoad, LoadingStatus.LoadStarted);
-				SceneManager.LoadScene(LoadingScreenSceneName);
+				if (!LoadLoadingScreenScene(sceneToLoad, LoadingScreenSceneName, editorMode))
+				{
+					return;
+				}
+				LoadingSceneEvent.Trigger(_sceneToLoad, LoadingStatus.LoadStarted);
 			}
 		}
 
@@ -93,11 +112,70 @@ namespace MoreMountains.Tools
 		/// Call this static method to load a scene from anywhere
 		/// </summary>
 		/// <param name="sceneToLoad">Level name.</param>
-		public static void LoadScene(string sceneToLoad, string loadingSceneName)
+		/// <param name="loadingSceneName">the name of the loading screen scene to use</param>
+		/// <param name="editorMode">if true, when in the editor, the loading screen and destination scenes will be loaded via EditorSceneManager.LoadSceneInPlayMode / LoadSceneAsyncInPlayMode, letting you load scenes that aren't in the build settings. Scene names can then be either a scene name or its full asset path (Assets/.../MyScene.unity). This has no effect in builds.</param>
+		public static void LoadScene(string sceneToLoad, string loadingSceneName, bool editorMode = false)
 		{
-			_sceneToLoad = sceneToLoad;					
+			LoadLoadingScreenScene(sceneToLoad, loadingSceneName, editorMode);
+		}
+
+		/// <summary>
+		/// Stores the scene to load and loads the loading screen scene, via EditorSceneManager.LoadSceneInPlayMode if in editor mode, via the regular SceneManager otherwise
+		/// Returns false if, in editor mode, one of the scenes couldn't be found in the project
+		/// </summary>
+		/// <param name="sceneToLoad"></param>
+		/// <param name="loadingSceneName"></param>
+		/// <param name="editorMode"></param>
+		/// <returns></returns>
+		protected static bool LoadLoadingScreenScene(string sceneToLoad, string loadingSceneName, bool editorMode)
+		{
+			_editorMode = false;
+			#if UNITY_EDITOR
+				if (editorMode)
+				{
+					string sceneToLoadPath = MMScene.GetEditorScenePath(sceneToLoad);
+					if (string.IsNullOrEmpty(sceneToLoadPath))
+					{
+						Debug.LogError("MMSceneLoadingManager : impossible to load the '"+sceneToLoad+"' scene, " +
+						               "there is no such scene in the project.");
+						return false;
+					}
+					string loadingScreenScenePath = MMScene.GetEditorScenePath(loadingSceneName);
+					if (string.IsNullOrEmpty(loadingScreenScenePath))
+					{
+						Debug.LogError("MMSceneLoadingManager : impossible to load the '"+loadingSceneName+"' scene, " +
+						               "there is no such scene in the project.");
+						return false;
+					}
+					_editorMode = true;
+					_sceneToLoadPath = sceneToLoadPath;
+					_sceneToLoad = System.IO.Path.GetFileNameWithoutExtension(sceneToLoadPath);
+					Application.backgroundLoadingPriority = ThreadPriority.High;
+					EditorSceneManager.LoadSceneInPlayMode(loadingScreenScenePath, new LoadSceneParameters(LoadSceneMode.Single));
+					return true;
+				}
+			#endif
+
+			_sceneToLoad = sceneToLoad;
 			Application.backgroundLoadingPriority = ThreadPriority.High;
 			SceneManager.LoadScene(loadingSceneName);
+			return true;
+		}
+
+		/// <summary>
+		/// Starts the async load of the destination scene, via EditorSceneManager.LoadSceneAsyncInPlayMode if in editor mode, via the regular SceneManager otherwise
+		/// </summary>
+		/// <returns></returns>
+		protected virtual AsyncOperation LoadDestinationSceneAsync()
+		{
+			#if UNITY_EDITOR
+				if (_editorMode)
+				{
+					return EditorSceneManager.LoadSceneAsyncInPlayMode(_sceneToLoadPath, new LoadSceneParameters(LoadSceneMode.Single));
+				}
+			#endif
+
+			return SceneManager.LoadSceneAsync(_sceneToLoad, LoadSceneMode.Single);
 		}
 
 		/// <summary>
@@ -140,7 +218,7 @@ namespace MoreMountains.Tools
 			yield return MMCoroutine.WaitFor(StartFadeDuration);
             
 			// we start loading the scene
-			_asyncOperation = SceneManager.LoadSceneAsync(_sceneToLoad,LoadSceneMode.Single );
+			_asyncOperation = LoadDestinationSceneAsync();
 			_asyncOperation.allowSceneActivation = false;
 
 			// while the scene loads, we assign its progress to a target that we'll use to fill the progress bar smoothly

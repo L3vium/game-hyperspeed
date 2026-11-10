@@ -32,6 +32,22 @@ namespace MoreMountains.Tools
 		private static bool _debugLogEnabled = false;
 		private static bool _debugLogEnabledSet = false;
 
+		#if UNITY_EDITOR
+		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+		private static void InitializeStatics()
+		{
+			_commands = null;
+			_debugDrawEnabledSet = false;
+			_debugDrawEnabled = false;
+			_debugLogEnabled = false;
+			_debugLogEnabledSet = false;
+			LogHistory = new List<DebugLogItem>(_logHistoryMaxLength);
+			#if MM_UI
+			_console = null;
+			#endif
+		}
+		#endif
+
 		/// <summary>
 		/// Returns a list of all the debug command lines found in the project's assemblies
 		/// </summary>
@@ -118,7 +134,7 @@ namespace MoreMountains.Tools
 			}
 
 			LogCommand(command, "#FFC400");
-			methods[0].Invoke(null, parameters);
+			commandInfo.Invoke(null, parameters);
 		}
 
 		/// <summary>

@@ -33,6 +33,8 @@ namespace MoreMountains.Feedbacks
 		public override bool HasRandomness => true;
 		public override bool HasAutomatedTargetAcquisition => true;
 		protected override void AutomateTargetAcquisition() => BoundLight = FindAutomatedTarget<Light>();
+		public override bool HasAutomatedMultipleTargetAcquisition => true;
+		protected override void AutomateMultipleTargetAcquisition() => ExtraLights = FindAutomatedTargets<Light>(ExtraLights, BoundLight);
 
 		/// the possible modes for this feedback
 		public enum Modes { OverTime, Instant, ShakerEvent, ToDestination }

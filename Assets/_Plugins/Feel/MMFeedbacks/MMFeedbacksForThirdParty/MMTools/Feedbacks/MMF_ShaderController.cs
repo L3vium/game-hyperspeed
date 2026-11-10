@@ -31,6 +31,8 @@ namespace MoreMountains.Feedbacks
 		public override bool HasRandomness => true;
 		public override bool HasAutomatedTargetAcquisition => true;
 		protected override void AutomateTargetAcquisition() => TargetShaderController = FindAutomatedTarget<ShaderController>();
+		public override bool HasAutomatedMultipleTargetAcquisition => true;
+		protected override void AutomateMultipleTargetAcquisition() => TargetShaderControllerList = FindAutomatedTargets<ShaderController>(TargetShaderControllerList, TargetShaderController);
 
 		[MMFInspectorGroup("Shader Controller", true, 37, true)]
 		/// the mode this controller is in

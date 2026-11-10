@@ -14,6 +14,14 @@ namespace MoreMountains.Tools
 	public static class PeaksSaver
 	{
 		public static float[] Peaks;
+
+		#if UNITY_EDITOR
+		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+		private static void InitializeStatics()
+		{
+			Peaks = null;
+		}
+		#endif
 	}
 
 	/// <summary>
