@@ -54,6 +54,50 @@ namespace Com.IsartDigital.Hyperspeed
             lRoot.AddComponent<MeshRenderer>().sharedMaterial = Mats.Glow(Color.Lerp(pTheme.accent, Color.white, 0.25f) * 3.2f, false, 0f, 0f, true);
         }
 
+        // Gravity gate : a thick glowing hoop with chevrons, the sign that the surface is about to carry you.
+        public static void GravityHoop(Transform pParent, LevelLayout pLayout, float pS, Theme pTheme)
+        {
+            float lRadius = pLayout.field.TotalHalfWidth(pS) * 1.04f;
+            Vector3 lNormal = pLayout.field.Normal(pS);
+            GameObject lRoot = new GameObject("GravityHoop");
+            lRoot.transform.SetParent(pParent, false);
+            lRoot.transform.SetPositionAndRotation(pLayout.field.Point(pS, pLayout.field.CenterLateral(pS)), Quaternion.LookRotation(pLayout.spine.Forward(pS), lNormal));
+            MeshData lGlow = new MeshData();
+            const int SEGMENTS = 40;
+            float lThick = Mathf.Max(5f, lRadius * 0.025f);
+            for (int i = 0; i < SEGMENTS; i++)
+            {
+                float lA = Mathf.PI * i / (SEGMENTS - 1);
+                Vector3 lP = new Vector3(Mathf.Cos(lA) * lRadius, Mathf.Sin(lA) * lRadius, 0f);
+                float lArc = Mathf.PI * lRadius / SEGMENTS * 1.15f;
+                Vector3 lTangent = new Vector3(-Mathf.Sin(lA), Mathf.Cos(lA), 0f);
+                AddBeam(lGlow, lP, lTangent, lArc, lThick, Color.white);
+                // Chevrons on the inside, pointing the way.
+                if (i % 4 == 2)
+                {
+                    Vector3 lIn = -lP.normalized;
+                    AddBeam(lGlow, lP + lIn * lThick * 3f, Vector3.Normalize(lTangent + Vector3.forward), lThick * 4f, lThick * 0.6f, Color.white);
+                    AddBeam(lGlow, lP + lIn * lThick * 3f, Vector3.Normalize(-lTangent + Vector3.forward), lThick * 4f, lThick * 0.6f, Color.white);
+                }
+            }
+            lRoot.AddComponent<MeshFilter>().sharedMesh = lGlow.ToMesh("GravityHoop");
+            lRoot.AddComponent<MeshRenderer>().sharedMaterial = Mats.Glow(Color.Lerp(pTheme.accent, Color.white, 0.35f) * 4f, false, 0f, 0f, true);
+        }
+
+        private static void AddBeam(MeshData pData, Vector3 pCenter, Vector3 pAlong, float pLength, float pThick, Color pColor)
+        {
+            Quaternion lRot = Quaternion.LookRotation(pAlong, Vector3.forward == pAlong ? Vector3.up : Vector3.forward);
+            Vector3 lH = new Vector3(pThick, pThick, pLength) * 0.5f;
+            Vector3[] lC = new Vector3[8];
+            for (int i = 0; i < 8; i++) lC[i] = pCenter + lRot * Vector3.Scale(lH, new Vector3((i & 1) == 0 ? -1 : 1, (i & 2) == 0 ? -1 : 1, (i & 4) == 0 ? -1 : 1));
+            pData.FacetQuad(lC[2], lC[3], lC[7], lC[6], lRot * Vector3.up, pColor);
+            pData.FacetQuad(lC[0], lC[4], lC[5], lC[1], lRot * Vector3.down, pColor);
+            pData.FacetQuad(lC[0], lC[2], lC[6], lC[4], lRot * Vector3.left, pColor);
+            pData.FacetQuad(lC[1], lC[5], lC[7], lC[3], lRot * Vector3.right, pColor);
+            pData.FacetQuad(lC[0], lC[1], lC[3], lC[2], lRot * Vector3.back, pColor);
+            pData.FacetQuad(lC[4], lC[6], lC[7], lC[5], lRot * Vector3.forward, pColor);
+        }
+
         public static void Box(MeshData pData, Vector3 pCenter, Vector3 pSize, Color pColor)
         {
             Vector3 lH = pSize * 0.5f;

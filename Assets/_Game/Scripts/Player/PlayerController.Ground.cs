@@ -15,6 +15,8 @@ namespace Com.IsartDigital.Hyperspeed
 
         // Looking down a slope on the ground : belly first, it feeds you harder.
         public bool BellySliding { get; private set; }
+        public bool LastLandingWasDive { get; private set; }
+        private float _diveSlideTimer;
 
         public float LateralSpeed => OnSurface ? _slip : (_layout != null ? Vector3.Dot(_velocity, _layout.spine.Right(Progress)) : 0f);
 
@@ -26,7 +28,8 @@ namespace Com.IsartDigital.Hyperspeed
 
             UpdateDrift(pDt);
             Sliding = _slideHeld && !Drifting && !_freeRoam;
-            BellySliding = !_freeRoam && !Drifting && AimPitch < DIVE_PITCH && Vector3.Dot(lForward, GravityDown()) > 0.08f;
+            _diveSlideTimer -= pDt;
+            BellySliding = !_freeRoam && !Drifting && (_diveSlideTimer > 0f || AimPitch < DIVE_PITCH && Vector3.Dot(lForward, GravityDown()) > 0.08f);
 
             if (_freeRoam)
             {

@@ -267,10 +267,17 @@ namespace Com.IsartDigital.Hyperspeed
         protected override void OnTouch(PlayerController pPlayer)
         {
             if (pPlayer.LightForm) return;
-            Vector3 lHead = _pivot.TransformPoint(new Vector3(0f, -ARM, 0f));
+            // The hit matches what you see : the whole head block and the arm holding it.
             Vector3 lCenter = pPlayer.transform.position + pPlayer.Up;
-            if ((lHead - lCenter).sqrMagnitude > _head * _head) return;
-            pPlayer.Crash(lHead);
+            Vector3 lLocal = _pivot.InverseTransformPoint(lCenter);
+            const float PAD = 3f;
+            bool lHead = Mathf.Abs(lLocal.x) <= 48f + PAD && Mathf.Abs(lLocal.y + ARM) <= 35f + PAD && Mathf.Abs(lLocal.z) <= 39f + PAD;
+            bool lArm = Mathf.Abs(lLocal.x) <= 5f + PAD && Mathf.Abs(lLocal.z) <= 5f + PAD && lLocal.y <= 0f && lLocal.y >= -ARM;
+            if (!lHead && !lArm) return;
+            Vector3 lPush = _pivot.TransformDirection(Vector3.right) * Mathf.Sign(Mathf.Cos(Time.time * 2.1f + _phase));
+            pPlayer.Crash(_pivot.TransformPoint(new Vector3(0f, -ARM, 0f)));
+            FX.Shockwave(lCenter, lPush, Color.white, 30f, 0.3f);
+            Juice.Shake(0.8f);
         }
     }
 }

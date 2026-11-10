@@ -61,7 +61,8 @@ namespace Com.IsartDigital.Hyperspeed
         // Solid, right way up, well inside the block, no gap right ahead : a place to come back to.
         public bool IsSafe(float pS, float pLateral)
         {
-            if (!field.Solid(pS)) return false;
+            TrackBlock lBlock = field.BlockAt(pS);
+            if (lBlock == null || lBlock.look == BlockLook.Slab) return false;
             SpineSample lSample = spine.Evaluate(pS);
             if (lSample.localGravity || lSample.up.y < 0.7f) return false;
             float lHalf = field.HalfWidth(pS);

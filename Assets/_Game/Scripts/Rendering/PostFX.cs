@@ -16,6 +16,10 @@ namespace Com.IsartDigital.Hyperspeed
         private static readonly int IMPACT_COLOR = Shader.PropertyToID("_HS_ImpactColor");
         private static readonly int REWIND = Shader.PropertyToID("_HS_Rewind");
         private static readonly int DESATURATE = Shader.PropertyToID("_HS_Desaturate");
+        private static readonly int FISHEYE = Shader.PropertyToID("_HS_Fisheye");
+        private static readonly int FADE = Shader.PropertyToID("_HS_Fade");
+        private static readonly int LETTERBOX = Shader.PropertyToID("_HS_Letterbox");
+        private static readonly int INTENSITY = Shader.PropertyToID("_HS_Intensity");
 
         public static PostFX Instance { get; private set; }
 
@@ -26,6 +30,13 @@ namespace Com.IsartDigital.Hyperspeed
         // Death rewind look (desaturated, scanlines) and pause backdrop (game visible but dimmed).
         public float rewind;
         public float pause;
+        // 0..1 black fade (death), letterbox height as a fraction of the screen, colour intensity (climax, victory).
+        public float fade;
+        public float letterbox;
+        public float intensity;
+        private float _fade;
+        private float _letterbox;
+        private float _intensity;
 
         private VolumeProfile _profile;
         private Bloom _bloom;
@@ -94,6 +105,10 @@ namespace Com.IsartDigital.Hyperspeed
             Shader.SetGlobalFloat(RADIAL_BLUR, 0f);
             Shader.SetGlobalFloat(REWIND, 0f);
             Shader.SetGlobalFloat(DESATURATE, 0f);
+            Shader.SetGlobalFloat(FISHEYE, 0f);
+            Shader.SetGlobalFloat(FADE, 0f);
+            Shader.SetGlobalFloat(LETTERBOX, 0f);
+            Shader.SetGlobalFloat(INTENSITY, 0f);
         }
 
         public void Pulse(float pAmount) => _pulse = Mathf.Max(_pulse, pAmount);
@@ -146,7 +161,15 @@ namespace Com.IsartDigital.Hyperspeed
             Shader.SetGlobalFloat(RADIAL_BLUR, Mathf.Min(2.2f, Mathf.Clamp01(lSpeed - 0.06f) * 1.35f + _pulse * 0.8f + hyper01 * 0.35f + _light * 0.5f));
             Shader.SetGlobalFloat(REWIND, _rewind);
             Shader.SetGlobalFloat(DESATURATE, _rewind * 0.75f);
-            Shader.SetGlobalFloat(DITHER, 0.55f);
+            // Flat colour : no dither, no posterize.
+            Shader.SetGlobalFloat(DITHER, 0f);
+            _fade = Mathf.MoveTowards(_fade, fade, lDt * 5f);
+            _letterbox = Mathf.MoveTowards(_letterbox, letterbox, lDt * 0.6f);
+            _intensity = Mathf.MoveTowards(_intensity, intensity, lDt * 1.5f);
+            Shader.SetGlobalFloat(FISHEYE, _light * 1.1f);
+            Shader.SetGlobalFloat(FADE, _fade);
+            Shader.SetGlobalFloat(LETTERBOX, _letterbox);
+            Shader.SetGlobalFloat(INTENSITY, _intensity);
             Shader.SetGlobalFloat(FLASH, _flash);
             Shader.SetGlobalColor(FLASH_COLOR, _flashColor);
 

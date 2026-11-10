@@ -27,6 +27,10 @@ Shader "Hyperspeed/Stylize"
             float4 _HS_ImpactColor;
             float _HS_Rewind;
             float _HS_Desaturate;
+            float _HS_Fisheye;
+            float _HS_Fade;
+            float _HS_Letterbox;
+            float _HS_Intensity;
 
             static const float BAYER[16] = { 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 };
 
@@ -39,6 +43,17 @@ Shader "Hyperspeed/Stylize"
             {
                 UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(input);
                 float2 lUV = input.texcoord;
+                if (_HS_Fisheye > 0.001)
+                {
+                    // Light speed : the frame bulges like a fisheye, the world wraps around the runner.
+                    float2 lD = lUV - 0.5;
+                    lD.x *= _ScreenParams.x / _ScreenParams.y;
+                    float lR2 = dot(lD, lD);
+                    float lK = _HS_Fisheye * 0.9;
+                    lD *= (1.0 + lK * lR2) / (1.0 + lK * 0.62);
+                    lD.x /= _ScreenParams.x / _ScreenParams.y;
+                    lUV = 0.5 + lD;
+                }
                 float2 lDelta = lUV - 0.5;
                 float lEdge = dot(lDelta, lDelta) * 4.0;
 
@@ -90,7 +105,19 @@ Shader "Hyperspeed/Stylize"
                     lColor *= lerp(1.0, lScan, _HS_Rewind);
                 }
 
+                if (_HS_Intensity > 0.001)
+                {
+                    // Neck and neck / victory : colours pushed hard, contrast up.
+                    half lGray = dot(lColor, half3(0.299, 0.587, 0.114));
+                    lColor = lerp(lColor, lerp(lGray.xxx, lColor, 1.0 + _HS_Intensity * 0.9), 1.0);
+                    lColor = saturate((lColor - 0.5) * (1.0 + _HS_Intensity * 0.35) + 0.5);
+                }
+
                 lColor = lerp(lColor, _HS_FlashColor.rgb, saturate(_HS_Flash));
+                lColor *= 1.0 - saturate(_HS_Fade);
+                // Cinema bars, top and bottom.
+                float lBar = _HS_Letterbox * 0.5;
+                if (input.texcoord.y < lBar || input.texcoord.y > 1.0 - lBar) lColor = half3(0, 0, 0);
                 return half4(lColor, 1);
             }
             ENDHLSL

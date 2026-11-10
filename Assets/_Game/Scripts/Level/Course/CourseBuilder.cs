@@ -59,6 +59,10 @@ namespace Com.IsartDigital.Hyperspeed
         private readonly List<HammerDef> _hammers = new List<HammerDef>();
         private readonly List<BlockDef> _props = new List<BlockDef>();
         private readonly List<ArchDef> _arches = new List<ArchDef>();
+        private readonly List<float> _gravityGates = new List<float>();
+
+        // A hoop of light right before the track takes over gravity : you know the world is about to turn.
+        private void GravityGate(float pS) => _gravityGates.Add(pS);
         private readonly List<Vector2> _noPads = new List<Vector2>();
 
         private Vector3 _pos;
@@ -111,14 +115,16 @@ namespace Com.IsartDigital.Hyperspeed
 
         // Advances the line while yaw, pitch and roll ease by the given totals. pShift moves it sideways or down without
         // changing where it points (keeps the two legs of a loop apart, lets a drop stay level).
-        private void Span(float pLength, float pYaw = 0f, float pPitch = 0f, float pRoll = 0f, Vector3 pShift = default(Vector3))
+        private void Span(float pLength, float pYaw = 0f, float pPitch = 0f, float pRoll = 0f, Vector3 pShift = default(Vector3), float pLinear = 0f)
         {
             int lSteps = Mathf.Max(1, Mathf.RoundToInt(pLength / Spine.STEP));
             float lYaw0 = _yaw, lPitch0 = _pitch, lRoll0 = _roll;
             float lPrevious = 0f;
             for (int i = 1; i <= lSteps; i++)
             {
-                float lE = HSMath.Smooth(i / (float)lSteps);
+                float lT = i / (float)lSteps;
+                // pLinear spreads the turn evenly : no sharp peak of curvature in the middle of a loop.
+                float lE = Mathf.Lerp(HSMath.Smooth(lT), lT, pLinear);
                 _yaw = lYaw0 + pYaw * lE;
                 _pitch = lPitch0 + pPitch * lE;
                 _roll = lRoll0 + pRoll * lE;
@@ -329,37 +335,40 @@ namespace Com.IsartDigital.Hyperspeed
         // Full loop. The two legs are shifted apart so the way out never meets the way in.
         public CourseBuilder Loop(Side pSide = Side.Right)
         {
-            float lRadius = Mathf.Max(_p.cruise * 0.8f, _halfWidth * 1.7f);
+            // Sized for a boosted runner, not for cruise : a loop is a big sweep, never a wall.
+            float lRadius = Mathf.Max(_p.cruise * 1.5f, _halfWidth * 1.9f);
             float lLength = lRadius * Mathf.PI * 2f * 1.08f;
             Quaternion lYaw = Quaternion.AngleAxis(_yaw, Vector3.up);
             Vector3 lShift = lYaw * Vector3.right * (int)pSide * (_halfWidth * 2.6f + 140f);
             Open(BlockLook.Pipe, 12f);
-            Span(M(0.5f));
+            NoPads(_s, _s + M(1.5f));
+            Span(M(1.5f));
             _localGravity = true;
             NoPads(_s, _s + lLength);
-            Span(lLength, 0f, 360f, 0f, lShift);
+            Span(lLength, 0f, 360f, 0f, lShift, 0.55f);
             _localGravity = false;
             _pitch = 0f;
-            Span(M(0.4f));
-            Route(_s - lLength - M(1f), _s, 0f);
-            _arches.Add(new ArchDef { s = _s - lLength - M(0.3f), lit = true });
+            Span(M(1.2f));
+            Route(_s - lLength - M(1.6f), _s, 0f);
+            GravityGate(_s - lLength - M(1.2f) - M(0.3f));
             return this;
         }
 
         // Corkscrew : a loop with the track rolling all the way round at the same time.
         public CourseBuilder Corkscrew(Side pSide = Side.Left)
         {
-            float lRadius = Mathf.Max(_p.cruise * 0.95f, _halfWidth * 2f);
+            float lRadius = Mathf.Max(_p.cruise * 1.6f, _halfWidth * 2.1f);
             float lLength = lRadius * Mathf.PI * 2f * 1.2f;
             Quaternion lYaw = Quaternion.AngleAxis(_yaw, Vector3.up);
             Vector3 lShift = lYaw * Vector3.right * (int)pSide * (_halfWidth * 3f + 180f);
             float lHalf = _halfWidth;
             _halfWidth *= 1.25f;
             Open(BlockLook.Pipe, 18f);
-            Span(M(0.4f));
+            Span(M(1.2f));
+            GravityGate(_s - M(0.3f));
             _localGravity = true;
             NoPads(_s, _s + lLength);
-            Span(lLength, 0f, 360f, (int)pSide * 360f, lShift);
+            Span(lLength, 0f, 360f, (int)pSide * 360f, lShift, 0.55f);
             _halfWidth = lHalf;
             _localGravity = false;
             Wrap();
@@ -373,10 +382,12 @@ namespace Com.IsartDigital.Hyperspeed
         public CourseBuilder Twist(float pSeconds = 3.2f, int pTurns = 1, Side pSide = Side.Right)
         {
             Open(BlockLook.Pipe, 18f);
-            Span(M(0.3f));
+            Span(M(0.9f));
+            GravityGate(_s - M(0.3f));
             _localGravity = true;
+            pSeconds *= 1.4f;
             NoPads(_s, _s + M(pSeconds));
-            Span(M(pSeconds), 0f, 0f, (int)pSide * 360f * pTurns);
+            Span(M(pSeconds), 0f, 0f, (int)pSide * 360f * pTurns, default(Vector3), 0.5f);
             _localGravity = false;
             _roll = 0f;
             Span(M(0.3f));
@@ -388,11 +399,12 @@ namespace Com.IsartDigital.Hyperspeed
         {
             Open(BlockLook.Pipe, 22f);
             int lSide = (int)pSide;
-            Span(M(0.3f));
+            Span(M(0.9f));
+            GravityGate(_s - M(0.3f));
             _localGravity = true;
-            Span(M(1.6f), 0f, 0f, lSide * 180f);
+            Span(M(2.2f), 0f, 0f, lSide * 180f);
             Span(M(pSeconds * pace));
-            Span(M(1.6f), 0f, 0f, lSide * 180f);
+            Span(M(2.2f), 0f, 0f, lSide * 180f);
             _localGravity = false;
             _roll = 0f;
             Span(M(0.3f));
@@ -751,6 +763,7 @@ namespace Com.IsartDigital.Hyperspeed
             }
             lDirector.Init(_layout, _theme);
             foreach (ArchDef lArch in _arches) GateKit.Arch(lProps, _layout, lArch.s, _theme);
+            foreach (float lGate in _gravityGates) GateKit.GravityHoop(lProps, _layout, lGate, _theme);
 
             StartGate.Create(lProps, _layout, _theme);
             GateKit.Portal(lProps, _layout, _layout.finishS, lField.TotalHalfWidth(_layout.finishS), 60f, _theme.accent, Color.white, "FINISH");

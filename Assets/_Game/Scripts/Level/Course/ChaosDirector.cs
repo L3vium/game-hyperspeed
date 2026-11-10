@@ -354,9 +354,10 @@ namespace Com.IsartDigital.Hyperspeed
         // Platforms give way once you are off them. A rewind puts them back.
         private void UpdateSlabs(PlayerController pPlayer, float pDt)
         {
-            if (CourseBreak.Instance != null) return;
+            if (CourseBreak.Instance != null || RespawnDirector.HoldWorld) return;
             List<TrackChunk> lChunks = TrackBaker.Chunks;
-            float lLine = pPlayer.Progress - 160f;
+            // Measured from where the runner last stood : a jump never drops what is under it.
+            float lLine = pPlayer.GroundProgress - 160f;
             while (_nextSlab < lChunks.Count && lChunks[_nextSlab].s1 < lLine)
             {
                 TrackChunk lChunk = lChunks[_nextSlab++];

@@ -459,7 +459,8 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _stretchVelocity -= Mathf.Clamp(pImpact * 0.06f, 0.5f, 2.5f);
             float lSpeed = _player.Speed;
-            if (pImpact > 30f) Trigger(lSpeed < 25f ? P_LAND_HARD : P_LAND_ROLL);
+            if (_player.LastLandingWasDive && pImpact > 30f) Trigger(lSpeed < 25f ? P_LAND_HARD : P_LAND_ROLL);
+            else if (pImpact > 90f && lSpeed < 25f) Trigger(P_LAND_HARD);
             else if (pImpact > 8f && lSpeed < 25f) Trigger(P_LAND);
             EmitLandingDust(pImpact);
         }
