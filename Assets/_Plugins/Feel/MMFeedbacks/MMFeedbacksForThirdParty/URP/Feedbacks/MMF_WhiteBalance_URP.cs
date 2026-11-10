@@ -51,6 +51,9 @@ namespace MoreMountains.FeedbacksForThirdParty
 		public bool ResetTargetValuesAfterShake = true;
 
 		[MMFInspectorGroup("Temperature", true, 29)]
+		/// whether or not this feedback should modify temperature
+		[Tooltip("whether or not this feedback should modify temperature")]
+		public bool ModifyTemperature = true;
 		/// the curve used to animate the temperature value on
 		[Tooltip("the curve used to animate the temperature value on")]
 		public AnimationCurve ShakeTemperature = new AnimationCurve(new Keyframe(0, 0), new Keyframe(0.5f, 1), new Keyframe(1, 0));
@@ -64,6 +67,9 @@ namespace MoreMountains.FeedbacksForThirdParty
 		public float RemapTemperatureOne = 100f;
 
 		[MMFInspectorGroup("Tint", true, 29)]
+		/// whether or not this feedback should modify tint
+		[Tooltip("whether or not this feedback should modify tint")]
+		public bool ModifyTint = true;
 		/// the curve used to animate the tint value on
 		[Tooltip("the curve used to animate the tint value on")]
 		public AnimationCurve ShakeTint = new AnimationCurve(new Keyframe(0, 0), new Keyframe(0.5f, 1), new Keyframe(1, 0));
@@ -91,7 +97,8 @@ namespace MoreMountains.FeedbacksForThirdParty
 			float intensityMultiplier = ComputeIntensity(feedbacksIntensity, position);
 			MMWhiteBalanceShakeEvent_URP.Trigger(ShakeTemperature, FeedbackDuration, RemapTemperatureZero, RemapTemperatureOne,
 				ShakeTint, RemapTintZero, RemapTintOne, RelativeValues, intensityMultiplier,
-				ChannelData, ResetShakerValuesAfterShake, ResetTargetValuesAfterShake, NormalPlayDirection, ComputedTimescaleMode);
+				ChannelData, ResetShakerValuesAfterShake, ResetTargetValuesAfterShake, NormalPlayDirection, ComputedTimescaleMode,
+				modifyTemperature: ModifyTemperature, modifyTint: ModifyTint);
             
 		}
         

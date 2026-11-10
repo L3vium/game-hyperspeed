@@ -25,6 +25,20 @@ namespace MoreMountains.Tools
 		public static string SaveFileName;
 		public static string ListID;
 
+		#if UNITY_EDITOR
+		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+		private static void InitializeStatics()
+		{
+			_achievements = null;
+			_achievement = null;
+			_defaultFileName = "Achievements";
+			_saveFolderName = "MMAchievements/";
+			_saveFileExtension = ".achievements";
+			SaveFileName = null;
+			ListID = null;
+		}
+		#endif
+
 		/// <summary>
 		/// You'll need to call this method to initialize the manager
 		/// </summary>

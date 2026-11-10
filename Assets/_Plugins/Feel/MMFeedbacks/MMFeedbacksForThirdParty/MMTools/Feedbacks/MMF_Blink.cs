@@ -27,6 +27,8 @@ namespace MoreMountains.Feedbacks
 		public override float FeedbackDuration { get { return ApplyTimeMultiplier(Duration); } set { Duration = value; } }
 		public override bool HasAutomatedTargetAcquisition => true;
 		protected override void AutomateTargetAcquisition() => TargetBlink = FindAutomatedTarget<MMBlink>();
+		public override bool HasAutomatedMultipleTargetAcquisition => true;
+		protected override void AutomateMultipleTargetAcquisition() => ExtraTargetBlinks = FindAutomatedTargets<MMBlink>(ExtraTargetBlinks, TargetBlink);
         
 		/// a static bool used to disable all feedbacks of this type at once
 		public static bool FeedbackTypeAuthorized = true;

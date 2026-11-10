@@ -38,6 +38,8 @@ namespace MoreMountains.Feedbacks
 		public override bool HasRandomness => true;
 		public override bool HasAutomatedTargetAcquisition => true;
 		protected override void AutomateTargetAcquisition() => BoundAnimator = FindAutomatedTarget<Animator>();
+		public override bool HasAutomatedMultipleTargetAcquisition => true;
+		protected override void AutomateMultipleTargetAcquisition() => ExtraBoundAnimators = FindAutomatedTargets<Animator>(ExtraBoundAnimators, BoundAnimator);
 		
 		public enum Modes { Seconds, Normalized }
 
@@ -103,6 +105,10 @@ namespace MoreMountains.Feedbacks
 		protected override void CustomInitialization(MMF_Player owner)
 		{
 			base.CustomInitialization(owner);
+			if (!TargetExists(BoundAnimator, nameof(BoundAnimator)))
+			{
+				return;
+			}
 			_stateHashName = Animator.StringToHash(StateName);
 			_layerID = Layer;
 			if ((LayerName != "") && (BoundAnimator != null))
@@ -125,7 +131,6 @@ namespace MoreMountains.Feedbacks
 
 			if (BoundAnimator == null)
 			{
-				Debug.LogWarning("[Animation Crossfade Feedback] The animation crossfade feedback on "+Owner.name+" doesn't have a BoundAnimator, it won't work. You need to specify one in its inspector.");
 				return;
 			}
 			

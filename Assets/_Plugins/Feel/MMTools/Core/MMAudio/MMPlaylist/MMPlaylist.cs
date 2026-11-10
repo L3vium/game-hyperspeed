@@ -272,6 +272,7 @@ namespace MoreMountains.Tools
 		public string CurrentSongName;
 		/// the current state of this playlist
 		[MMReadOnly]
+		[System.NonSerialized]
 		public MMStateMachine<MMPlaylist.PlaylistStates> PlaylistState;
 
 		[MMInspectorGroup("Tests", true, 15)]
@@ -313,6 +314,14 @@ namespace MoreMountains.Tools
 		protected static MMPlaylist _instance;
 		protected bool _enabled;
 		protected int _queuedSong = -1;
+
+		#if UNITY_EDITOR
+		[RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.SubsystemRegistration)]
+		private static void InitializeStatics()
+		{
+			_instance = null;
+		}
+		#endif
 		
 		/// <summary>
 		/// Singleton design pattern

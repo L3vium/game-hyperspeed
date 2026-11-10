@@ -32,6 +32,8 @@ namespace MoreMountains.Feedbacks
 		public override bool ForceInitialValueDelayed => true;
 		public override bool HasAutomatedTargetAcquisition => true;
 		protected override void AutomateTargetAcquisition() => TargetFloatController = FindAutomatedTarget<FloatController>();
+		public override bool HasAutomatedMultipleTargetAcquisition => true;
+		protected override void AutomateMultipleTargetAcquisition() => ExtraTargetFloatControllers = FindAutomatedTargets<FloatController>(ExtraTargetFloatControllers, TargetFloatController);
 
 		[MMFInspectorGroup("Float Controller", true, 36, true)]
 		/// the mode this controller is in

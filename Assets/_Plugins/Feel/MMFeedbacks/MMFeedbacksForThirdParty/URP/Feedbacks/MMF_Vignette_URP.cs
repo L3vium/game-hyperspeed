@@ -49,6 +49,9 @@ namespace MoreMountains.FeedbacksForThirdParty
 		public bool ResetTargetValuesAfterShake = true;
 
 		[MMFInspectorGroup("Intensity", true, 29)]
+		/// whether or not this feedback should modify intensity
+		[Tooltip("whether or not this feedback should modify intensity")]
+		public bool ModifyIntensity = true;
 		/// the curve to animate the intensity on
 		[Tooltip("the curve to animate the intensity on")]
 		public AnimationCurve Intensity = new AnimationCurve(new Keyframe(0, 0), new Keyframe(0.5f, 1), new Keyframe(1, 0));        
@@ -98,7 +101,8 @@ namespace MoreMountains.FeedbacksForThirdParty
 			float intensityMultiplier = ComputeIntensity(feedbacksIntensity, position);
 			MMVignetteShakeEvent_URP.Trigger(Intensity, FeedbackDuration, RemapIntensityZero, RemapIntensityOne, RelativeIntensity, intensityMultiplier,
 				ChannelData, ResetShakerValuesAfterShake, ResetTargetValuesAfterShake, NormalPlayDirection, ComputedTimescaleMode, false, false, InterpolateColor,
-				ColorCurve, RemapColorZero, RemapColorOne, TargetColor);
+				ColorCurve, RemapColorZero, RemapColorOne, TargetColor,
+				modifyIntensity: ModifyIntensity);
             
 		}
         

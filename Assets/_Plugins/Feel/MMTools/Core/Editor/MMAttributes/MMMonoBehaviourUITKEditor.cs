@@ -34,7 +34,9 @@ namespace MoreMountains.Tools
 		public StyleSheet EditorStyleSheet;
 		
 		public bool DrawerInitialized;
+		[System.NonSerialized]
 		public Dictionary<string, MMInspectorGroupData> GroupData ;
+		[System.NonSerialized]
 		public List<SerializedProperty> PropertiesList;
 		private bool _requiresConstantRepaint;
 		private bool _requiresConstantRepaintOnlyWhenPlaying;
