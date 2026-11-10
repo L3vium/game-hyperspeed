@@ -285,10 +285,12 @@ namespace Com.IsartDigital.Hyperspeed
                 EndDrift(false);
                 return;
             }
-            if (!Drifting && _slideHeld && Mathf.Abs(Steer) > 0.35f && _speed > 30f)
+            // Ctrl + a turn, from the keys or from the mouse : the drift starts either way.
+            float lTurn = Mathf.Abs(Steer) > 0.35f ? Steer : Mathf.Clamp(MouseTurn / 90f, -1f, 1f);
+            if (!Drifting && _slideHeld && Mathf.Abs(lTurn) > 0.35f && _speed > 30f)
             {
                 Drifting = true;
-                DriftDirection = Steer > 0f ? 1 : -1;
+                DriftDirection = lTurn > 0f ? 1 : -1;
                 DriftCharge = 0f;
                 _driftEntrySpeed = _speed;
                 AudioManager.Play("sfx_drift_start", 0.7f);
@@ -300,7 +302,7 @@ namespace Com.IsartDigital.Hyperspeed
                 return;
             }
             int lTierBefore = DriftTier;
-            DriftCharge += pDt * (0.55f + Mathf.Abs(Steer) * 0.65f);
+            DriftCharge += pDt * (0.55f + Mathf.Max(Mathf.Abs(Steer), Mathf.Clamp01(Mathf.Abs(MouseTurn) / 120f)) * 0.65f);
             if (DriftTier > lTierBefore)
             {
                 AudioManager.Play("sfx_drift_tier", 0.6f, 0.9f + DriftTier * 0.15f, 0f);

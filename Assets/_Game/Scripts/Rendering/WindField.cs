@@ -15,8 +15,10 @@ namespace Com.IsartDigital.Hyperspeed
         };
 
         private ParticleSystem _system;
+        private ParticleSystem _motes;
         private float _budget;
-        private Transform _ambient;
+        private float _moteBudget;
+        private Color _moteColor = Color.white;
 
         private void Awake()
         {
@@ -37,32 +39,34 @@ namespace Com.IsartDigital.Hyperspeed
             lFade.color = lGradient;
         }
 
-        // Fireflies in the green places, embers near fire, drifting lines in the cold and the void, wind everywhere else.
+        // Dust, pollen, ash or snow hanging in the air of the place : few, soft, still in the world, so they rush past
+        // the camera instead of following it.
         private void Start()
         {
             Theme lTheme = RaceContext.Theme;
-            GameObject[] lPrefabs = GameAssets.Instance.ambientParticles;
-            if (lTheme == null || lPrefabs == null) return;
-            string lWanted = "Wind";
+            if (lTheme == null) return;
+            _moteColor = Color.Lerp(lTheme.fog, Color.white, 0.55f);
             switch (lTheme.decor)
             {
-                case DecorKind.Forest:
-                case DecorKind.Prehistoric:
-                case DecorKind.Night: lWanted = "FireFlies"; break;
                 case DecorKind.Industrial:
                 case DecorKind.Volcano:
-                case DecorKind.Canyon: lWanted = "Embers"; break;
-                case DecorKind.Ice:
-                case DecorKind.Space:
-                case DecorKind.Void:
-                case DecorKind.Neon: lWanted = "Etherial"; break;
+                case DecorKind.Canyon: _moteColor = new Color(1.6f, 0.7f, 0.25f); break;
+                case DecorKind.Ice: _moteColor = new Color(1.3f, 1.4f, 1.6f); break;
             }
-            foreach (GameObject lPrefab in lPrefabs)
-            {
-                if (lPrefab == null || !lPrefab.name.Contains(lWanted)) continue;
-                _ambient = Instantiate(lPrefab, transform).transform;
-                break;
-            }
+            _moteColor.a = 0.55f;
+            _motes = FX.CreateSystem("Motes", Vector3.zero, Mats.Glow(Color.white, false, 1f), false);
+            _motes.transform.SetParent(transform, false);
+            ParticleSystem.MainModule lMain = _motes.main;
+            lMain.maxParticles = 900;
+            lMain.simulationSpace = ParticleSystemSimulationSpace.World;
+            ParticleSystemRenderer lRenderer = _motes.GetComponent<ParticleSystemRenderer>();
+            lRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            ParticleSystem.ColorOverLifetimeModule lFade = _motes.colorOverLifetime;
+            lFade.enabled = true;
+            Gradient lGradient = new Gradient();
+            lGradient.SetKeys(new[] { new GradientColorKey(Color.white, 0f), new GradientColorKey(Color.white, 1f) },
+                              new[] { new GradientAlphaKey(0f, 0f), new GradientAlphaKey(1f, 0.25f), new GradientAlphaKey(1f, 0.75f), new GradientAlphaKey(0f, 1f) });
+            lFade.color = lGradient;
         }
 
         private void Update()
@@ -70,11 +74,11 @@ namespace Com.IsartDigital.Hyperspeed
             PlayerController lPlayer = RaceContext.Player;
             CameraRig lRig = CameraRig.Instance;
             if (lPlayer == null || lRig == null || Time.deltaTime <= 0f) return;
-            if (_ambient != null) _ambient.position = lRig.transform.position + lRig.transform.forward * 40f;
             float lSpeed = lPlayer.TotalSpeed;
+            EmitMotes(lRig.transform, lPlayer, lSpeed);
             if (lSpeed < 12f) return;
             float lLevel = Mathf.Clamp01(lPlayer.Speed01 * 1.2f + 0.12f);
-            _budget += Mathf.Lerp(30f, 520f, lLevel) * Time.deltaTime;
+            _budget += Mathf.Lerp(24f, 400f, lLevel) * Time.deltaTime;
             int lCount = Mathf.FloorToInt(_budget);
             if (lCount <= 0) return;
             _budget -= lCount;
@@ -88,7 +92,7 @@ namespace Com.IsartDigital.Hyperspeed
             for (int i = 0; i < lCount; i++)
             {
                 // A tube around the line of travel, with the middle left open.
-                Vector2 lRing = Random.insideUnitCircle.normalized * Random.Range(5f, 48f);
+                Vector2 lRing = Random.insideUnitCircle.normalized * Random.Range(12f, 56f);
                 float lAhead = Random.Range(0.1f, 0.9f) * Mathf.Max(60f, lSpeed * 0.45f);
                 lParams.position = lCamera.position + lDirection * lAhead + lSide * lRing.x + lOver * lRing.y;
                 lParams.velocity = -lDirection * lSpeed * Random.Range(0.25f, 0.6f);
@@ -96,6 +100,29 @@ namespace Com.IsartDigital.Hyperspeed
                 lParams.startSize = Random.Range(0.05f, 0.16f) * (1f + lLevel * 1.5f);
                 lParams.startLifetime = Random.Range(0.25f, 0.55f);
                 _system.Emit(lParams, 1);
+            }
+        }
+
+        // Spread ahead of the camera, where the runner is going, so each one is seen coming and flashing by.
+        private void EmitMotes(Transform pCamera, PlayerController pPlayer, float pSpeed)
+        {
+            if (_motes == null) return;
+            _moteBudget += 60f * Time.deltaTime;
+            int lCount = Mathf.FloorToInt(_moteBudget);
+            if (lCount <= 0) return;
+            _moteBudget -= lCount;
+            Vector3 lVelocity = pPlayer.OnGroundVelocity;
+            Vector3 lDirection = lVelocity.sqrMagnitude > 1f ? lVelocity.normalized : pCamera.forward;
+            float lReach = Mathf.Max(120f, pSpeed * 2.5f);
+            ParticleSystem.EmitParams lParams = new ParticleSystem.EmitParams();
+            for (int i = 0; i < lCount; i++)
+            {
+                lParams.position = pCamera.position + lDirection * Random.Range(30f, lReach) + Random.insideUnitSphere * 70f;
+                lParams.velocity = Random.insideUnitSphere * 2f + Vector3.down * 0.6f;
+                lParams.startColor = _moteColor;
+                lParams.startSize = Random.Range(0.25f, 0.7f);
+                lParams.startLifetime = Random.Range(2.5f, 4f);
+                _motes.Emit(lParams, 1);
             }
         }
     }

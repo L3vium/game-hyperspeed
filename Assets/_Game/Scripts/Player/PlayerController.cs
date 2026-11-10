@@ -351,10 +351,15 @@ namespace Com.IsartDigital.Hyperspeed
 
         private bool _jumpPressed, _dashPressed, _slidePressed, _slideHeld, _punchPressed, _dashHeld;
 
+        // How fast the mouse is turning the view, in degrees per second (smoothed).
+        public float MouseTurn { get; private set; }
+
         private void ReadInput(float pDt)
         {
             bool lCanAct = State != PlayerState.Crash && State != PlayerState.Finished && !_autoRun && !InputLocked;
             Steer = lCanAct ? HSInput.Steer : 0f;
+            float lMouseTurn = lCanAct && !HSInput.BotAimActive ? HSInput.LookDelta.x / Mathf.Max(0.0001f, pDt) : 0f;
+            MouseTurn = Mathf.Lerp(MouseTurn, lMouseTurn, 1f - Mathf.Exp(-12f * pDt));
             _jumpPressed = lCanAct && HSInput.JumpPressed;
             _dashPressed = lCanAct && HSInput.DashPressed && !_freeRoam;
             _dashHeld = lCanAct && HSInput.DashHeld && !_freeRoam;

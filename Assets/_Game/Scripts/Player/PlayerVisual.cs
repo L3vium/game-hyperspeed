@@ -68,6 +68,12 @@ namespace Com.IsartDigital.Hyperspeed
         private Transform _helixAnchorA, _helixAnchorB;
         private TrailRenderer _skidL, _skidR;
         private LightTrail _lightWake;
+        // Boost cone : a sheath of wind around the runner, tip ahead, open behind.
+        private Transform _cone;
+        private Material _coneMaterial;
+        private Material _coneInnerMaterial;
+        private float _coneAmount;
+        private float _turnSwirl;
         private LineRenderer[] _lightArcs;
         private float _arcTimer;
         private float _windPhase;
@@ -167,6 +173,7 @@ namespace Com.IsartDigital.Hyperspeed
             BuildGhosts();
             BuildTrails();
             BuildRibbons();
+            BuildCone();
 
             _shadow = Mats.Primitive(PrimitiveType.Cylinder, null, Vector3.zero, new Vector3(1.4f, 0.01f, 1.4f), Mats.Glow(new Color(0.05f, 0f, 0.15f, 0.45f), false, 1f)).transform;
             _shadow.name = "BlobShadow";
@@ -184,10 +191,10 @@ namespace Com.IsartDigital.Hyperspeed
             _sparks = FX.CreateSpikeSystem("Sparks", 600);
             _sparks.transform.SetParent(transform, false);
 
-            _player.OnJumped += () => { _stretchVelocity += 2.4f; Trigger(P_JUMP); };
+            _player.OnJumped += () => { _stretchVelocity += 3.6f; Trigger(P_JUMP); };
             _player.OnDoubleJumped += () =>
             {
-                _stretchVelocity += 1.5f;
+                _stretchVelocity += 2.6f;
                 if (_clipFlip) Trigger(P_FLIP);
                 else _flipT = 0f;
             };
@@ -402,12 +409,13 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void UpdateHelix()
         {
-            bool lOn = _swirlT < 1f && !_lightOn;
+            bool lDash = _swirlT < 1f;
+            bool lOn = (lDash || _turnSwirl > 0.15f) && !_lightOn && _player.State != PlayerState.Dead;
             _helixA.emitting = lOn;
             _helixB.emitting = lOn;
             if (!lOn) return;
-            float lAngle = _swirlT * Mathf.PI * 5f;
-            float lRadius = Mathf.Lerp(0.6f, 2f, Mathf.Sin(_swirlT * Mathf.PI));
+            float lAngle = lDash ? _swirlT * Mathf.PI * 5f : Time.time * 14f * Mathf.Sign(_yawRate);
+            float lRadius = lDash ? Mathf.Lerp(0.6f, 2f, Mathf.Sin(_swirlT * Mathf.PI)) : Mathf.Lerp(0.5f, 1.5f, _turnSwirl);
             _helixAnchorA.localPosition = new Vector3(Mathf.Cos(lAngle) * lRadius, 1f + Mathf.Sin(lAngle) * lRadius, 0f);
             _helixAnchorB.localPosition = new Vector3(-Mathf.Cos(lAngle) * lRadius, 1f - Mathf.Sin(lAngle) * lRadius, 0f);
         }
@@ -457,7 +465,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void OnLanded(float pImpact)
         {
-            _stretchVelocity -= Mathf.Clamp(pImpact * 0.06f, 0.5f, 2.5f);
+            _stretchVelocity -= Mathf.Clamp(pImpact * 0.09f, 0.9f, 3.6f);
             float lSpeed = _player.Speed;
             if (_player.LastLandingWasDive && pImpact > 30f) Trigger(lSpeed < 25f ? P_LAND_HARD : P_LAND_ROLL);
             else if (pImpact > 90f && lSpeed < 25f) Trigger(P_LAND_HARD);
@@ -548,8 +556,12 @@ namespace Com.IsartDigital.Hyperspeed
             _yawRate = Mathf.Lerp(_yawRate, Mathf.Clamp(lYaw, -400f, 400f), 1f - Mathf.Exp(-10f * pDt));
 
             _swirlT = Mathf.MoveTowards(_swirlT, 1f, pDt / SWIRL_TIME);
+            // Hard turns coil the streaks behind you too, not only dashes.
+            float lTurn = Mathf.InverseLerp(70f, 220f, Mathf.Abs(_yawRate));
+            _turnSwirl = Mathf.MoveTowards(_turnSwirl, lTurn, pDt * (lTurn > _turnSwirl ? 6f : 2f));
             UpdateWings(lSpeed);
             UpdateHelix();
+            UpdateCone(pDt);
             _flipT = Mathf.MoveTowards(_flipT, 1f, pDt / FLIP_TIME);
             _tumbleT = Mathf.MoveTowards(_tumbleT, 1f, pDt / TUMBLE_TIME);
             _punchT = Mathf.MoveTowards(_punchT, 1f, pDt / PUNCH_TIME);
@@ -600,7 +612,10 @@ namespace Com.IsartDigital.Hyperspeed
                     break;
             }
             // Thrown forward : the faster, the more the whole body leans over its feet.
-            if (lGrounded) lPitch += _player.Speed01 * 16f + _player.BoostAmount * 12f + (_player.Dashing ? 14f : 0f);
+            if (lGrounded) lPitch += _player.Speed01 * 20f + _player.BoostAmount * 12f + (_player.Dashing ? 16f : 0f);
+            // Footfalls : a light squash on each step, never goofy.
+            if (lGrounded && lState != PlayerState.Frozen && lSpeed > 5f && !_player.BellySliding)
+                _stretchVelocity += Mathf.Sin(_swayPhase * 2f) * 3.2f * pDt * 10f * Mathf.Lerp(1f, 0.4f, _player.Speed01);
             if (_swirlT < 1f) lPitch = Mathf.Max(lPitch, Mathf.Sin(_swirlT * Mathf.PI) * 52f);
             _bank = Mathf.Lerp(_bank, lBank, 1f - Mathf.Exp(-9f * pDt));
             _pitch = Mathf.Lerp(_pitch, lPitch, 1f - Mathf.Exp(-9f * pDt));
@@ -618,9 +633,9 @@ namespace Com.IsartDigital.Hyperspeed
 
             // Squash & stretch around the same pivot, volume preserved.
             _stretchVelocity += ((1f - _stretch) * 320f - _stretchVelocity * 16f) * pDt;
-            _stretch = Mathf.Clamp(_stretch + _stretchVelocity * pDt, 0.82f, 1.18f);
+            _stretch = Mathf.Clamp(_stretch + _stretchVelocity * pDt, 0.74f, 1.27f);
             _zStretchVelocity += ((1f - _zStretch) * 260f - _zStretchVelocity * 15f) * pDt;
-            _zStretch = Mathf.Clamp(_zStretch + _zStretchVelocity * pDt, 0.88f, 1.22f);
+            _zStretch = Mathf.Clamp(_zStretch + _zStretchVelocity * pDt, 0.82f, 1.3f);
             Vector3 lScale = new Vector3(1f / Mathf.Sqrt(_stretch * _zStretch), _stretch / Mathf.Sqrt(_zStretch), _zStretch / Mathf.Sqrt(_stretch));
             Vector3 lPivot = new Vector3(0f, _pivotH, 0f);
             _body.localRotation = lRotation;
@@ -710,7 +725,7 @@ namespace Com.IsartDigital.Hyperspeed
             Rotate(_neck, lRight, -lBend * 0.65f);
 
             // Arms : swept back at speed with the hands swaying left / right, open during swirls, windmilling at an edge.
-            float lSway = Mathf.Sin(_swayPhase) * 0.45f * _arrow;
+            float lSway = Mathf.Sin(_swayPhase) * 0.62f * _arrow;
             ArmTo(_upperArmL, _lowerArmL, _handL, Dir(lRight, lUp, lForward, -0.32f + lSway, -0.5f, -0.8f), _arrow * 0.9f);
             ArmTo(_upperArmR, _lowerArmR, _handR, Dir(lRight, lUp, lForward, 0.32f + lSway, -0.5f, -0.8f), _arrow * 0.9f);
             if (_openArms > 0.01f)
@@ -829,8 +844,9 @@ namespace Com.IsartDigital.Hyperspeed
             _lightForm = new GameObject("LightForm").transform;
             _lightForm.SetParent(transform, false);
             _lightForm.localPosition = new Vector3(0f, 1.2f, 0f);
-            Mats.Primitive(PrimitiveType.Sphere, _lightForm, Vector3.zero, Vector3.one * 2.6f, Mats.Glow(new Color(8f, 8f, 9f), false, 0f, 0f, true));
-            Mats.Primitive(PrimitiveType.Sphere, _lightForm, Vector3.zero, Vector3.one * 5.4f, Mats.Glow(new Color(0.7f, 1.3f, 3f, 0.55f), true, 1f));
+            Mats.Primitive(PrimitiveType.Sphere, _lightForm, Vector3.zero, Vector3.one * 4.6f, Mats.Glow(new Color(8f, 8f, 9f), false, 0f, 0f, true));
+            Mats.Primitive(PrimitiveType.Sphere, _lightForm, Vector3.zero, Vector3.one * 11f, Mats.Glow(new Color(0.7f, 1.3f, 3f, 0.5f), true, 1f));
+            Mats.Primitive(PrimitiveType.Sphere, _lightForm, Vector3.zero, Vector3.one * 19f, Mats.Glow(new Color(0.4f, 0.7f, 2f, 0.22f), true, 1f));
             _lightArcs = new LineRenderer[7];
             Material lArc = Mats.Glow(new Color(2.4f, 3.4f, 6f), true);
             for (int i = 0; i < _lightArcs.Length; i++)
@@ -840,19 +856,66 @@ namespace Com.IsartDigital.Hyperspeed
                 lLine.useWorldSpace = false;
                 lLine.positionCount = 8;
                 lLine.sharedMaterial = lArc;
-                lLine.startWidth = 0.34f;
+                lLine.startWidth = 0.6f;
                 lLine.endWidth = 0.05f;
                 lLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 _lightArcs[i] = lLine;
             }
             _lightTrail = _lightForm.gameObject.AddComponent<TrailRenderer>();
-            _lightTrail.time = 0.4f;
-            _lightTrail.startWidth = 2.6f;
+            _lightTrail.time = 0.7f;
+            _lightTrail.startWidth = 7f;
             _lightTrail.endWidth = 0f;
             _lightTrail.sharedMaterial = Mats.Glow(new Color(1.2f, 2.2f, 3f), true);
             _lightTrail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             _lightForm.gameObject.SetActive(false);
             _lightWake = LightTrail.Create();
+        }
+
+        private void BuildCone()
+        {
+            _cone = new GameObject("BoostCone").transform;
+            _cone.SetParent(transform, false);
+            Mesh lMesh = MeshUtil.Cone(2.6f, 0.2f, 7.5f, 24);
+            _coneMaterial = new Material(Mats.Glow(new Color(0.7f, 1.6f, 2.6f, 0.6f), true, 0.6f, 1f));
+            _coneMaterial.SetFloat("_StripeFreq", 9f);
+            _coneMaterial.SetFloat("_Scroll", -6f);
+            MeshFilter lFilter = _cone.gameObject.AddComponent<MeshFilter>();
+            lFilter.sharedMesh = lMesh;
+            MeshRenderer lRenderer = _cone.gameObject.AddComponent<MeshRenderer>();
+            lRenderer.sharedMaterial = _coneMaterial;
+            lRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            // A white inner sheath, tighter : the shock front.
+            GameObject lInner = new GameObject("Inner");
+            lInner.transform.SetParent(_cone, false);
+            lInner.transform.localScale = new Vector3(0.62f, 0.62f, 0.9f);
+            lInner.AddComponent<MeshFilter>().sharedMesh = lMesh;
+            _coneInnerMaterial = new Material(Mats.Glow(new Color(2.5f, 2.5f, 3f, 0.5f), true, 0.8f, 1f));
+            _coneInnerMaterial.SetFloat("_StripeFreq", 14f);
+            _coneInnerMaterial.SetFloat("_Scroll", -9f);
+            MeshRenderer lInnerRenderer = lInner.AddComponent<MeshRenderer>();
+            lInnerRenderer.sharedMaterial = _coneInnerMaterial;
+            lInnerRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            _cone.gameObject.SetActive(false);
+        }
+
+        private void UpdateCone(float pDt)
+        {
+            if (_cone == null) return;
+            float lWant = _player.State == PlayerState.Dead || _player.State == PlayerState.Frozen || _lightOn ? 0f
+                : Mathf.Max(_player.BoostAmount, _player.Dashing ? 1f : 0f, _player.Hyper ? 0.55f : 0f, _player.Diving ? 0.5f + _player.Dive01 * 0.5f : 0f);
+            _coneAmount = Mathf.MoveTowards(_coneAmount, lWant, pDt * (lWant > _coneAmount ? 9f : 2.5f));
+            bool lShow = _coneAmount > 0.02f;
+            if (_cone.gameObject.activeSelf != lShow) _cone.gameObject.SetActive(lShow);
+            if (!lShow) return;
+            Vector3 lMotion = _player.Velocity.sqrMagnitude > 1f ? _player.Velocity.normalized : transform.forward;
+            Vector3 lCenter = transform.position + transform.up * _comHeight;
+            float lLength = 1f + _player.Speed01 * 0.6f;
+            // Wide ring behind, tip just ahead of the head.
+            _cone.SetPositionAndRotation(lCenter - lMotion * 5.5f * lLength, Quaternion.LookRotation(-lMotion, transform.up));
+            float lFlicker = 1f + Mathf.Sin(Time.time * 47f) * 0.06f;
+            _cone.localScale = new Vector3(lFlicker * (0.7f + 0.3f * _coneAmount), lFlicker * (0.7f + 0.3f * _coneAmount), lLength * (0.6f + 0.4f * _coneAmount));
+            _coneMaterial.SetColor("_Color", new Color(0.7f, 1.6f, 2.6f, 0.6f * _coneAmount));
+            _coneInnerMaterial.SetColor("_Color", new Color(2.5f, 2.5f, 3f, 0.5f * _coneAmount));
         }
 
         private void UpdateLightForm()
@@ -882,7 +945,7 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 Vector3 lDir = Random.onUnitSphere;
                 Vector3 lSide = Vector3.Cross(lDir, Random.onUnitSphere).normalized;
-                float lReach = Random.Range(2.4f, 5.2f);
+                float lReach = Random.Range(4.5f, 10f);
                 for (int i = 0; i < lLine.positionCount; i++)
                 {
                     float lT = i / (lLine.positionCount - 1f);

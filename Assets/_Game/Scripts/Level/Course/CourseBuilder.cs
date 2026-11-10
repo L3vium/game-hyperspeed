@@ -40,6 +40,7 @@ namespace Com.IsartDigital.Hyperspeed
         private struct HammerDef { public float s, phase; }
         private struct BlockDef { public float s, lateral, width, length, height, lean; public int palette; }
         private struct ArchDef { public float s; public bool lit; }
+        private struct PaneDef { public float s, lateral, width, height; public PaneKind kind; }
 
         private readonly Transform _root;
         private readonly Theme _theme;
@@ -60,6 +61,7 @@ namespace Com.IsartDigital.Hyperspeed
         private readonly List<BlockDef> _props = new List<BlockDef>();
         private readonly List<ArchDef> _arches = new List<ArchDef>();
         private readonly List<float> _gravityGates = new List<float>();
+        private readonly List<PaneDef> _panes = new List<PaneDef>();
 
         // A hoop of light right before the track takes over gravity : you know the world is about to turn.
         private void GravityGate(float pS) => _gravityGates.Add(pS);
@@ -758,6 +760,9 @@ namespace Com.IsartDigital.Hyperspeed
                 foreach (CrateDef lCrate in _crates) Crate.Create(lProps, _layout, lCrate.s, lCrate.lateral, lCrate.size, lCrate.moving, _theme);
                 foreach (LaserDef lLaser in _lasers) LaserGate.Create(lProps, _layout, lLaser.s, lLaser.height, lLaser.beams, lLaser.spin, _theme);
                 foreach (HammerDef lHammer in _hammers) Hammer.Create(lProps, _layout, lHammer.s, lHammer.phase, _theme);
+                PlaceBreakWalls();
+                _layout.acts.Sort((pA, pB) => pA.s.CompareTo(pB.s));
+                foreach (PaneDef lPane in _panes) Pane.Create(lProps, _layout, lPane.s, lPane.lateral, lPane.width, lPane.height, lPane.kind, _theme);
                 PlacePads(lProps);
                 foreach (MeteorDef lMeteor in _meteors) lDirector.Add(lMeteor.s, lMeteor.fromSky, lMeteor.radius, lMeteor.lateral);
             }
@@ -801,6 +806,25 @@ namespace Com.IsartDigital.Hyperspeed
             }
             lRail.Finish(_theme.accent, 1f);
             _layout.rails.Add(lRail);
+        }
+
+        // Walls of glass, ice or doors across the whole track, here and there on the straights : dash through them.
+        private void PlaceBreakWalls()
+        {
+            PaneKind lKind = _theme.decor == DecorKind.Ice ? PaneKind.Ice : _theme.decor == DecorKind.Industrial || _theme.decor == DecorKind.Neon ? PaneKind.Door : PaneKind.Glass;
+            for (float lS = M(5f); lS < _layout.finishS - M(3f); lS += M(Rand(7f, 11f)))
+            {
+                if (!PadAllowed(lS) || !PadAllowed(lS + M(0.6f)) || !PadAllowed(lS - M(0.6f))) continue;
+                TrackBlock lBlock = _layout.field.BlockAt(lS);
+                if (lBlock == null || lBlock.look == BlockLook.Slab || lBlock.look == BlockLook.Plaza) continue;
+                PaneKind lThis = Chance(0.3f) ? (PaneKind)_random.Next(0, 3) : lKind;
+                int lCount = Mathf.Clamp(Mathf.RoundToInt(lBlock.halfWidth * 2f / 46f), 4, 14);
+                float lWidth = lBlock.halfWidth * 2f / lCount;
+                float lHeight = Mathf.Clamp(lWidth * 0.8f, 18f, 40f);
+                for (int c = 0; c < lCount; c++)
+                    _panes.Add(new PaneDef { s = lS, lateral = lBlock.offset - lBlock.halfWidth + lWidth * (c + 0.5f), width = lWidth * 0.98f, height = lHeight, kind = lThis });
+                Act(lS - M(0.32f), RouteAction.Dash);
+            }
         }
 
         private bool PadAllowed(float pS)
