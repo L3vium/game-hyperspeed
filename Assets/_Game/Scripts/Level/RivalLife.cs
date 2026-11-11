@@ -40,6 +40,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         // Soft bones (creatures)
         private SpringBones _springs;
+        private float _roarClock = 3f;
 
         public static RivalLife Attach(Rival pRival, Transform pModel, RivalKind pKind)
         {
@@ -220,6 +221,16 @@ namespace Com.IsartDigital.Hyperspeed
                 case RivalKind.RaceCar:
                 case RivalKind.Train:
                     UpdateVehicle(lDt, lRate);
+                    break;
+                case RivalKind.TRex:
+                    // It roars now and then, louder the closer it is behind you.
+                    _roarClock -= lDt;
+                    if (_roarClock <= 0f && RaceContext.Player != null)
+                    {
+                        _roarClock = Random.Range(5f, 9f);
+                        float lDistance = Vector3.Distance(transform.position, RaceContext.Player.transform.position);
+                        if (lDistance < 1500f) AudioManager.Play("sfx_trex_roar", Mathf.Lerp(1f, 0.25f, lDistance / 1500f), Random.Range(0.9f, 1.05f));
+                    }
                     break;
             }
             // Flames flicker and lick back.

@@ -10,6 +10,15 @@ Shader "Hyperspeed/Panorama"
         _Face3 ("Up", 2D) = "black" {}
         _Face4 ("Down", 2D) = "black" {}
         _Face5 ("Back", 2D) = "black" {}
+        _HS_Proj ("Projection", Vector) = (2, 0.5, 0.5, 1.78)
+        _HS_PanoFaces ("Faces", Vector) = (1.04, 1, 0, 0)
+        _HS_PanoEdgeColor ("Edge", Color) = (0.5, 0.5, 0.6, 1)
+        _HS_FaceST0 ("ST0", Vector) = (1, 1, 0, 0)
+        _HS_FaceST1 ("ST1", Vector) = (1, 1, 0, 0)
+        _HS_FaceST2 ("ST2", Vector) = (1, 1, 0, 0)
+        _HS_FaceST3 ("ST3", Vector) = (1, 1, 0, 0)
+        _HS_FaceST4 ("ST4", Vector) = (1, 1, 0, 0)
+        _HS_FaceST5 ("ST5", Vector) = (1, 1, 0, 0)
     }
     SubShader
     {

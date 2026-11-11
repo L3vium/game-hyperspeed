@@ -519,6 +519,8 @@ namespace Com.IsartDigital.Hyperspeed
             _boostTimer = Mathf.Max(_boostTimer, 0.6f);
             JuiceContext lJuice = Jx(lAt);
             lJuice.size = pBreakable.radius / 16f;
+            // The break sounds like what broke : glass, ice, a door, a crate, rock.
+            lJuice.label = pBreakable.Material;
             HSJuice.Play(JuiceId.BreakSmall, lJuice);
         }
 
@@ -701,7 +703,11 @@ namespace Com.IsartDigital.Hyperspeed
                 HSJuice.Play(JuiceId.LightExit, Jx(transform.position));
             }
             // The wind is the speed you hear : a low roar at a jog, a howl near light.
-            AudioManager.SetLoop("sfx_wind_loop", Mathf.Clamp01(Speed / Mathf.Max(1f, _profile.cruise) * 0.45f + Speed01 * 0.5f) * 0.95f, 0.75f + Speed01 * 0.7f);
+            // Three layers of wind : a low roar from the first steps, the body of the wind, a howl near light.
+            float lWind = Mathf.Clamp01(Speed / Mathf.Max(1f, _profile.cruise));
+            AudioManager.SetLoop("sfx_wind_low", Mathf.Clamp01(lWind * 0.7f) * 0.9f, 0.8f + Speed01 * 0.4f);
+            AudioManager.SetLoop("sfx_wind_mid", Mathf.Clamp01(Speed01 * 1.2f) * 0.85f, 0.85f + Speed01 * 0.5f);
+            AudioManager.SetLoop("sfx_wind_high", Mathf.Clamp01((Speed01 - 0.45f) * 1.8f) * 0.8f, 0.9f + Speed01 * 0.4f);
             AudioManager.SetLoop("sfx_light_loop", LightForm ? 0.7f : 0f, 1f + Speed01 * 0.2f);
             AudioManager.SetLoop("sfx_dive_loop", Diving ? 0.3f + Dive01 * 0.6f : 0f, 0.85f + Dive01 * 0.4f);
             if (Diving && !_wasDiving) HSJuice.Play(JuiceId.DiveStart, Jx(transform.position));

@@ -1161,7 +1161,7 @@ namespace Com.IsartDigital.Hyperspeed
             _stepPhase += pDt * 3.2f * (_animated ? _animator.speed : 1f) * Mathf.Lerp(0.8f, 1.4f, Mathf.Clamp01(pSpeed / 60f));
             if (Mathf.Floor(lPrevious) == Mathf.Floor(_stepPhase)) return;
             EmitDust(2);
-            AudioManager.Play("sfx_step", 0.45f, 1f + Mathf.Clamp01(pSpeed / 120f) * 0.3f, 0.12f);
+            AudioManager.PlayVaried("sfx_step", 4, 0.45f, 1f + Mathf.Clamp01(pSpeed / 120f) * 0.3f, 0.1f);
         }
 
         private void EmitDust(int pCount)

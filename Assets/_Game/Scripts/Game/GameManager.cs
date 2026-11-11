@@ -163,7 +163,8 @@ namespace Com.IsartDigital.Hyperspeed
             _hud.ShowCount("GO!", true);
             _rig.freeLook = false;
             _player.StartRunning();
-            AudioManager.PlayMusic(_level.music, 0.42f);
+            // Each world its own drum & bass, in three stems mixed by the speed state (see DriveGlobals).
+            AudioManager.PlayMusicLayers("music_w" + (_level.world + 1), 0.5f);
             HSJuice.Play(JuiceId.Go, _player.transform.position);
         }
 
@@ -181,6 +182,7 @@ namespace Com.IsartDigital.Hyperspeed
 
             DriveGlobals();
             if (lFocused && GameSession.CheatsEnabled) Cheats();
+            if (GameSession.CheatsEnabled) PerfLog();
 
             RaceContext.PlayerProgress = _player.Progress;
             if (_phase != Phase.Racing) return;
@@ -247,9 +249,24 @@ namespace Com.IsartDigital.Hyperspeed
                 PostFX.Instance.hyper01 = _hyperBlend;
                 PostFX.Instance.light01 = _player.LightForm ? 1f : 0f;
             }
+            AudioManager.SetMusicIntensity(Mathf.Max(_hyperBlend, _player.BoostAmount * 0.6f), _player.LightForm ? 1f : 0f);
             _roadScroll += lSpeed * Time.deltaTime;
             Shader.SetGlobalFloat(ROAD_SCROLL, _roadScroll);
             Shader.SetGlobalFloat(ROAD_SPEED, Mathf.Clamp01(_player.Speed01 + 0.25f));
+        }
+
+        // Dev build : the average frame time every 10 s in the player log (wide angle cost check).
+        private float _perfTime;
+        private int _perfFrames;
+
+        private void PerfLog()
+        {
+            _perfTime += Time.unscaledDeltaTime;
+            _perfFrames++;
+            if (_perfTime < 10f) return;
+            Debug.Log("[HS-PERF] stage=" + (_levelIndex + 1) + " avg=" + (_perfTime / _perfFrames * 1000f).ToString("F1") + "ms fps=" + (_perfFrames / _perfTime).ToString("F0") + " wide=" + GameSession.WideAngle + " res=" + Screen.width + "x" + Screen.height);
+            _perfTime = 0f;
+            _perfFrames = 0;
         }
 
         // Digit keys, shown bottom-right in the Dev build only.

@@ -69,7 +69,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
             {
                 // ---------------- movement
                 case JuiceId.Jump:
-                    p.Sound("sfx_jump", 0.8f).PitchFromIntensity = 0.1f;
+                    p.Sounds(0.8f, "sfx_jump_1", "sfx_jump_2", "sfx_jump_3").PitchFromIntensity = 0.1f;
                     p.FX(HSFXKind.Puff, HSColorSource.ThemeDust, Color.white, 8, 10f, 20f, 0.4f, HSDirection.ContextNormal);
                     p.Body(3.2f, 0f, 0f);
                     p.Fov(5f);
@@ -98,7 +98,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                 case JuiceId.Dash:
                 case JuiceId.DashAir:
                     p.Hitstop(0.035f);
-                    p.Sound("sfx_dash", 1f);
+                    p.Sounds(1f, "sfx_dash_1", "sfx_dash_2", "sfx_dash_3");
                     p.Fov(22f);
                     p.Rollback(24f);
                     p.Punch(new Vector3(-2.5f, 0f, 4f));
@@ -142,7 +142,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     p.FX(HSFXKind.Sparks, HSColorSource.Fixed, GOLD, 70, 8f, 50f, 0.45f, HSDirection.ContextNormal);
                     break;
                 case JuiceId.Land:
-                    p.Sound("sfx_land", 0.6f).IntensityRemap = new Vector2(0.6f, 1.2f);
+                    p.Sounds(0.6f, "sfx_land_1", "sfx_land_2", "sfx_land_3").IntensityRemap = new Vector2(0.6f, 1.2f);
                     p.FX(HSFXKind.Puff, HSColorSource.ThemeDust, Color.white, 8, 14f, 25f, 0.4f, HSDirection.ContextNormal);
                     p.Body(-1.6f, 0f, 0f).IntensityRemap = new Vector2(0.4f, 1.6f);
                     p.Shake(0.06f).IntensityRemap = new Vector2(0.3f, 2f);
@@ -215,8 +215,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     p.Rumble(0.5f);
                     break;
                 case JuiceId.RopeExit:
-                    p.Sound("sfx_boost", 0.95f);
-                    p.Sound("sfx_thunder", 0.65f);
+                    p.Sound("sfx_rope_exit", 1f);
                     p.Fov(20f);
                     p.Rollback(22f);
                     p.Shake(0.42f);
@@ -231,7 +230,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     p.Body(0f, 4f, 0f);
                     break;
                 case JuiceId.Flip:
-                    p.Sound("ui_whoosh", 0.55f).Pitch = 1.3f;
+                    p.Sounds(0.6f, "sfx_flip_1", "sfx_flip_2", "sfx_flip_3");
                     break;
                 case JuiceId.WallAttach:
                     p.Sound("sfx_wall_attach", 0.7f);
@@ -243,8 +242,8 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                 case JuiceId.BoostPad:
                     p.Hitstop(0.05f);
                     p.SlowMo(0.45f, 0.18f, 0.055f);
-                    p.Sound("sfx_boost", 1f);
-                    p.Sound("sfx_launch", 0.6f).Pitch = 1.3f;
+                    p.Sound("sfx_pad", 1f);
+                    p.Sound("sfx_impact", 0.45f);
                     p.Fov(32f);
                     p.Rollback(36f);
                     p.Punch(new Vector3(-5f, 0f, 6f));
@@ -309,9 +308,10 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                 case JuiceId.BreakBig:
                     bool lBig = pId == JuiceId.BreakBig;
                     p.Hitstop(lBig ? 0.1f : 0.08f);
-                    p.Sound("sfx_punch_hit", 1f);
-                    p.Sound("sfx_shatter", 0.9f);
-                    p.Sound(lBig ? "sfx_explosion" : "sfx_boost_small", lBig ? 0.9f : 0.6f);
+                    p.Sound("sfx_punch_hit", 0.9f);
+                    p.SoundId("sfx_break_{label}", 1f);
+                    p.Sound("sfx_freeze", 0.6f);
+                    p.Sound(lBig ? "sfx_explosion" : "sfx_impact", lBig ? 0.9f : 0.55f);
                     p.Impact(lBig ? ImpactReason.Big : ImpactReason.Smash, true, lBig ? 3 : 2, lBig ? 1f : 0.9f);
                     p.Shake(lBig ? 0.85f : 0.65f);
                     p.Punch(new Vector3(-4f, 2f, 7f));
@@ -370,7 +370,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     p.Rumble(0.6f).IntensityRemap = new Vector2(0f, 1f);
                     break;
                 case JuiceId.FallingCrash:
-                    p.Sound("sfx_explosion", 0.9f).IntensityRemap = new Vector2(0.3f, 1f);
+                    p.Sound("sfx_vehicle_crash", 0.9f).IntensityRemap = new Vector2(0.3f, 1f);
                     p.Sound("sfx_rock", 0.7f).IntensityRemap = new Vector2(0.3f, 1f);
                     p.Shake(0.55f).IntensityRemap = new Vector2(0f, 1f);
                     p.Rumble(0.5f).IntensityRemap = new Vector2(0f, 1f);
@@ -386,6 +386,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     p.Hitstop(0.06f);
                     p.SlowMo(0.3f, 0.35f, 0.065f);
                     p.Sound("sfx_hyper", 1f);
+                    p.Sound("sfx_impact", 0.5f);
                     p.Flash(Color.white, 0.5f);
                     p.Impact(ImpactReason.Big, false, 3, 1f);
                     p.Fov(40f);
@@ -410,6 +411,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     p.Hitstop(0.08f);
                     p.SlowMo(0.25f, 0.5f, 0.085f);
                     p.Sound("sfx_light", 1f);
+                    p.Sound("sfx_impact", 0.7f);
                     p.Flash(Color.white, 0.9f);
                     p.Impact(ImpactReason.LightSpeed, false, 4, 1f);
                     p.Fov(45f);
@@ -477,7 +479,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     p.Shake(0.1f);
                     break;
                 case JuiceId.RivalFinished:
-                    p.Sound("sfx_lose", 0.6f).Pitch = 1.15f;
+                    p.Sound("sfx_rival_win", 1f);
                     p.Vignette(RED, 1f);
                     p.Screen(0.8f, 0.2f, 0.2f, 0f, 0.1f, -20f, 0.8f);
                     p.Shake(0.25f);
@@ -503,7 +505,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     p.Screen(1.5f, 0.3f, 0.2f, -0.2f, 0.1f, -60f, 1.2f);
                     break;
                 case JuiceId.RankReveal:
-                    p.Sound("sfx_rank", 1f).Pitch = 0.8f;
+                    p.SoundId("sfx_rank_{label}", 1f);
                     p.Shake(0.8f).IntensityRemap = new Vector2(0.5f, 1.2f);
                     p.Flash(Color.white, 0.25f);
                     p.Screen(1.4f, 0.4f, 0.8f, 0.1f, 0.2f, 20f, 0.5f);
@@ -563,6 +565,31 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                 AudioClip lClip = AssetDatabase.LoadAssetAtPath<AudioClip>(AUDIO + pId + ".wav");
                 if (lClip != null) lSound.Clips = new[] { lClip };
                 else lSound.ClipId = pId;
+                lSound.Volume = pVolume;
+                return lSound;
+            }
+
+            // Several takes played in turn : the same action never sounds twice the same.
+            public MMF_HSSound Sounds(float pVolume, params string[] pIds)
+            {
+                MMF_HSSound lSound = Add<MMF_HSSound>("Sound " + pIds[0] + " (+" + (pIds.Length - 1) + ")");
+                System.Collections.Generic.List<AudioClip> lClips = new System.Collections.Generic.List<AudioClip>();
+                foreach (string lId in pIds)
+                {
+                    AudioClip lClip = AssetDatabase.LoadAssetAtPath<AudioClip>(AUDIO + lId + ".wav");
+                    if (lClip != null) lClips.Add(lClip);
+                }
+                if (lClips.Count > 0) lSound.Clips = lClips.ToArray();
+                else lSound.ClipId = pIds[0];
+                lSound.Volume = pVolume;
+                return lSound;
+            }
+
+            // A clip chosen by name when it plays : {label} is the event's label.
+            public MMF_HSSound SoundId(string pId, float pVolume)
+            {
+                MMF_HSSound lSound = Add<MMF_HSSound>("Sound " + pId);
+                lSound.ClipId = pId;
                 lSound.Volume = pVolume;
                 return lSound;
             }

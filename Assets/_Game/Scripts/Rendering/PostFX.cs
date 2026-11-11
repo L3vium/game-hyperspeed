@@ -68,6 +68,7 @@ namespace Com.IsartDigital.Hyperspeed
         private static readonly int FADE = Shader.PropertyToID("_HS_Fade");
         private static readonly int LETTERBOX = Shader.PropertyToID("_HS_Letterbox");
         private static readonly int INTENSITY = Shader.PropertyToID("_HS_Intensity");
+        private static readonly int WRONG_WAY = Shader.PropertyToID("_HS_WrongWay");
 
         public static PostFX Instance { get; private set; }
 
@@ -82,6 +83,9 @@ namespace Com.IsartDigital.Hyperspeed
         public float fade;
         public float letterbox;
         public float intensity;
+        // 0..1 : the red wrong-way vignette (fades in and out softly).
+        public float wrongWay;
+        private float _wrongWay;
         private float _fade;
         private float _letterbox;
         private float _intensity;
@@ -157,6 +161,7 @@ namespace Com.IsartDigital.Hyperspeed
             Shader.SetGlobalFloat(FADE, 0f);
             Shader.SetGlobalFloat(LETTERBOX, 0f);
             Shader.SetGlobalFloat(INTENSITY, 0f);
+            Shader.SetGlobalFloat(WRONG_WAY, 0f);
         }
 
         public void Pulse(float pAmount) => _pulse = Mathf.Max(_pulse, pAmount);
@@ -228,6 +233,8 @@ namespace Com.IsartDigital.Hyperspeed
             Shader.SetGlobalFloat(FADE, _fade);
             Shader.SetGlobalFloat(LETTERBOX, _letterbox);
             Shader.SetGlobalFloat(INTENSITY, _intensity);
+            _wrongWay = Mathf.MoveTowards(_wrongWay, wrongWay, lDt * (wrongWay > _wrongWay ? 2.5f : 1.2f));
+            Shader.SetGlobalFloat(WRONG_WAY, _wrongWay);
             Shader.SetGlobalFloat(FLASH, _flash);
             Shader.SetGlobalColor(FLASH_COLOR, _flashColor);
 

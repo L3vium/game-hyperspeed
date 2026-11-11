@@ -55,9 +55,10 @@ namespace Com.IsartDigital.Hyperspeed
                 case RivalKind.RaceCar: return "sfx_engine_car";
                 case RivalKind.Bus:
                 case RivalKind.Train: return "sfx_engine_heavy";
+                case RivalKind.Rockets: return "sfx_engine_rocket";
+                case RivalKind.Birds: return "sfx_engine_birds";
                 case RivalKind.Plane:
                 case RivalKind.FighterJet:
-                case RivalKind.Rockets:
                 case RivalKind.Spaceship: return "sfx_engine_jet";
                 case RivalKind.Time: return "sfx_engine_tick";
                 case RivalKind.TRex:

@@ -46,6 +46,9 @@ namespace Com.IsartDigital.Hyperspeed
         private UIBanner _hint;
         private UIBanner _wrongWay;
         private float _wrongWayTimer;
+        // Big chevrons under the WRONG WAY banner pointing the way to turn.
+        private RectTransform _turnArrows;
+        private UIShape[] _turnChevrons;
         // A callout that must be read (PERFECT START) holds the top slot ; the next one waits its turn.
         private float _notifyHold;
         private string _pendingText;
@@ -155,6 +158,14 @@ namespace Com.IsartDigital.Hyperspeed
             _notify = UIBanner.Create(lRoot3D, "Notify", new Vector2(0.5f, 1f), new Vector2(0f, -190f), new Vector2(900f, 120f), 96f);
             _hint = UIBanner.Create(lRoot3D, "Hint", new Vector2(0.5f, 0f), new Vector2(260f, 330f), new Vector2(900f, 80f), 50f);
             _wrongWay = UIBanner.Create(lRoot3D, "WrongWay", new Vector2(0.5f, 0.5f), new Vector2(0f, 120f), new Vector2(900f, 120f), 90f);
+            _turnArrows = UIFactory.CreateRect(lRoot3D, "TurnAround", new Vector2(0.5f, 0.5f), new Vector2(0f, -10f), new Vector2(520f, 140f));
+            _turnChevrons = new UIShape[3];
+            for (int i = 0; i < 3; i++)
+            {
+                _turnChevrons[i] = UIFactory.CreateShape(_turnArrows, "Chevron" + i, UIShape.ShapeKind.Chevron, UIKit.RED, new Vector2(0.5f, 0.5f), new Vector2((i - 1) * 150f, 0f), new Vector2(120f, 130f));
+                _turnChevrons[i].skew = 0.45f;
+            }
+            _turnArrows.gameObject.SetActive(false);
         }
 
         private string RivalShortName()
@@ -279,6 +290,11 @@ namespace Com.IsartDigital.Hyperspeed
                 return;
             }
             _rivalMarker.anchoredPosition = new Vector2(0f, RailY(Mathf.Max(0f, _rival.distance)));
+            // Close to you on the rail : its name moves out of the way of YOU.
+            float lApart = _rivalMarker.anchoredPosition.y - _playerMarker.anchoredPosition.y;
+            float lShift = Mathf.Abs(lApart) < 46f ? (lApart >= 0f ? 1f : -1f) * (46f - Mathf.Abs(lApart)) : 0f;
+            _rivalName.rectTransform.anchoredPosition = new Vector2(-140f, 9f + lShift);
+            _rivalGap.rectTransform.anchoredPosition = new Vector2(-140f, -17f + lShift);
             if (_rivalDone)
             {
                 // Burning on the flag.
@@ -365,10 +381,29 @@ namespace Com.IsartDigital.Hyperspeed
         // Running against the track : a red callout in the middle, repeated while it lasts, and a beep.
         private void UpdateWrongWay(float pDt)
         {
+            // The red vignette closes in softly while you run the wrong way.
+            if (PostFX.Instance != null) PostFX.Instance.wrongWay = _player.WrongWay ? 1f : 0f;
+            bool lArrows = _player.WrongWay;
+            if (_turnArrows.gameObject.activeSelf != lArrows) _turnArrows.gameObject.SetActive(lArrows);
+            if (lArrows)
+            {
+                // Which way to turn : toward the track's direction. The chevrons light one after the other that way.
+                Vector3 lFlow = _path.Flow(_player.Progress);
+                float lSide = Vector3.Dot(Vector3.Cross(_player.Heading, lFlow), _player.Up) >= 0f ? 1f : -1f;
+                float lPhase = Time.unscaledTime * 4f;
+                for (int i = 0; i < _turnChevrons.Length; i++)
+                {
+                    int lOrder = lSide > 0f ? i : _turnChevrons.Length - 1 - i;
+                    float lLit = Mathf.Clamp01(1f - Mathf.Repeat(lPhase - lOrder * 0.33f, 1f) * 1.6f);
+                    _turnChevrons[i].color = new Color(1f, Mathf.Lerp(0.05f, 0.85f, lLit), Mathf.Lerp(0.1f, 0.8f, lLit), Mathf.Lerp(0.35f, 1f, lLit));
+                    _turnChevrons[i].rectTransform.localRotation = Quaternion.Euler(0f, 0f, lSide > 0f ? 0f : 180f);
+                    _turnChevrons[i].rectTransform.localScale = Vector3.one * (1f + lLit * 0.25f);
+                }
+            }
             _wrongWayTimer -= pDt;
             if (!_player.WrongWay || _wrongWayTimer > 0f) return;
             _wrongWayTimer = 1.2f;
-            _wrongWay.Show("WRONG WAY", UIKit.RED, 1.1f);
+            _wrongWay.Show("WRONG WAY - TURN AROUND", UIKit.RED, 1.1f);
             HSJuice.Play(JuiceId.WrongWay, _player.transform.position);
         }
 
@@ -673,7 +708,7 @@ namespace Com.IsartDigital.Hyperspeed
                 _landed = true;
                 letter.Kick(-9f);
                 letter.punch = 0.5f;
-                HSJuice.Play(JuiceId.RankReveal, Vector3.zero, rank / 4f);
+                HSJuice.Play(JuiceId.RankReveal, new JuiceContext { intensity = rank / 4f, label = GameSession.RankLetter(rank).ToLowerInvariant(), size = 1f });
             }
             if (_landed) lRect.anchoredPosition = _home + new Vector2(0f, Mathf.Sin(_time * 2.2f) * 6f);
         }

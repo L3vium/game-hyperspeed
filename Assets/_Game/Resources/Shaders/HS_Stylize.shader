@@ -31,6 +31,7 @@ Shader "Hyperspeed/Stylize"
             float _HS_Fade;
             float _HS_Letterbox;
             float _HS_Intensity;
+            float _HS_WrongWay;
 
             static const float BAYER[16] = { 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 };
 
@@ -111,6 +112,23 @@ Shader "Hyperspeed/Stylize"
                     half lGray = dot(lColor, half3(0.299, 0.587, 0.114));
                     lColor = lerp(lColor, lerp(lGray.xxx, lColor, 1.0 + _HS_Intensity * 0.9), 1.0);
                     lColor = saturate((lColor - 0.5) * (1.0 + _HS_Intensity * 0.35) + 0.5);
+                }
+
+                if (_HS_WrongWay > 0.001)
+                {
+                    // Wrong way : a deep red closing in from the edges. Round whatever the aspect, a very wide and soft
+                    // falloff (smootherstep over most of the radius), pulsing slowly, and a hair of noise so the
+                    // gradient never shows bands.
+                    float lAspect = _ScreenParams.x / _ScreenParams.y;
+                    float2 lV = (input.texcoord - 0.5) * float2(lAspect, 1.0);
+                    float lR = length(lV) / (0.5 * length(float2(lAspect, 1.0)));
+                    float lT = saturate((lR - 0.18) / 0.9);
+                    float lFall = lT * lT * lT * (lT * (lT * 6.0 - 15.0) + 10.0);
+                    float lPulse = 0.78 + 0.22 * sin(_Time.y * 6.5);
+                    float lAmount = saturate(_HS_WrongWay) * lFall * lPulse;
+                    half3 lRed = half3(0.9, 0.03, 0.07);
+                    lColor = lerp(lColor, lRed * (0.55 + 0.45 * lColor), lAmount * 0.92);
+                    lColor += (frac(sin(dot(input.texcoord * _ScreenParams.xy, float2(12.9898, 78.233))) * 43758.5453) - 0.5) / 255.0 * saturate(_HS_WrongWay);
                 }
 
                 lColor = lerp(lColor, _HS_FlashColor.rgb, saturate(_HS_Flash));

@@ -181,6 +181,13 @@ namespace Com.IsartDigital.Hyperspeed
             float lShape = ProjectionMath.SafeShape(shape, lHalf);
             Edge = ProjectionMath.F(lHalf, lShape);
             _material.SetVector(PROJ, new Vector4(Edge, lShape, Mathf.Clamp01(cylinder), lAspect));
+            // Set every frame : values the shader does not declare can be dropped when shaders reload.
+            _material.SetVector(PANO_FACES, new Vector4(GUARD, 1f, 0f, 0f));
+            for (int i = 0; i < FACES; i++)
+            {
+                _material.SetVector(FACE_ST[i], new Vector4(1f, 1f, 0f, 0f));
+                if (_targets[i] != null) _material.SetTexture(FACE_TEX[i], _targets[i]);
+            }
             _material.SetColor(EDGE_COLOR, RenderSettings.fogColor);
             CullFaces(Edge, lShape, lAspect);
         }

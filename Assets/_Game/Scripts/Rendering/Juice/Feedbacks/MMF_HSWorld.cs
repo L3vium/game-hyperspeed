@@ -16,7 +16,7 @@ namespace Com.IsartDigital.Hyperspeed.Feel
         [MMFInspectorGroup("Sound", true, 14, true)]
         [Tooltip("Clips from Assets/_Game/Resources/Audio, played in turn.")]
         public AudioClip[] Clips;
-        [Tooltip("Or a clip name in Resources/Audio.")]
+        [Tooltip("Or a clip name in Resources/Audio. {label} is replaced by the event's label (sfx_break_{label} : glass, ice, crate...).")]
         public string ClipId;
         [Range(0f, 1.5f)] public float Volume = 0.9f;
         public float Pitch = 1f;
@@ -29,7 +29,7 @@ namespace Com.IsartDigital.Hyperspeed.Feel
         protected override void CustomPlayFeedback(Vector3 position, float feedbacksIntensity = 1f)
         {
             if (!CanRun || !FeedbackTypeAuthorized) return;
-            string lId = ClipId;
+            string lId = string.IsNullOrEmpty(ClipId) ? ClipId : ClipId.Replace("{label}", Ctx.label ?? "");
             if (Clips != null && Clips.Length > 0)
             {
                 AudioClip lClip = Clips[_next % Clips.Length];
