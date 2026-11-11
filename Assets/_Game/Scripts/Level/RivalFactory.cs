@@ -34,7 +34,8 @@ namespace Com.IsartDigital.Hyperspeed
                 case RivalKind.Plane: return new Placement { flying = true, fromSky = true, lateral = 40f, height = 70f, bob = 3f };
                 case RivalKind.FighterJet: return new Placement { flying = true, fromSky = true, lateral = -30f, height = 22f, bob = 2f };
                 case RivalKind.Bullet: return new Placement { flying = true, lateral = 16f, height = 8f, bob = 0.2f };
-                case RivalKind.Rockets: return new Placement { flying = true, fromSky = true, lateral = 0f, height = 14f, bob = 2f };
+                // High and to one side : over the track, never through the pillars or the pipe walls.
+                case RivalKind.Rockets: return new Placement { flying = true, fromSky = true, lateral = 60f, height = 30f, bob = 3f };
                 case RivalKind.Spaceship: return new Placement { flying = true, fromSky = true, lateral = -26f, height = 12f, bob = 3f };
                 case RivalKind.Light: return new Placement { flying = true, lateral = 14f, height = 8f, bob = 0.5f };
                 case RivalKind.Time: return new Placement { flying = true, fromSky = true, lateral = 0f, height = 40f, bob = 1f };
@@ -140,11 +141,28 @@ namespace Com.IsartDigital.Hyperspeed
             GameObject lPrefab = Model(pKind);
             if (pKind == RivalKind.Birds)
             {
-                Vector3[] lFlock =
+                // A real flock (boids) : each bird in its own slot (the jelly shakes the slots, the flock flies the birds).
+                const int BIRDS = 16;
+                Transform[] lBirds = new Transform[BIRDS];
+                for (int i = 0; i < BIRDS; i++)
                 {
-                    Vector3.zero, new Vector3(-9f, 2f, -8f), new Vector3(9f, -1f, -9f), new Vector3(-17f, 4f, -18f), new Vector3(16f, 1f, -19f)
-                };
-                foreach (Vector3 lOffset in lFlock) Instance(lPrefab, pKind, lRoot, lOffset * 2f * GROW);
+                    Transform lSlot = new GameObject("BirdSlot" + i).transform;
+                    lSlot.SetParent(lRoot, false);
+                    Instance(lPrefab, pKind, lSlot, Vector3.zero);
+                    lBirds[i] = lSlot.childCount > 0 ? lSlot.GetChild(0) : lSlot;
+                    Animation lAnimation = lBirds[i].GetComponentInChildren<Animation>();
+                    if (lAnimation != null && lAnimation.clip != null)
+                    {
+                        // Each bird flaps on its own beat.
+                        AnimationState lState = lAnimation[lAnimation.clip.name];
+                        if (lState != null)
+                        {
+                            lState.time = Random.value * lState.length;
+                            lState.speed = Random.Range(0.85f, 1.25f);
+                        }
+                    }
+                }
+                BirdFlock.Attach(lRoot, lBirds);
                 return lRoot;
             }
             Instance(lPrefab, pKind, lRoot, Vector3.zero);

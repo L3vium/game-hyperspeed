@@ -50,6 +50,7 @@ namespace Com.IsartDigital.Hyperspeed
             lRival.distance = pStartDistance;
             lRival._model = RivalFactory.Build(pKind, lRival.transform);
             lRival._wobble = RivalWobble.Attach(lRival._model, pKind);
+            RivalLife.Attach(lRival, lRival._model, pKind);
             if (pKind != RivalKind.Plane && pKind != RivalKind.Supernova && pKind != RivalKind.Time) RivalBeacon.Attach(lRival.transform, lRival._model);
             AudioManager.CreateLoop3D(RivalFactory.EngineSound(pKind), lRival.transform, 0.55f);
             lRival._placement = RivalFactory.GetPlacement(pKind);
