@@ -126,11 +126,12 @@ namespace Com.IsartDigital.Hyperspeed
             new LevelDefinition
             {
                 title = "THE ROCKETS", tagline = "Three of them. Pick a side.", world = 1,
-                description = "Castles in the sky. Your dash now breaks blocks.\nThree rockets : stay in the middle of them.",
+                description = "Castles in the sky, platforms and ropes. Your dash now breaks blocks.\nThe rockets fly high to the side : stay under them.",
                 rival = RivalKind.Rockets, rivalSpeed = 268f, cruise = 215f, worldBreaker = true, theme = Theme.SkyCastle, seed = 110, music = "music_race2",
+                // Redone (2026-11-11) : a sky stage of platforms and ropes, one loop, no back to back pipes.
                 build = b => b.Start(96f, 4200f)
-                    .Hint("DASHING BREAKS BLOCKS NOW").Pillars(4f, 1f).Meadow(3f).BigTurn(Side.Left, 100f).Meteors(5f, 1.4f).Dive(340f).Platforms(5f, 3).Ramp().Rope()
-                    .Inverted(3f).Corkscrew().Meadow(4f).Shortcut(4f).Ramp().Rope().BigTurn(Side.Right, 100f).Loop().Ramp().Rope().FinalRush(6f).Finish()
+                    .Hint("DASHING BREAKS BLOCKS NOW").Pillars(2f, 0.7f).Meadow(3f).BigTurn(Side.Left, 100f).Platforms(5f, 3).Ramp().Rope().RingArc(7)
+                    .Dive(340f).Slabs(4f).Ramp().Rope().Loop().Meadow(3f).Shortcut(4f).BigTurn(Side.Right, 100f).Platforms(4f, 2).Ramp().Rope().FinalRush(6f).Finish()
             },
 
             // ---------------------------------------------------------------- COSMIC LEAGUE

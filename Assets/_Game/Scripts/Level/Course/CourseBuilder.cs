@@ -560,16 +560,23 @@ namespace Com.IsartDigital.Hyperspeed
             float lLateral = Rand(-_halfWidth * 0.3f, _halfWidth * 0.3f);
             float lLip = _s;
             Act(lLip - M(0.15f), RouteAction.Jump);
+            // High in the air (2026-11-11) : a launch strip on the lip throws you up to it.
+            _strips.Add(new StripDef { s = lLip - M(0.18f), lateral = lLateral, halfWidth = _halfWidth * 0.45f, up = ROPE_LAUNCH });
             Span(M(pSeconds * 0.3f), 0f, -9f);
             Span(M(pSeconds * 0.4f));
             Span(M(pSeconds * 0.3f), 0f, 9f);
             _pitch = 0f;
-            _ropes.Add(new RopeDef { s0 = lLip - M(0.1f), s1 = _s - M(0.1f), lateral = lLateral, height0 = 9f, height1 = 6f });
+            _ropes.Add(new RopeDef { s0 = lLip - M(0.05f), s1 = _s - M(0.1f), lateral = lLateral, height0 = ROPE_HIGH, height1 = ROPE_LOW });
             Span(M(0.4f));
             Route(lS0, _s, lLateral);
             NoPads(lS0, _s + M(0.4f));
             return this;
         }
+
+        // Ropes hang this high above the ground (start, end) ; the strip under their start launches you this fast.
+        private const float ROPE_HIGH = 36f;
+        private const float ROPE_LOW = 28f;
+        private const float ROPE_LAUNCH = 96f;
 
         // Ramp : you climb it, top a crest and come down the far side with the speed. Up, then down : the rhythm of the
         // track. Missing nothing, falling nowhere.
@@ -596,9 +603,9 @@ namespace Com.IsartDigital.Hyperspeed
             Open(BlockLook.Road, 3f);
             Span(M(0.9f));
             float lStrip = _s - M(0.15f);
-            _strips.Add(new StripDef { s = lStrip, lateral = lLateral, halfWidth = _halfWidth * 0.3f, up = 58f });
+            _strips.Add(new StripDef { s = lStrip, lateral = lLateral, halfWidth = _halfWidth * 0.35f, up = ROPE_LAUNCH * 1.15f });
             Span(M(pSeconds + 0.8f));
-            _ropes.Add(new RopeDef { s0 = lStrip + M(0.4f), s1 = lStrip + M(0.4f + pSeconds), lateral = lLateral, height0 = 13f, height1 = 3f });
+            _ropes.Add(new RopeDef { s0 = lStrip + M(0.3f), s1 = lStrip + M(0.3f + pSeconds), lateral = lLateral, height0 = ROPE_HIGH + 8f, height1 = ROPE_LOW });
             Route(lS0, _s, lLateral);
             NoPads(lS0, _s);
             return this;
@@ -631,7 +638,7 @@ namespace Com.IsartDigital.Hyperspeed
             for (int i = 0; i < pCount; i++)
             {
                 float lT = (i + 0.5f) / pCount;
-                _rings.Add(new RingDef { s = lS0 + M(0.5f + i * 0.34f), lateral = lLateral, height = 10f + Mathf.Sin(lT * Mathf.PI) * 18f, radius = 24f });
+                _rings.Add(new RingDef { s = lS0 + M(0.5f + i * 0.34f), lateral = lLateral, height = 30f + Mathf.Sin(lT * Mathf.PI) * 34f, radius = 60f });
             }
             Route(lS0, _s, lLateral);
             NoPads(lS0, _s);
@@ -766,6 +773,15 @@ namespace Com.IsartDigital.Hyperspeed
         // Natural ground : it rolls, banks and wanders a little, never a straight road.
         public CourseBuilder Meadow(float pSeconds)
         {
+            // Less plain ground (2026-11-11) : a long meadow ends on a run of slabs.
+            if (pSeconds >= 3f && !_meadowSplit)
+            {
+                _meadowSplit = true;
+                Meadow(pSeconds * 0.6f);
+                Slabs(pSeconds * 0.4f, 1.1f);
+                _meadowSplit = false;
+                return this;
+            }
             _module = "Meadow";
             pSeconds *= pace;
             Open(BlockLook.Ground, 6f);
@@ -779,6 +795,16 @@ namespace Com.IsartDigital.Hyperspeed
                 float lRoll = Rand(-11f, 11f);
                 Span(lLength * 0.5f, lYaw * 0.5f, lPitch, lRoll);
                 Span(lLength * 0.5f, lYaw * 0.5f, -lPitch, -lRoll);
+                // Floating islands left and right, above head height : a jump (or a strip) takes you up there.
+                if (Chance(0.4f))
+                {
+                    int lIslandSide = Chance(0.5f) ? 1 : -1;
+                    float lIslandS = _s - lLength * Rand(0.6f, 0.9f);
+                    float lIslandLateral = lIslandSide * _halfWidth * Rand(0.4f, 0.68f);
+                    float lIslandHalf = _halfWidth * Rand(0.07f, 0.12f);
+                    _bridges.Add(new BridgeDef { s0 = lIslandS, s1 = lIslandS + M(Rand(0.35f, 0.7f)), lateral = lIslandLateral, height = Rand(16f, 26f), halfWidth = lIslandHalf });
+                    if (Chance(0.5f)) _strips.Add(new StripDef { s = lIslandS - M(0.3f), lateral = lIslandLateral, halfWidth = lIslandHalf * 1.3f, up = 66f });
+                }
                 // Boulders and spurs at the edges : they rush past and show the speed.
                 if (Chance(0.6f))
                 {
@@ -791,6 +817,8 @@ namespace Com.IsartDigital.Hyperspeed
             _roll = 0f;
             return this;
         }
+
+        private bool _meadowSplit;
 
         // Huge platforms at different heights, rolled hard to one side or the other, some of them rolling forward like a
         // convoy you can land on. Always lower than the last : you drop onto them.
@@ -873,7 +901,7 @@ namespace Com.IsartDigital.Hyperspeed
             BridgeDef lBridge = new BridgeDef { s0 = lS0 + M(0.8f), s1 = _s - M(0.2f), lateral = lLateral, height = lHeight, halfWidth = _halfWidth * 0.16f };
             _bridges.Add(lBridge);
             for (float lS = lBridge.s0 + M(0.4f); lS < lBridge.s1 - M(0.2f); lS += M(0.45f))
-                _rings.Add(new RingDef { s = lS, lateral = lLateral, height = lHeight + 9f, radius = 16f });
+                _rings.Add(new RingDef { s = lS, lateral = lLateral, height = lHeight + 20f, radius = 22f });
             NoPads(lS0, _s);
             return this;
         }
@@ -942,6 +970,7 @@ namespace Com.IsartDigital.Hyperspeed
             lField.blocks.AddRange(_blocks);
             lField.Seal();
             _layout.field = lField;
+            FixRises(lField);
 
             StageData lData = new StageData
             {
@@ -979,6 +1008,37 @@ namespace Com.IsartDigital.Hyperspeed
             foreach (RouteAct lAct in _layout.acts) lData.acts.Add(new ActData { s = lAct.s, action = lAct.action });
             foreach (KeyValuePair<float, string> lHint in _layout.hints) lData.hints.Add(new HintData { s = lHint.Key, text = lHint.Value });
             return lData;
+        }
+
+        // The level rule, enforced : the next block never starts higher than the last one ends. A block that would is
+        // lowered (and the ones after it in turn if they would then rise above it).
+        private void FixRises(TrackField pField)
+        {
+            List<TrackBlock> lBlocks = new List<TrackBlock>(pField.blocks);
+            lBlocks.Sort((pA, pB) => pA.s0.CompareTo(pB.s0));
+            int lFixed = 0;
+            for (int i = 1; i < lBlocks.Count; i++)
+            {
+                TrackBlock lA = lBlocks[i - 1];
+                TrackBlock lB = lBlocks[i];
+                if (lA.look == BlockLook.Plaza || lB.look == BlockLook.Plaza || lB.s0 - lA.s1 > 400f) continue;
+                SpineSample lEndA = _layout.spine.Evaluate(lA.s1);
+                SpineSample lStartB = _layout.spine.Evaluate(lB.s0);
+                if (lEndA.localGravity || lStartB.localGravity) continue;
+                float lFrom = Mathf.Max(lA.offset - lA.halfWidth, lB.offset - lB.halfWidth);
+                float lTo = Mathf.Min(lA.offset + lA.halfWidth, lB.offset + lB.halfWidth);
+                if (lTo < lFrom) continue;
+                float lWorst = float.MinValue;
+                for (int k = 0; k <= 6; k++)
+                {
+                    float lX = Mathf.Lerp(lFrom, lTo, k / 6f);
+                    lWorst = Mathf.Max(lWorst, StageBuilder.FloorY(lStartB, lB, lX) - StageBuilder.FloorY(lEndA, lA, lX));
+                }
+                if (lWorst <= 1f) continue;
+                lB.drop += (lWorst + 8f) / Mathf.Max(0.3f, lStartB.up.y);
+                lFixed++;
+            }
+            if (lFixed > 0) Debug.Log("[HS-LD] lowered " + lFixed + " block(s) that started higher than the one before");
         }
 
         // Walls of glass, ice or doors across the whole track, here and there on the straights : dash through them.

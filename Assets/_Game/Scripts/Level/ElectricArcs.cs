@@ -7,8 +7,8 @@ namespace Com.IsartDigital.Hyperspeed
     public class ElectricArcs : MonoBehaviour
     {
         private const int POINTS = 9;
-        private const int ARCS = 5;
-        private const float SEEN_FROM = 900f;
+        private const int ARCS = 12;
+        private const float SEEN_FROM = 3200f;
 
         private GrindRail _rail;
         private LineRenderer[] _lines;
@@ -26,8 +26,8 @@ namespace Com.IsartDigital.Hyperspeed
                 lLine.transform.SetParent(pRail.transform, false);
                 lLine.positionCount = POINTS;
                 lLine.sharedMaterial = lMaterial;
-                lLine.startWidth = 0.7f;
-                lLine.endWidth = 0.15f;
+                lLine.startWidth = 2.4f;
+                lLine.endWidth = 0.4f;
                 lLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 lLine.enabled = false;
                 lArcs._lines[i] = lLine;
@@ -54,10 +54,10 @@ namespace Com.IsartDigital.Hyperspeed
             for (int i = 0; i < ARCS; i++)
             {
                 // Riding : bursts around you, a little ahead. Otherwise : crawling anywhere along the whole rope.
-                bool lAround = lRiding && i < 3;
-                float lLength = lAround ? 22f : 34f;
-                float lCenter = lAround ? lRider + Random.Range(-0.5f, 2f) * lLength * 0.4f : Random.Range(0f, _rail.Length);
-                float lWander = lAround ? 4.5f : 2.6f;
+                bool lAround = lRiding && i < 5;
+                float lLength = lAround ? 46f : 80f;
+                float lCenter = lAround ? lRider + Random.Range(-1.5f, 1f) * lLength * 0.4f : Random.Range(0f, _rail.Length);
+                float lWander = lAround ? 11f : 7f;
                 for (int j = 0; j < POINTS; j++)
                 {
                     float lT = j / (float)(POINTS - 1);

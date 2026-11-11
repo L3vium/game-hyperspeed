@@ -62,7 +62,7 @@ namespace Com.IsartDigital.Hyperspeed
             return lRises;
         }
 
-        private static float FloorY(SpineSample pSample, TrackBlock pBlock, float pLateral)
+        public static float FloorY(SpineSample pSample, TrackBlock pBlock, float pLateral)
         {
             float lLocal = pLateral - pBlock.offset;
             Vector3 lPoint = pSample.position + pSample.Right * (pBlock.offset + lLocal * pBlock.Cos) + pSample.up * (-pBlock.drop - lLocal * pBlock.Sin);
@@ -219,7 +219,8 @@ namespace Com.IsartDigital.Hyperspeed
             GameObject lObject = new GameObject("Rope");
             lObject.transform.SetParent(pParent, false);
             GrindRail lRail = lObject.AddComponent<GrindRail>();
-            lRail.catchRadius = 7f;
+            // High and thick : caught from far around it.
+            lRail.catchRadius = 18f;
             float lStep = Mathf.Max(8f, 10f * pLayout.profile.k);
             float lSpan = Mathf.Max(1f, pItem.s1 - pItem.s);
             for (float lS = pItem.s; lS < pItem.s1; lS += lStep)
@@ -229,9 +230,63 @@ namespace Com.IsartDigital.Hyperspeed
                 float lHeight = Mathf.Lerp(pItem.height, pItem.height1, lT);
                 lRail.AddPoint(lSample.position + lSample.Right * pItem.lateral + lSample.up * lHeight, lSample.up, lS);
             }
-            lRail.Finish(pTheme.accent, 1.2f);
+            lRail.Finish(pTheme.accent, 3.2f);
             pLayout.rails.Add(lRail);
+            RopePylons(lRail, pItem, pLayout, pTheme, lObject.transform);
             return lObject;
+        }
+
+        // Electric pylons holding the rope up : tall lattice masts from the ground, a cross arm, glowing insulators.
+        private static void RopePylons(GrindRail pRail, ItemData pItem, LevelLayout pLayout, Theme pTheme, Transform pParent)
+        {
+            MeshData lData = new MeshData();
+            MeshData lGlow = new MeshData();
+            float lEvery = Mathf.Max(220f, pLayout.profile.cruise * 1.6f);
+            float lSpan = pItem.s1 - pItem.s;
+            int lCount = Mathf.Max(2, Mathf.RoundToInt(lSpan / lEvery) + 1);
+            Vector3 lOrigin = pLayout.spine.Evaluate(pItem.s).position;
+            for (int i = 0; i < lCount; i++)
+            {
+                float lS = pItem.s + lSpan * i / (lCount - 1);
+                SpineSample lSample = pLayout.spine.Evaluate(lS);
+                float lHeight = Mathf.Lerp(pItem.height, pItem.height1, (lS - pItem.s) / Mathf.Max(1f, lSpan));
+                Vector3 lTop = lSample.position + lSample.Right * pItem.lateral + lSample.up * lHeight - lOrigin;
+                Vector3 lFoot = pLayout.GroundPoint(lS, pItem.lateral) - lOrigin - lSample.up * 4f;
+                Vector3 lMast = lTop + lSample.up * 9f;
+                float lLength = Vector3.Distance(lFoot, lMast);
+                Quaternion lRotation = Quaternion.LookRotation(lSample.forward, (lMast - lFoot).normalized);
+                // Two legs leaning together, a cross arm over the rope, insulators glowing at its tips.
+                for (int lLeg = -1; lLeg <= 1; lLeg += 2)
+                {
+                    Vector3 lBase = lFoot + lSample.Right * lLeg * 9f;
+                    Vector3 lDir = lMast - lBase;
+                    lData.Append(BoxMesh(), Matrix4x4.TRS(lBase + lDir * 0.5f, Quaternion.LookRotation(lSample.forward, lDir.normalized), new Vector3(1.6f, lDir.magnitude, 1.6f)), new Color(0.2f, 0.2f, 0.24f));
+                }
+                lData.Append(BoxMesh(), Matrix4x4.TRS(lMast, lRotation, new Vector3(26f, 1.6f, 1.6f)), new Color(0.25f, 0.25f, 0.3f));
+                for (int lTip = -1; lTip <= 1; lTip += 2)
+                    lGlow.Append(BoxMesh(), Matrix4x4.TRS(lMast + lSample.Right * lTip * 12f - lSample.up * 2f, lRotation, new Vector3(2.2f, 4f, 2.2f)), Color.white);
+                lGlow.Append(BoxMesh(), Matrix4x4.TRS(lTop + lSample.up * 4f, lRotation, new Vector3(1.4f, 8f, 1.4f)), Color.white);
+            }
+            GameObject lPylons = new GameObject("Pylons");
+            lPylons.transform.SetParent(pParent, false);
+            lPylons.transform.position = lOrigin;
+            lPylons.AddComponent<MeshFilter>().sharedMesh = lData.ToMesh("Pylons");
+            lPylons.AddComponent<MeshRenderer>().sharedMaterial = Mats.Flat(pTheme.shade, false, new Color(0.22f, 0.22f, 0.27f));
+            GameObject lLit = new GameObject("Insulators");
+            lLit.transform.SetParent(lPylons.transform, false);
+            lLit.AddComponent<MeshFilter>().sharedMesh = lGlow.ToMesh("Insulators");
+            lLit.AddComponent<MeshRenderer>().sharedMaterial = Mats.Glow(Color.Lerp(pTheme.accent, Color.white, 0.5f) * 3f, false, 0f, 0f, true);
+        }
+
+        private static Mesh _box;
+
+        private static Mesh BoxMesh()
+        {
+            if (_box != null) return _box;
+            MeshData lData = new MeshData();
+            GateKit.Box(lData, Vector3.zero, Vector3.one, Color.white);
+            _box = lData.ToMesh("UnitBox");
+            return _box;
         }
 
         // The raised lane : a thick deck following the line, a glowing edge on each side.
