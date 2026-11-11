@@ -7,10 +7,13 @@ using UnityEngine.UI;
 namespace Com.IsartDigital.Hyperspeed
 {
     // Race HUD, kept out of the way : speed on a plane tilted in perspective bottom left with the dash pips under it, the
-    // time and a thin progress line at the top, a pointer to the rival. Nothing in the middle of the screen.
+    // time at the top, the race on a vertical rail on the right edge (flag at the top, you and the rival by name, the gap),
+    // a pointer to the rival. Nothing in the middle of the screen.
     public class HUD : MonoBehaviour
     {
-        private const float RAIL_HALF = 230f;
+        private const float RAIL_HALF = 270f;
+        // Left margin of the result column, in canvas units from the left edge of the screen.
+        private const float SAFE_LEFT = 150f;
 
         private Canvas _canvas;
         private RectTransform _root;
@@ -33,6 +36,12 @@ namespace Com.IsartDigital.Hyperspeed
         private RectTransform _playerMarker;
         private RectTransform _rivalMarker;
         private RectTransform _rivalPointer;
+        private TextMeshProUGUI _rivalName;
+        private TextMeshProUGUI _rivalGap;
+        private UIShape _rivalMark;
+        private RectTransform _flag;
+        private bool _rivalDone;
+        private float _rivalDoneTime;
         private UIBanner _notify;
         private UIBanner _hint;
         private UIBanner _wrongWay;
@@ -88,13 +97,25 @@ namespace Com.IsartDigital.Hyperspeed
             lLines.material = _speedLinesMaterial;
             lLines.raycastTarget = false;
 
-            // Timer and a thin progress line (top center).
+            // Timer (top centre).
             _timerText = UIKit.Text(_root, "00:00.00", 38f, UIKit.WHITE, new Vector2(0.5f, 1f), new Vector2(0f, -40f), new Vector2(300f, 50f), UIKit.Font.Heavy);
             UIFactory.Outline(_timerText, UIKit.INK, 0.25f);
-            _rail = UIFactory.CreateRect(_root, "Rail", new Vector2(0.5f, 1f), new Vector2(0f, -74f), new Vector2(RAIL_HALF * 2f, 6f));
-            UIFactory.CreateImage(_rail, "Line", new Color(1f, 1f, 1f, 0.3f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(RAIL_HALF * 2f, 3f));
-            _rivalMarker = Marker("Rival", UIKit.RED);
-            _playerMarker = Marker("Player", UIKit.WHITE);
+
+            // The race, on the right edge : start at the bottom, the flag at the top, you and the rival by name.
+            _rail = UIFactory.CreateRect(_root, "Rail", new Vector2(1f, 0.5f), new Vector2(-70f, 10f), new Vector2(10f, RAIL_HALF * 2f));
+            UIKit.Tile(_rail, "Back", new Color(0f, 0f, 0f, 0.35f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(14f, RAIL_HALF * 2f + 8f), 0f);
+            UIFactory.CreateImage(_rail, "Line", new Color(1f, 1f, 1f, 0.55f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(4f, RAIL_HALF * 2f));
+            _flag = UIFactory.CreateRect(_rail, "Flag", new Vector2(0.5f, 0.5f), new Vector2(0f, RAIL_HALF + 34f), new Vector2(48f, 48f));
+            UIKit.Icon(_flag, "flag", UIKit.WHITE, new Vector2(0.5f, 0.5f), Vector2.zero, 46f);
+            _rivalMarker = Marker("Rival", UIKit.RED, out _rivalMark);
+            _rivalName = UIKit.Text(_rivalMarker, RivalShortName(), 26f, UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(-140f, 9f), new Vector2(220f, 34f), UIKit.Font.Heavy, TextAlignmentOptions.Right);
+            UIFactory.Outline(_rivalName, UIKit.INK, 0.3f);
+            _rivalGap = UIKit.Text(_rivalMarker, "", 22f, UIKit.RED, new Vector2(0.5f, 0.5f), new Vector2(-140f, -17f), new Vector2(220f, 28f), UIKit.Font.Heavy, TextAlignmentOptions.Right);
+            UIFactory.Outline(_rivalGap, UIKit.INK, 0.3f);
+            UIShape lYouMark;
+            _playerMarker = Marker("Player", UIKit.CYAN, out lYouMark);
+            TextMeshProUGUI lYou = UIKit.Text(_playerMarker, "YOU", 26f, UIKit.CYAN, new Vector2(0.5f, 0.5f), new Vector2(-80f, 0f), new Vector2(100f, 34f), UIKit.Font.Heavy, TextAlignmentOptions.Right);
+            UIFactory.Outline(lYou, UIKit.INK, 0.3f);
 
             BuildGauges();
 
@@ -142,17 +163,35 @@ namespace Com.IsartDigital.Hyperspeed
             return RivalFactory.DisplayName(_rival.kind).Replace("THE ", "").Replace("A ", "");
         }
 
-        private RectTransform Marker(string pName, Color pColor)
+        private RectTransform Marker(string pName, Color pColor, out UIShape pMark)
         {
-            RectTransform lMarker = UIFactory.CreateRect(_rail, pName, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(16f, 16f));
-            UIFactory.CreateShape(lMarker, "Mark", UIShape.ShapeKind.Parallelogram, pColor, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(8f, 16f)).skew = 0.4f;
+            RectTransform lMarker = UIFactory.CreateRect(_rail, pName, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(30f, 30f));
+            // A chevron pointing at the rail from the left, and a tick across it.
+            pMark = UIFactory.CreateShape(lMarker, "Mark", UIShape.ShapeKind.Triangle, pColor, new Vector2(0.5f, 0.5f), new Vector2(-22f, 0f), new Vector2(26f, 22f), -90f);
+            UIFactory.CreateImage(lMarker, "Tick", pColor, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(24f, 5f));
             return lMarker;
         }
 
-        private float RailX(float pDistance)
+        private float RailY(float pDistance)
         {
             float lFinish = Mathf.Max(1f, _path.finishS);
             return Mathf.Lerp(-RAIL_HALF, RAIL_HALF, Mathf.Clamp01(pDistance / lFinish));
+        }
+
+        // The rival crossed the line before you : said by name, loud, and its marker burns on the flag.
+        public void RivalFinished()
+        {
+            _rivalDone = true;
+            _rivalDoneTime = Time.unscaledTime;
+            string lName = _rival != null ? RivalFactory.DisplayName(_rival.kind) : "THE RIVAL";
+            _notifyHold = 0f;
+            _pendingText = null;
+            Notify(lName + " CROSSED THE LINE", UIKit.RED, 2.6f);
+            if (_rivalGap != null)
+            {
+                _rivalGap.text = "FINISHED";
+                _rivalGap.color = UIKit.RED;
+            }
         }
 
         public void SetRaceTime(float pTime)
@@ -225,9 +264,27 @@ namespace Com.IsartDigital.Hyperspeed
         private void UpdateRail()
         {
             if (_path == null || _path.finishS <= 0f) return;
-            _playerMarker.anchoredPosition = new Vector2(RailX(_player.Progress), 0f);
-            if (_rival == null) return;
-            _rivalMarker.anchoredPosition = new Vector2(RailX(Mathf.Max(0f, _rival.distance)), 0f);
+            _playerMarker.anchoredPosition = new Vector2(0f, RailY(_player.Progress));
+            if (_rival == null)
+            {
+                _rivalMarker.gameObject.SetActive(false);
+                return;
+            }
+            _rivalMarker.anchoredPosition = new Vector2(0f, RailY(Mathf.Max(0f, _rival.distance)));
+            if (_rivalDone)
+            {
+                // Burning on the flag.
+                float lBlink = Mathf.Repeat((Time.unscaledTime - _rivalDoneTime) * 3f, 1f) < 0.5f ? 1f : 0.35f;
+                _rivalMark.color = new Color(UIKit.RED.r, UIKit.RED.g, UIKit.RED.b, lBlink);
+                _rivalMarker.localScale = Vector3.one * (1.15f + Mathf.Sin(Time.unscaledTime * 12f) * 0.1f);
+            }
+            else
+            {
+                // Ahead of you : + in red ; behind : - in cyan.
+                float lGap = _rival.distance - _player.Progress;
+                _rivalGap.text = (lGap >= 0f ? "+" : "-") + Mathf.RoundToInt(Mathf.Abs(lGap)) + " m";
+                _rivalGap.color = lGap >= 0f ? UIKit.RED : UIKit.CYAN;
+            }
             // A chaser right behind you : the edges of the screen say it, no words needed.
             if (_rival.chaser && RaceContext.Running && _player.Progress - _rival.distance < _player.Profile.cruise * 1.2f) Juice.Vignette(UIKit.RED, 0.6f);
         }
@@ -359,16 +416,24 @@ namespace Com.IsartDigital.Hyperspeed
 
         private RectTransform EndPanel(string pName, string pWord, Color pWordColor)
         {
-            RectTransform lPanel = UIFactory.Stretch(UIFactory.CreateRect(TiltRoot("End3D", 30), pName, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
-            UIKit.FullScreen(lPanel, "Dim", new Color(0f, 0f, 0f, 0.35f));
-            UIShape lRed = UIKit.Tile(lPanel, "Red", UIKit.RED, new Vector2(0.5f, 0.5f), new Vector2(-470f, 0f), new Vector2(1300f, 1300f), 0.15f);
+            RectTransform lTilt = TiltRoot("End3D", 30);
+            // The results float a little with the mouse, never enough to show an edge.
+            PerspectivePanel lSwing = lTilt.GetComponent<PerspectivePanel>();
+            lSwing.amountX = 1.6f;
+            lSwing.amountY = 1.2f;
+            lSwing.slide = new Vector2(6f, 4f);
+            RectTransform lPanel = UIFactory.Stretch(UIFactory.CreateRect(lTilt, pName, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
+            // Far wider than the screen : whatever the tilt and the aspect, no edge of the dim ever shows.
+            UIKit.FullScreen(lPanel, "Dim", new Color(0f, 0f, 0f, 0.35f)).rectTransform.localScale = new Vector3(2.4f, 2.4f, 1f);
+            UIShape lRed = UIKit.Tile(lPanel, "Red", UIKit.RED, new Vector2(0f, 0.5f), new Vector2(300f, 0f), new Vector2(1500f, 1800f), 0.15f);
             UIKit.Chevrons(lRed.transform, "Chevrons", UIKit.RED, new Color(0.8f, 0.04f, 0.09f), 60f);
             lRed.gameObject.AddComponent<Mask>().showMaskGraphic = true;
-            TextMeshProUGUI lWord = UIKit.Text(lPanel, pWord, 200f, pWordColor, new Vector2(0.5f, 1f), new Vector2(-340f, -150f), new Vector2(1100f, 220f), UIKit.Font.Heavy);
+            // The left column hangs from the left edge with a safe margin : nothing bites the edge at 16:10 or 4:3.
+            TextMeshProUGUI lWord = UIKit.Text(lPanel, pWord, 190f, pWordColor, new Vector2(0f, 1f), new Vector2(SAFE_LEFT + 470f, -150f), new Vector2(940f, 210f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
             lWord.enableAutoSizing = true;
-            lWord.fontSizeMin = 60f;
-            lWord.fontSizeMax = 200f;
-            UIKit.Checker(lPanel, "Checker", new Vector2(0.5f, 0f), new Vector2(0f, 22f), new Vector2(2200f, 44f), UIKit.WHITE, UIKit.RED_DARK, 40f);
+            lWord.fontSizeMin = 50f;
+            lWord.fontSizeMax = 190f;
+            UIKit.Checker(lPanel, "Checker", new Vector2(0.5f, 0f), new Vector2(0f, 22f), new Vector2(4400f, 44f), UIKit.WHITE, UIKit.RED_DARK, 40f);
             lPanel.gameObject.AddComponent<UISlideIn>();
             return lPanel;
         }
@@ -394,17 +459,25 @@ namespace Com.IsartDigital.Hyperspeed
         }
 
         public void ShowResult(bool pWin, string pHeadline, float pTime, int pRank, bool pRecord, float pBest, bool pHasNext,
-                               System.Action pNext, System.Action pRetry, System.Action pMenu)
+                               System.Action pNext, System.Action pRetry, System.Action pMenu, string pMargin = null)
         {
+            // The race HUD leaves : only the results and the runner remain.
+            SetPaused(true);
             RectTransform lPanel = EndPanel("Result", pWin ? "VICTORY" : pHeadline, pWin ? UIKit.WHITE : UIKit.GOLD);
-            UIShape lTimeTile = UIKit.Tile(lPanel, "Time", UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(-560f, 120f), new Vector2(720f, 110f), 0.3f);
-            UIKit.Text(lTimeTile.transform, "TIME   " + GameSession.FormatTime(pTime), 56f, UIKit.INK, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(700f, 110f), UIKit.Font.Thin);
+            UIShape lTimeTile = UIKit.Tile(lPanel, "Time", UIKit.WHITE, new Vector2(0f, 0.5f), new Vector2(SAFE_LEFT + 330f, 150f), new Vector2(640f, 104f), 0.3f);
+            UIKit.Text(lTimeTile.transform, "TIME   " + GameSession.FormatTime(pTime), 54f, UIKit.INK, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(620f, 104f), UIKit.Font.Thin);
             string lBestLine = pRecord ? "NEW RECORD!" : "BEST  " + GameSession.FormatTime(pBest);
-            UIKit.Text(lPanel, lBestLine, 36f, pRecord ? UIKit.GOLD : UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(-560f, 40f), new Vector2(700f, 50f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
+            UIKit.Text(lPanel, lBestLine, 34f, pRecord ? UIKit.GOLD : UIKit.WHITE, new Vector2(0f, 0.5f), new Vector2(SAFE_LEFT + 330f, 72f), new Vector2(640f, 48f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
+            // How far ahead of the rival (or behind) you crossed : what the rank is made of.
+            if (!string.IsNullOrEmpty(pMargin))
+            {
+                TextMeshProUGUI lMargin = UIKit.Text(lPanel, pMargin, 34f, pWin ? UIKit.CYAN : UIKit.RED, new Vector2(0f, 0.5f), new Vector2(SAFE_LEFT + 330f, 28f), new Vector2(640f, 44f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
+                UIFactory.Outline(lMargin, UIKit.INK, 0.25f);
+            }
 
             if (pWin)
             {
-                RectTransform lRank = UIFactory.CreateRect(lPanel, "Rank", new Vector2(0.5f, 0.5f), new Vector2(520f, 40f), new Vector2(500f, 500f));
+                RectTransform lRank = UIFactory.CreateRect(lPanel, "Rank", new Vector2(1f, 0.5f), new Vector2(-430f, 60f), new Vector2(500f, 500f));
                 UIShape lCard = UIFactory.CreateShape(lRank, "Card", UIShape.ShapeKind.Chevron, UIKit.WHITE, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(520f, 380f));
                 lCard.skew = 0.4f;
                 UIKit.Icon(lRank, "trophy", UIKit.GOLD, new Vector2(0.5f, 0.5f), new Vector2(-150f, 30f), 160f);
@@ -417,17 +490,18 @@ namespace Com.IsartDigital.Hyperspeed
             }
 
             UINav lNav = UINav.Create(lPanel.gameObject);
-            float lY = -110f;
+            float lY = -100f;
+            Vector2 lLeft = new Vector2(0f, 0.5f);
             if (pWin && pHasNext)
             {
-                NavTile lNext = Button(lPanel, "NEXT STAGE", new Vector2(-600f, lY), new Vector2(560f, 100f), UIKit.WHITE, UIKit.INK);
+                NavTile lNext = Button(lPanel, "NEXT STAGE", lLeft, new Vector2(SAFE_LEFT + 290f, lY), new Vector2(540f, 96f), UIKit.WHITE, UIKit.INK);
                 lNav.Add((RectTransform)lNext.transform, new Vector2(0f, lY), pNext, lNext.SetSelected);
-                lY -= 125f;
+                lY -= 120f;
             }
-            NavTile lRetry = Button(lPanel, "RETRY", new Vector2(-620f, lY), new Vector2(520f, 100f), UIKit.WHITE, UIKit.INK);
+            NavTile lRetry = Button(lPanel, "RETRY", lLeft, new Vector2(SAFE_LEFT + 270f, lY), new Vector2(500f, 96f), UIKit.WHITE, UIKit.INK);
             lNav.Add((RectTransform)lRetry.transform, new Vector2(0f, lY), pRetry, lRetry.SetSelected);
-            lY -= 125f;
-            NavTile lMenu = Button(lPanel, "STAGE SELECT", new Vector2(-640f, lY), new Vector2(520f, 100f), new Color(0.3f, 0.3f, 0.32f), UIKit.WHITE);
+            lY -= 120f;
+            NavTile lMenu = Button(lPanel, "STAGE SELECT", lLeft, new Vector2(SAFE_LEFT + 250f, lY), new Vector2(500f, 96f), new Color(0.3f, 0.3f, 0.32f), UIKit.WHITE);
             lNav.Add((RectTransform)lMenu.transform, new Vector2(0f, lY), pMenu, lMenu.SetSelected);
             lNav.Select(0);
         }
@@ -436,7 +510,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             RectTransform lTilt = TiltRoot("Pause3D", 500);
             RectTransform lPanel = UIFactory.Stretch(UIFactory.CreateRect(lTilt, "Pause", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
-            UIKit.FullScreen(lPanel, "Dim", new Color(0f, 0f, 0f, 0.25f)).rectTransform.localScale = Vector3.one * 1.3f;
+            UIKit.FullScreen(lPanel, "Dim", new Color(0f, 0f, 0f, 0.25f)).rectTransform.localScale = new Vector3(2.4f, 2.4f, 1f);
             UIKit.Tile(lPanel, "Strip", new Color(UIKit.RED.r, UIKit.RED.g, UIKit.RED.b, 0.88f), new Vector2(0f, 0.5f), new Vector2(330f, 0f), new Vector2(620f, 1400f), 0.12f);
             UIKit.Text(lPanel, "PAUSE", 170f, UIKit.WHITE, new Vector2(0f, 0.5f), new Vector2(340f, 330f), new Vector2(620f, 200f), UIKit.Font.Heavy);
             // Where you are : stage code and name.

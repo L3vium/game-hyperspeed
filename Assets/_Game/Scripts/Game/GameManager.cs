@@ -14,6 +14,12 @@ namespace Com.IsartDigital.Hyperspeed
         private static readonly int ROAD_SPEED = Shader.PropertyToID("_HS_RoadSpeed");
 
         private const float COUNT_STEP = 1.5f;
+        // Rank thresholds : the lead on the line as a share of the race time. A run at cruise with no boost is around a B.
+        private const float RANK_S = 0.4f;
+        private const float RANK_A = 0.25f;
+        private const float RANK_B = 0.1f;
+
+        private float _endLead;
 
         [Tooltip("Dev cheats, forced on by the HS_CHEATS define (Dev build).")]
         [SerializeField] private bool _cheatCodes;
@@ -105,6 +111,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void Start()
         {
+            CursorGuardBehaviour.OnFocusLost += FocusLost;
             AudioManager.PlayMusic("music_intro", 0.38f);
             StartCoroutine(Flow());
         }
@@ -187,7 +194,10 @@ namespace Com.IsartDigital.Hyperspeed
                 _beaten = true;
                 _beatenTime = _raceTime;
                 Juice.Popup("TOO SLOW", UIFactory.RED, 1f);
-                _hud.Notify("IT CROSSED FIRST", UIFactory.RED);
+                _hud.RivalFinished();
+                Juice.Vignette(UIFactory.RED, 1f);
+                Juice.Pulse(0.8f);
+                AudioManager.Play("sfx_lose", 0.6f, 1.15f);
             }
             if (_player.Progress >= _layout.finishS && _player.State != PlayerState.Dead && !_respawn.Busy)
                 StartCoroutine(EndRoutine(!_beaten, _beaten ? "TOO SLOW" : "FINISH!!"));
@@ -289,6 +299,9 @@ namespace Com.IsartDigital.Hyperspeed
         private IEnumerator EndRoutine(bool pWin, string pHeadline)
         {
             _phase = Phase.Ended;
+            // Lead on the line, in seconds of the rival's own running : measured before anything else moves.
+            float lRivalRate = Mathf.Max(1f, _rival.CurrentRate);
+            _endLead = _level.chaser ? Mathf.Max(0f, _player.Progress - _rival.distance) / lRivalRate : Mathf.Max(0f, _layout.finishS - _rival.distance) / lRivalRate;
             RaceContext.Running = false;
             Debug.Log("[HS-END] " + pHeadline + " stage=" + (_levelIndex + 1) + " time=" + _raceTime.ToString("F1") + " s=" + _player.Progress.ToString("F0") + "/" + _layout.finishS.ToString("F0") + " rival=" + _rival.distance.ToString("F0") + " respawns=" + _player.Respawns + " top=" + _player.TopSpeed.ToString("F0"));
             _player.Finish();
@@ -328,19 +341,26 @@ namespace Com.IsartDigital.Hyperspeed
 
             int lRank = 0;
             bool lRecord = false;
+            string lMargin = null;
             if (pWin)
             {
-                float lRivalTime = _layout.finishS / LevelDatabase.RivalSpeed(_level);
-                float lRatio = _raceTime / lRivalTime;
-                lRank = lRatio < 0.8f ? 4 : lRatio < 0.88f ? 3 : lRatio < 0.96f ? 2 : 1;
-                if (_player.Respawns >= 3 && lRank > 2) lRank--;
+                // The rank is the lead you really had on the line : how long the rival still needed to finish, against
+                // the length of your race. Crossing neck and neck is a C, however fast the stage was.
+                float lLead = _endLead;
+                float lShare = lLead / Mathf.Max(1f, _raceTime);
+                lRank = lShare >= RANK_S ? 4 : lShare >= RANK_A ? 3 : lShare >= RANK_B ? 2 : 1;
+                if (_player.Respawns >= 3 && lRank > 1) lRank--;
                 lRecord = GameSession.RegisterWin(_levelIndex, _raceTime, lRank);
+                lMargin = _level.chaser ? "ESCAPED BY " + lLead.ToString("F1") + " s" : "AHEAD BY " + lLead.ToString("F1") + " s";
+                Debug.Log("[HS-RANK] stage=" + (_levelIndex + 1) + " lead=" + lLead.ToString("F1") + "s share=" + lShare.ToString("F2") + " rank=" + GameSession.RankLetter(lRank) + " respawns=" + _player.Respawns);
             }
+            else if (_beaten) lMargin = RivalFactory.DisplayName(_level.rival) + " WON BY " + (_raceTime - _beatenTime).ToString("F1") + " s";
             bool lHasNext = _levelIndex + 1 < LevelDatabase.Count;
             _hud.ShowResult(pWin, pHeadline, _raceTime, lRank, lRecord, GameSession.GetBestTime(_levelIndex), lHasNext,
                 () => { GameSession.SelectedLevel = _levelIndex + 1; SceneTransition.LoadStage(_levelIndex + 1); },
                 Retry,
-                ToStageSelect);
+                ToStageSelect,
+                lMargin);
             AudioManager.Play(pWin ? "sfx_rank" : "ui_back", 1f);
         }
 
@@ -393,15 +413,19 @@ namespace Com.IsartDigital.Hyperspeed
             }
         }
 
-        private static void SetCursorLocked(bool pLocked)
+        private static void SetCursorLocked(bool pLocked) => CursorGuard.Set(pLocked ? CursorMode.Game : CursorMode.Menu);
+
+        // The window lost the focus (Alt-Tab, a click on another window) : the race waits for you in the pause menu.
+        private void FocusLost()
         {
-            Cursor.lockState = pLocked ? CursorLockMode.Locked : CursorLockMode.None;
-            Cursor.visible = !pLocked;
+            if (Autopilot.Enabled || _paused || _phase == Phase.Ended || SceneTransition.IsBusy || SettingsMenu.Current != null) return;
+            Pause();
         }
 
         protected override void OnDestroy()
         {
             base.OnDestroy();
+            CursorGuardBehaviour.OnFocusLost -= FocusLost;
             SetCursorLocked(false);
             RaceContext.Clear();
             AudioManager.StopAllLoops();

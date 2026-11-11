@@ -22,9 +22,10 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _airTime += pDt;
             Vector3 lTargetUp = _layout != null ? _layout.GravityUp(Progress) : Vector3.up;
-            // Lost in the air inside a loop or a corkscrew for too long : that is a fall, you start again just behind.
+            // In the air inside a loop or a corkscrew : the surface pulls you back down onto it, harder the longer you
+            // float, so a jump or a dash in a loop always lands. Only a really lost flight (several seconds) is a fall.
             _localAirTime = lTargetUp != Vector3.up ? _localAirTime + pDt : 0f;
-            if (_localAirTime > 1.6f && !_freeRoam && !_autoRun)
+            if (_localAirTime > 4.5f && !_freeRoam && !_autoRun)
             {
                 _localAirTime = 0f;
                 if (Autopilot.Enabled) Debug.Log("[HS-LD] out (loop air) s=" + Progress.ToString("F0"));
@@ -52,6 +53,12 @@ namespace Com.IsartDigital.Hyperspeed
             if (Mathf.Abs(lVertical) < 14f && !Diving) lGravity *= 0.6f;
             if (LightForm) lGravity *= 0.25f;
             if (Dashing) lGravity *= 0.2f;
+            // Loop magnet : after a short hop the surface draws you back, and moving away from it is cancelled.
+            if (_localAirTime > 0.35f)
+            {
+                lGravity = Mathf.Max(lGravity, Ballistics.G_FALL) * (1f + (_localAirTime - 0.35f) * 2.5f);
+                if (lVertical > 0f) _velocity -= _gravityUp * lVertical * (1f - Mathf.Exp(-4f * pDt));
+            }
             _velocity -= _gravityUp * lGravity * pDt;
 
             if (State == PlayerState.Air) AirControl(pDt);
@@ -140,7 +147,15 @@ namespace Com.IsartDigital.Hyperspeed
             HasLandingPrediction = false;
             for (float lT = 0f; lT < 3.2f; lT += STEP)
             {
-                Vector3 lNext = lVelocity + -_gravityUp * Ballistics.G_FALL * STEP;
+                // Inside a loop the pull follows the surface under each point of the arc, not the gravity of now.
+                Vector3 lUpHere = _gravityUp;
+                if (_localAirTime > 0f)
+                {
+                    float lLat;
+                    float lS = _layout.spine.ProjectNear(lPosition, Progress, out lLat);
+                    lUpHere = _layout.GravityUp(lS);
+                }
+                Vector3 lNext = lVelocity + -lUpHere * Ballistics.G_FALL * STEP;
                 Vector3 lDelta = (lVelocity + lNext) * 0.5f * STEP;
                 RaycastHit lHit;
                 if (Physics.Raycast(lPosition, lDelta.normalized, out lHit, lDelta.magnitude + 1f, TRACK_MASK, QueryTriggerInteraction.Ignore))
@@ -198,13 +213,14 @@ namespace Com.IsartDigital.Hyperspeed
             Color lDust = RaceContext.Theme != null ? Color.Lerp(RaceContext.Theme.roadA, Color.white, 0.25f) : Color.white;
             if (lWasDiving)
             {
-                float lBonus = Mathf.Min(_profile.cruise * 0.8f, 0.5f * lImpact);
+                // A dive always pays : at least a solid kick, more the harder you hit.
+                float lBonus = Mathf.Clamp(0.6f * lImpact, _profile.cruise * 0.4f, _profile.cruise * 1.1f);
                 if (Time.time - _lastDiveLanding < 1.2f) _diveChain++;
                 else _diveChain = 0;
                 lBonus *= 1f + Mathf.Min(0.5f, _diveChain * 0.1f);
                 _lastDiveLanding = Time.time;
-                _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + lBonus);
-                _boostTimer = Mathf.Max(_boostTimer, 1f);
+                _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + lBonus * KickScale(0.3f));
+                _boostTimer = Mathf.Max(_boostTimer, 1.5f);
                 Juice.FovKick(10f);
                 Juice.Pulse(0.8f);
                 Juice.Rollback(10f);

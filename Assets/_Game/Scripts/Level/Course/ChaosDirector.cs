@@ -472,7 +472,8 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 _aimedTimer = R(7f, 12f);
                 float lS = pPlayer.Progress + lSpeed * 4.5f;
-                if (_layout.field.Solid(lS))
+                // Never into a loop, a twist or an inverted run : the rock would come from inside the loop.
+                if (_layout.field.Solid(lS) && _layout.LowestOfSection(lS) == float.MaxValue)
                 {
                     float lAim = R(0f, 1f) < 0.5f ? float.NaN : _layout.field.CenterLateral(lS) + R(-0.8f, 0.8f) * _layout.field.HalfWidth(lS);
                     Meteor.CreateIncoming(transform, _layout, pPlayer, lS, R(28f, 60f), _theme, lAim);

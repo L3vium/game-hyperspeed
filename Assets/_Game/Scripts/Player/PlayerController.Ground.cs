@@ -297,7 +297,7 @@ namespace Com.IsartDigital.Hyperspeed
             float lAlign = lAim.sqrMagnitude > 0.0001f ? Mathf.InverseLerp(0.5f, 0.97f, Vector3.Dot(lAim.normalized, _heading)) : 0f;
             _speed = Mathf.Max(_speed, _driftEntrySpeed * Mathf.Lerp(0.85f, 1f, lAlign));
             if (lTier == 0) return;
-            float[] lBoosts = { 0f, 0.3f, 0.55f, 0.8f };
+            float[] lBoosts = { 0f, 0.6f, 1.1f, 1.6f };
             ApplyBoost(lBoosts[lTier] * _profile.cruise * Mathf.Lerp(0.35f, 1f, lAlign), _heading, 0f, lAlign > 0.9f && lTier >= 2 ? "DRIFT BOOST" : null);
         }
 

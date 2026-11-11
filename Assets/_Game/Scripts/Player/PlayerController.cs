@@ -12,10 +12,17 @@ namespace Com.IsartDigital.Hyperspeed
         // ---------------- tuning
         private const float RUN_ACCEL = 90f;
         private const float SLOPE_ACCEL = 46f;
-        private const float JUMP_VELOCITY = 55f;
+        // Jumps grow with the speed : a fast runner leaps far higher (base + share of the ground speed, capped).
+        private const float JUMP_VELOCITY = 62f;
+        private const float JUMP_SPEED_SHARE = 0.1f;
+        private const float JUMP_VELOCITY_MAX = 140f;
         private const float DASH_TIME = 0.26f;
-        private const float COYOTE_TIME = 0.14f;
-        private const float JUMP_BUFFER = 0.14f;
+        // After a dash press, breakables still shatter for this long : the timing is generous.
+        private const float BREAK_WINDOW = 0.6f;
+        // A dash pressed during the cooldown or with an empty gauge fires as soon as it can, within this time.
+        private const float DASH_BUFFER = 0.2f;
+        private const float COYOTE_TIME = 0.2f;
+        private const float JUMP_BUFFER = 0.18f;
         private const float RADIUS = 0.45f;
         private const float HEIGHT = 1.8f;
         private const float SKIN = 0.04f;
@@ -24,9 +31,9 @@ namespace Com.IsartDigital.Hyperspeed
         private const float START_WINDOW_AFTER = 0.2f;
         private const float FREE_ROAM_SPEED = 34f;
         // Above cruise : half of the extra speed is gone after about 5 s, sooner the further above you are.
-        private const float DRAG = 0.14f;
-        private const float DRAG_OVER = 0.085f;
-        private const float DRAG_LIGHT = 0.05f;
+        private const float DRAG = 0.13f;
+        private const float DRAG_OVER = 0.12f;
+        private const float DRAG_LIGHT = 0.1f;
         private const float LIGHT_HOLD = 0.5f;
         private const float AIM_PITCH_MIN = -80f;
         private const float AIM_PITCH_MAX = 70f;
@@ -39,6 +46,7 @@ namespace Com.IsartDigital.Hyperspeed
         private const float FALL_TIME = 0.55f;
         private const float SCENERY_TIME = 0.35f;
         private const float WRONG_WAY_TIME = 0.8f;
+        private const float BREAK_KICK = 0.3f;
 
         // ---------------- state
         public PlayerState State { get; private set; } = PlayerState.Frozen;
@@ -122,6 +130,8 @@ namespace Com.IsartDigital.Hyperspeed
         private float _lastGrounded;
         private float _jumpBufferedAt = -10f;
         private float _dashTimer;
+        private float _breakTimer;
+        private float _dashBufferedAt = -10f;
         private float _dashCooldown;
         private float _dashEnergy = DASH_ENERGY;
         private float _dashHeldTime;
@@ -419,7 +429,12 @@ namespace Com.IsartDigital.Hyperspeed
 
             if (_jumpPressed) _jumpBufferedAt = Time.time;
             if (_punchPressed && _punchCooldown <= 0f) Punch();
-            if (_dashPressed && _dashCooldown <= 0f) Dash();
+            if (_dashPressed) _dashBufferedAt = Time.time;
+            if (lCanAct && Time.time - _dashBufferedAt < DASH_BUFFER && _dashCooldown <= 0f && _dashEnergy >= 1f)
+            {
+                _dashBufferedAt = -10f;
+                Dash();
+            }
             if (_jumpPressed) TryJump();
             UpdateThrust(pDt);
         }
@@ -428,6 +443,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             StateTime += pDt;
             _dashTimer -= pDt;
+            _breakTimer -= pDt;
             _dashCooldown -= pDt;
             _punchTimer -= pDt;
             _punchCooldown -= pDt;
@@ -478,12 +494,14 @@ namespace Com.IsartDigital.Hyperspeed
                 if (lItem.Test(lCenter) && lItem.Accepts(this)) lItem.Touch(this);
             }
 
-            bool lSmash = Dashing || LightForm || Punching;
+            // Dashing, or just after a dash : smash. The reach is wider then, so a near miss still breaks it.
+            bool lSmash = Dashing || _breakTimer > 0f || LightForm || Punching;
+            float lReach = lSmash ? 7f : 1.5f;
             for (int i = Breakable.All.Count - 1; i >= 0; i--)
             {
                 if (i >= Breakable.All.Count) continue;
                 Breakable lBreakable = Breakable.All[i];
-                if (!lBreakable.Overlaps(lCenter, 1.5f)) continue;
+                if (!lBreakable.Overlaps(lCenter, lReach)) continue;
                 if (lSmash) Burst(lBreakable);
                 else BodyHit(lBreakable);
             }
@@ -498,6 +516,10 @@ namespace Com.IsartDigital.Hyperspeed
             pBreakable.Smash(_heading, Speed);
             AddCombo();
             _dashEnergy = Mathf.Min(DASH_ENERGY, _dashEnergy + 0.4f);
+            // Every break is a small speed pad.
+            if (OnSurface) _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + _profile.cruise * BREAK_KICK * KickScale(0.3f));
+            else _velocity += _velocity.normalized * _profile.cruise * BREAK_KICK * KickScale(0.3f);
+            _boostTimer = Mathf.Max(_boostTimer, 0.6f);
             Juice.Freeze(0.05f);
             Juice.Shake(0.55f);
             Juice.Pulse(1.2f);

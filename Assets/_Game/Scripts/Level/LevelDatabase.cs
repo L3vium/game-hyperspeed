@@ -225,8 +225,14 @@ namespace Com.IsartDigital.Hyperspeed
             return (lLevel.world + 1) + "-" + (lInWorld + 1);
         }
 
-        // Every speed in the table is scaled by this : the world got six times wider, the runner much faster.
-        public const float SPEED_SCALE = 1.8f;
+        // Every speed in the table is scaled by this. The run itself is calm (2026-11-11 : lower cruise), the power comes
+        // from the kicks (pads, dashes, dives), which are far stronger than they were.
+        public const float SPEED_SCALE = 1.35f;
+        // Rivals no longer copy your speed and run well under the pace they had (2026-11-11 : "they must go twice
+        // slower") : about your cruise. Using the pads and dashes beats them, the rank says by how much. Chasers keep a
+        // little more bite, or they could never catch anyone.
+        public const float RIVAL_SCALE = 1.8f * 0.7f;
+        public const float CHASER_SCALE = 1.35f * 0.85f;
 
         public static SpeedProfile Profile(LevelDefinition pLevel) => SpeedProfile.For(pLevel.cruise * SPEED_SCALE, pLevel.worldBreaker);
 
@@ -234,7 +240,7 @@ namespace Com.IsartDigital.Hyperspeed
         public static float RivalSpeed(LevelDefinition pLevel)
         {
             int lIndex = Array.IndexOf(Levels, pLevel);
-            return pLevel.rivalSpeed * SPEED_SCALE * (lIndex >= 0 && lIndex < 6 ? 0.9f : 1f);
+            return pLevel.rivalSpeed * (pLevel.chaser ? CHASER_SCALE : RIVAL_SCALE) * (lIndex >= 0 && lIndex < 6 ? 0.9f : 1f);
         }
     }
 }

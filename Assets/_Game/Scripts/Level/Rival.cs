@@ -33,6 +33,8 @@ namespace Com.IsartDigital.Hyperspeed
 
         public bool Finished { get; private set; }
         public float Gap => RaceContext.PlayerProgress - distance;
+        // What it really runs at right now (its base speed bent by the race).
+        public float CurrentRate => Finished ? speed : _rate;
         public Transform Model => _model;
         // Going past you on purpose : being overtaken this way is not being caught.
         public bool Passing { get; private set; }
@@ -108,17 +110,10 @@ namespace Com.IsartDigital.Hyperspeed
             float lTarget = chaser ? lCruise * 0.9f : lCruise * 0.07f * lSwap;
             // Before the last straight it pulls level and stays there ; in the very last metres it is yours to take.
             if (lClimax && !chaser) lTarget = lLastMeters ? lCruise * 0.18f : -lCruise * 0.03f;
-            float lWanted = speed * Mathf.Clamp(1f + (lGap - lTarget) / (lCruise * 1.2f), 0.8f, chaser ? 1.35f : 1.25f);
-            // Far behind after a big mistake of yours : it keeps its lead and does not run away. Far behind because you
-            // are much faster : it only gains a little, never teleports.
-            if (lGap > lCruise * 2.5f) lWanted = Mathf.Min(lWanted, speed * 1.15f);
-            // Base pace follows the runner, so "faster" and "slower" mean against you, not against a fixed number.
-            float lPace = Mathf.Max(speed, RaceContext.Player != null ? RaceContext.Player.Speed * 0.92f : speed);
-            if (lGap > lCruise * 2.5f) lPace = speed;
-            lWanted *= lPace / speed;
-            // Ahead of you after a mistake : it waits, a little, so the fight comes back to you. A huge mistake costs more.
-            if (!chaser && lGap < -lCruise * 0.3f && RaceContext.Player != null)
-                lWanted = Mathf.Max(speed * 0.6f, RaceContext.Player.Speed * (lGap < -lCruise * 4f ? 0.95f : 0.82f));
+            // Its own pace, only gently bent by the race : a little quicker when you are far ahead (it stays in the
+            // fight), a little slower when it leads. It never copies your speed and never waits for you : beating it
+            // by a lot really means you were much faster, and that is what the rank reads.
+            float lWanted = speed * Mathf.Clamp(1f + (lGap - lTarget) / (lCruise * 2.4f), chaser ? 0.85f : 0.88f, chaser ? 1.3f : 1.08f);
             float lBefore = _rate;
             _rate = Mathf.MoveTowards(_rate, lWanted, lCruise * 2.2f * pDt);
             if (_wobble != null) _wobble.Accelerate((_rate - lBefore) / Mathf.Max(0.0001f, pDt) / lCruise);

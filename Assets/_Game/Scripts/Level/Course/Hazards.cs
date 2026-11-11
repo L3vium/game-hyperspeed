@@ -53,7 +53,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             Vector3 lLocal = transform.InverseTransformPoint(pPlayer.transform.position);
             if (new Vector2(lLocal.x, lLocal.y).magnitude > _radius + 2f) return;
-            pPlayer.ApplyBoost(pPlayer.Profile.cruise * 0.26f, transform.forward, 0f, null, true);
+            pPlayer.ApplyBoost(pPlayer.Profile.cruise * 0.7f, transform.forward, 0f, null, true);
             FX.Shockwave(transform.position, transform.forward, Color.white, _radius * 2.6f, 0.3f);
             AudioManager.Play("sfx_ring", 0.9f, 1f + Random.Range(-0.05f, 0.1f));
             if (_visual != null) _visual.gameObject.SetActive(false);
