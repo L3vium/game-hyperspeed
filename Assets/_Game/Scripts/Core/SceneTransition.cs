@@ -96,7 +96,7 @@ namespace Com.IsartDigital.Hyperspeed
             _wipe.enabled = true;
             bool lShowCard = _card.gameObject.activeSelf;
             _card.gameObject.SetActive(false);
-            AudioManager.Play("ui_whoosh", 0.9f);
+            AudioManager.Play("ui_transition_in", 0.9f);
 
             _material.SetFloat(OPENING, 0f);
             for (float lTime = 0f; lTime < CLOSE_TIME / pSpeed; lTime += Time.unscaledDeltaTime)
@@ -126,7 +126,7 @@ namespace Com.IsartDigital.Hyperspeed
             yield return null;
 
             _card.gameObject.SetActive(false);
-            AudioManager.Play("ui_whoosh", 0.7f, 1.3f);
+            AudioManager.Play("ui_transition_out", 0.85f);
             _material.SetFloat(OPENING, 1f);
             for (float lTime = 0f; lTime < OPEN_TIME / pSpeed; lTime += Time.unscaledDeltaTime)
             {

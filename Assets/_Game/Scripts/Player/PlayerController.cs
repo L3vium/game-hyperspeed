@@ -681,7 +681,7 @@ namespace Com.IsartDigital.Hyperspeed
                 Juice.Shake(0.7f);
                 Juice.Rollback(16f);
                 Impacts.Request(ImpactReason.LightSpeed);
-                AudioManager.Play("sfx_hyper", 1f, 1.3f);
+                AudioManager.Play("sfx_light", 1f, 1f, 0.02f);
                 OnLight?.Invoke();
                 Debug.Log("[HS-FEEL] light entered at v=" + lSpeed.ToString("F0") + " cruise=" + _profile.cruise.ToString("F0") + " s=" + Progress.ToString("F0"));
             }
@@ -690,7 +690,12 @@ namespace Com.IsartDigital.Hyperspeed
                 LightForm = false;
                 AudioManager.Play("sfx_hyper_out", 0.7f, 1.2f);
             }
-            AudioManager.SetLoop("sfx_wind_loop", Mathf.Clamp01(Speed01 + 0.25f) * 0.7f, 0.8f + Speed01 * 0.6f);
+            // The wind is the speed you hear : a low roar at a jog, a howl near light.
+            AudioManager.SetLoop("sfx_wind_loop", Mathf.Clamp01(Speed / Mathf.Max(1f, _profile.cruise) * 0.45f + Speed01 * 0.5f) * 0.95f, 0.75f + Speed01 * 0.7f);
+            AudioManager.SetLoop("sfx_light_loop", LightForm ? 0.7f : 0f, 1f + Speed01 * 0.2f);
+            AudioManager.SetLoop("sfx_dive_loop", Diving ? 0.3f + Dive01 * 0.6f : 0f, 0.85f + Dive01 * 0.4f);
+            if (Diving && !_wasDiving) AudioManager.Play("sfx_dive", 0.8f);
+            _wasDiving = Diving;
         }
 
         // ================================================================ progress, death, respawn
@@ -737,6 +742,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         private float _noGroundTime;
         private float _sceneryTime;
+        private bool _wasDiving;
 
         // Speed you keep after a knock while you ask to run. Without a run asked, nothing holds you up.
         private float RunFloor => RunInput > 0.1f ? _profile.cruise * 0.55f : 0f;
@@ -806,6 +812,9 @@ namespace Com.IsartDigital.Hyperspeed
             EndDrift(false);
             SetState(PlayerState.Dead);
             Combo = 0;
+            AudioManager.Play("sfx_death", 1f);
+            AudioManager.SetLoop("sfx_dive_loop", 0f);
+            AudioManager.SetLoop("sfx_light_loop", 0f);
             OnDied?.Invoke();
         }
 

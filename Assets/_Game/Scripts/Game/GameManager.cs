@@ -105,7 +105,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void Start()
         {
-            AudioManager.PlayMusic("music_intro", 0.45f);
+            AudioManager.PlayMusic("music_intro", 0.38f);
             StartCoroutine(Flow());
         }
 
@@ -154,7 +154,7 @@ namespace Com.IsartDigital.Hyperspeed
             AudioManager.Play("sfx_go", 1f);
             _rig.freeLook = false;
             _player.StartRunning();
-            AudioManager.PlayMusic(_level.music, 0.6f);
+            AudioManager.PlayMusic(_level.music, 0.42f);
             Juice.Shake(0.3f);
             Juice.FovKick(8f);
         }
@@ -163,7 +163,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             // Keys typed in another window must never reach a game running in the background.
             bool lFocused = Application.isFocused;
-            if (lFocused && HSInput.PausePressed && _phase != Phase.Ended && !SceneTransition.IsBusy)
+            if (lFocused && HSInput.PausePressed && _phase != Phase.Ended && !SceneTransition.IsBusy && SettingsMenu.Current == null)
             {
                 if (_paused) Resume();
                 else Pause();

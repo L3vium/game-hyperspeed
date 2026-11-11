@@ -450,14 +450,30 @@ namespace Com.IsartDigital.Hyperspeed
             
             NavTile lResume = Button(lPanel, "RESUME", new Vector2(0f, 0.5f), new Vector2(320f, 80f), new Vector2(480f, 96f), UIKit.WHITE, UIKit.INK);
             NavTile lRetry = Button(lPanel, "RESTART", new Vector2(0f, 0.5f), new Vector2(305f, -40f), new Vector2(480f, 96f), UIKit.WHITE, UIKit.INK);
-            NavTile lMenu = Button(lPanel, "STAGE SELECT", new Vector2(0f, 0.5f), new Vector2(290f, -160f), new Vector2(480f, 96f), new Color(0.3f, 0.3f, 0.32f), UIKit.WHITE);
+            NavTile lSettings = Button(lPanel, "SETTINGS", new Vector2(0f, 0.5f), new Vector2(290f, -160f), new Vector2(480f, 96f), UIKit.WHITE, UIKit.INK);
+            NavTile lMenu = Button(lPanel, "STAGE SELECT", new Vector2(0f, 0.5f), new Vector2(275f, -280f), new Vector2(480f, 96f), new Color(0.3f, 0.3f, 0.32f), UIKit.WHITE);
             UINav lNav = UINav.Create(lPanel.gameObject);
+            // Start resumes : it never also presses the highlighted button.
+            lNav.startSubmits = false;
+            Canvas lCanvas = lTilt.GetComponentInParent<Canvas>();
+            SettingsMenu lMenuSettings = SettingsMenu.Create(lCanvas.transform, false, () =>
+            {
+                lPanel.gameObject.SetActive(true);
+                lNav.active = true;
+                lNav.Select(2);
+            });
             lNav.Add((RectTransform)lResume.transform, new Vector2(0f, 1f), pResume, lResume.SetSelected);
             lNav.Add((RectTransform)lRetry.transform, new Vector2(0f, 0f), pRetry, lRetry.SetSelected);
-            lNav.Add((RectTransform)lMenu.transform, new Vector2(0f, -1f), pMenu, lMenu.SetSelected);
+            lNav.Add((RectTransform)lSettings.transform, new Vector2(0f, -1f), () =>
+            {
+                lNav.active = false;
+                lPanel.gameObject.SetActive(false);
+                lMenuSettings.Open();
+            }, lSettings.SetSelected);
+            lNav.Add((RectTransform)lMenu.transform, new Vector2(0f, -2f), pMenu, lMenu.SetSelected);
             lNav.onBack = pResume;
             lNav.Select(0);
-            return lTilt.GetComponentInParent<Canvas>().gameObject;
+            return lCanvas.gameObject;
         }
     }
 

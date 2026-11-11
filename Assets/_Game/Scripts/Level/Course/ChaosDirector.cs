@@ -441,7 +441,8 @@ namespace Com.IsartDigital.Hyperspeed
             FX.Shockwave(lTarget + Vector3.up * 5f, Vector3.up, new Color(0.7f, 0.85f, 1.4f), R(120f, 260f), 0.4f);
             if (R(0f, 1f) < 0.5f) Fracture.Explode(lTarget, R(20f, 50f), _theme.wall, Vector3.up + lOut, 140f, 0.4f);
             Juice.Flash(new Color(0.85f, 0.9f, 1f), 0.06f);
-            AudioManager.Play("sfx_rock", 0.4f, 0.5f);
+            float lDistance = Vector3.Distance(lTarget, pPlayer.transform.position);
+            AudioManager.Play("sfx_thunder", Mathf.Clamp(1.1f - lDistance / 4000f, 0.25f, 0.9f), Random.Range(0.8f, 1.1f));
         }
 
         // ================================================================ falling things
