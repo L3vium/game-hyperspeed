@@ -370,7 +370,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _module = "Loop";
             // Sized for a boosted runner, not for cruise : a loop is a big sweep, never a wall.
-            float lRadius = Mathf.Max(_p.cruise * 1.5f, _halfWidth * 1.9f);
+            float lRadius = Mathf.Max(_p.cruise * 2f, _halfWidth * 2.4f);
             float lLength = lRadius * Mathf.PI * 2f * 1.08f;
             Quaternion lYaw = Quaternion.AngleAxis(_yaw, Vector3.up);
             Vector3 lShift = lYaw * Vector3.right * (int)pSide * (_halfWidth * 2.6f + 140f);
@@ -392,7 +392,7 @@ namespace Com.IsartDigital.Hyperspeed
         public CourseBuilder Corkscrew(Side pSide = Side.Left)
         {
             _module = "Corkscrew";
-            float lRadius = Mathf.Max(_p.cruise * 1.6f, _halfWidth * 2.1f);
+            float lRadius = Mathf.Max(_p.cruise * 2.2f, _halfWidth * 2.6f);
             float lLength = lRadius * Mathf.PI * 2f * 1.2f;
             Quaternion lYaw = Quaternion.AngleAxis(_yaw, Vector3.up);
             Vector3 lShift = lYaw * Vector3.right * (int)pSide * (_halfWidth * 3f + 180f);
@@ -549,28 +549,41 @@ namespace Com.IsartDigital.Hyperspeed
             return this;
         }
 
-        // A hole with a rope over it. Jump onto it : it never catches you on its own. Below, a low block and a launch.
+        // A long rope over a descent : jump onto it for the electric ride. Miss it and you just run down the slope : the
+        // ground under it is continuous, every step goes down, there is no pit and no wall at the far end.
         public CourseBuilder Rope(float pSeconds = 4f)
         {
             _module = "Rope";
             float lS0 = _s;
-            Open(BlockLook.Road, 3f);
-            Span(M(1.1f));
+            Open(BlockLook.Ground, 6f);
+            Span(M(0.9f));
             float lLateral = Rand(-_halfWidth * 0.3f, _halfWidth * 0.3f);
-            Close();
             float lLip = _s;
-            Act(lLip - M(0.2f), RouteAction.Jump);
-            float lDepth = 70f;
-            // Safety net : a sunken block, a launch strip at its end brings you back up.
-            Open(BlockLook.Slab, 0f, _halfWidth * 1.1f, 0f, lDepth, 0f, 40f);
-            Span(M(pSeconds));
-            _strips.Add(new StripDef { s = _s - M(0.3f), lateral = 0f, halfWidth = _halfWidth, up = 92f, });
-            Close();
-            Span(M(0.2f));
-            _ropes.Add(new RopeDef { s0 = lLip - M(0.25f), s1 = _s + M(0.1f), lateral = lLateral, height0 = 7f, height1 = 3f });
-            Route(lS0, _s + M(0.2f), lLateral);
-            NoPads(lS0, _s + M(0.6f));
-            Open(BlockLook.Road, 3f);
+            Act(lLip - M(0.15f), RouteAction.Jump);
+            Span(M(pSeconds * 0.3f), 0f, -9f);
+            Span(M(pSeconds * 0.4f));
+            Span(M(pSeconds * 0.3f), 0f, 9f);
+            _pitch = 0f;
+            _ropes.Add(new RopeDef { s0 = lLip - M(0.1f), s1 = _s - M(0.1f), lateral = lLateral, height0 = 9f, height1 = 6f });
+            Span(M(0.4f));
+            Route(lS0, _s, lLateral);
+            NoPads(lS0, _s + M(0.4f));
+            return this;
+        }
+
+        // Ramp : you climb it, top a crest and come down the far side with the speed. Up, then down : the rhythm of the
+        // track. Missing nothing, falling nowhere.
+        public CourseBuilder Ramp(float pSeconds = 3.5f, float pDegrees = 14f)
+        {
+            _module = "Ramp";
+            float lLength = M(pSeconds);
+            Open(BlockLook.Ground, 7f);
+            Span(lLength * 0.3f, 0f, pDegrees);
+            Span(lLength * 0.12f);
+            Span(lLength * 0.22f, 0f, -pDegrees * 2f);
+            Span(lLength * 0.18f);
+            Span(lLength * 0.18f, 0f, pDegrees);
+            _pitch = 0f;
             return this;
         }
 
@@ -886,7 +899,6 @@ namespace Com.IsartDigital.Hyperspeed
             // The last straight : the rival comes alongside, the bars close in, the colours burn.
             _layout.climaxS = lS0 - M(1.2f);
             float lHalf = _halfWidth;
-            _halfWidth = Mathf.Max(24f * WIDTH_SCALE, _halfWidth * 0.8f);
             Open(BlockLook.Road, 8f);
             Span(M(pSeconds * 0.5f), 0f, -10f);
             Span(M(pSeconds * 0.5f), 0f, 10f);
@@ -990,7 +1002,7 @@ namespace Com.IsartDigital.Hyperspeed
         // Launch strips here and there on open ground, wherever there is solid track to land on.
         private void PlaceJumpStrips(List<ItemData> pItems)
         {
-            for (float lS = M(4f); lS < _layout.finishS - M(3f); lS += M(Rand(6f, 10f)))
+            for (float lS = M(4f); lS < _layout.finishS - M(3f); lS += M(Rand(6f, 10f) / Mathf.Clamp(padDensity * 1.4f, 0.4f, 1.2f)))
             {
                 if (!PadAllowed(lS) || !_layout.field.Solid(lS + M(0.6f)) || !_layout.field.Solid(lS + M(1.2f))) continue;
                 TrackBlock lBlock = _layout.field.BlockAt(lS);

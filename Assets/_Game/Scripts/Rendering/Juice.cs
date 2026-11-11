@@ -35,11 +35,38 @@ namespace Com.IsartDigital.Hyperspeed
         {
             if (_instance == this) _instance = null;
             if (!Paused) Time.timeScale = 1f;
+            if (UnityEngine.InputSystem.Gamepad.current != null) UnityEngine.InputSystem.Gamepad.current.SetMotorSpeeds(0f, 0f);
         }
 
         public static void Shake(float pTrauma)
         {
-            if (CameraRig.Instance != null) CameraRig.Instance.AddTrauma(pTrauma);
+            if (CameraRig.Instance != null) CameraRig.Instance.AddTrauma(pTrauma * GameSession.ShakeAmount);
+            Rumble(pTrauma);
+        }
+
+        // ---------------------------------------------------------------- gamepad rumble
+
+        private float _rumble;
+
+        // A short buzz in the pad, as strong as the shake that asked for it (setting "VIBRATION").
+        public static void Rumble(float pAmount)
+        {
+            if (!GameSession.Vibration || UnityEngine.InputSystem.Gamepad.current == null) return;
+            Instance._rumble = Mathf.Clamp01(Mathf.Max(Instance._rumble, pAmount));
+        }
+
+        private void UpdateRumble()
+        {
+            UnityEngine.InputSystem.Gamepad lPad = UnityEngine.InputSystem.Gamepad.current;
+            if (lPad == null) return;
+            if (Paused || _rumble <= 0.01f)
+            {
+                if (_rumble > 0f) lPad.SetMotorSpeeds(0f, 0f);
+                _rumble = 0f;
+                return;
+            }
+            lPad.SetMotorSpeeds(_rumble * 0.6f, _rumble);
+            _rumble = Mathf.MoveTowards(_rumble, 0f, Time.unscaledDeltaTime * 4f);
         }
 
         public static void FovKick(float pAmount)
@@ -54,12 +81,12 @@ namespace Com.IsartDigital.Hyperspeed
 
         public static void Flash(Color pColor, float pAmount)
         {
-            if (PostFX.Instance != null) PostFX.Instance.Flash(pColor, pAmount);
+            if (PostFX.Instance != null) PostFX.Instance.Flash(pColor, pAmount * GameSession.FlashAmount);
         }
 
         public static void Pulse(float pAmount)
         {
-            if (PostFX.Instance != null) PostFX.Instance.Pulse(pAmount);
+            if (PostFX.Instance != null) PostFX.Instance.Pulse(pAmount * GameSession.AberrationAmount);
         }
 
         public static void Vignette(Color pColor, float pAmount)
@@ -184,7 +211,13 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void Update()
         {
+            UpdateRumble();
             if (_impactCanvas == null || !_impactCanvas.gameObject.activeSelf) return;
+            if (Paused)
+            {
+                _impactCanvas.gameObject.SetActive(false);
+                return;
+            }
             _impactTimer -= Time.unscaledDeltaTime;
             float lT = Mathf.Clamp01(_impactTimer / 0.12f);
             _impactMaterial.SetFloat("_Intensity", lT * _impactStrength * 0.6f);

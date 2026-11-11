@@ -109,7 +109,7 @@ Shader "Hyperspeed/Flat"
                 // two tones, and mown chevrons pointing the way, like a well kept lawn. Flat colours, no grain, no tiles.
                 if (_RoadStreaks > 0 && (abs(input.uv.x + 1.0) + abs(input.uv.y)) > 0.001)
                 {
-                    float lFade = saturate(1.0 - distance(input.positionWS, GetCameraPositionWS()) / 900.0);
+                    float lFade = saturate(1.0 - (distance(input.positionWS, GetCameraPositionWS()) - 600.0) / 2400.0);
                     float2 lP = input.uv / float2(70.0, 110.0);
                     float lN = SmoothNoise(lP) * 0.65 + SmoothNoise(lP * 2.3 + 17.0) * 0.35;
                     float lEdge = max(fwidth(lN) * 1.5, 0.004);
@@ -127,16 +127,24 @@ Shader "Hyperspeed/Flat"
                     lColor = lerp(lColor, lColor * 1.13 + 0.03, lMark * lFade * 0.8);
                 }
 
-                // Thin lines rushing along the route, denser with speed. Fade with distance : a texture-free ground.
+                // Wind combing the ground : thin zigzag threads drifting along the route, broken into gusts, a little
+                // brighter than the grass. Never straight speed lines : only a hint of motion that grows with speed.
                 if (_RoadStreaks > 0 && _HS_RoadSpeed > 0.01)
                 {
-                    float lColumn = floor(input.uv.x * 0.11);
-                    float lRnd = frac(sin(lColumn * 91.17) * 4375.85);
-                    float lThin = step(frac(input.uv.x * 0.11), 0.09);
-                    float lDash = frac(input.uv.y * (0.002 + lRnd * 0.003) + _HS_RoadScroll * (0.0012 + lRnd * 0.0012) + lRnd * 7.0);
-                    float lStreak = step(0.72 - _HS_RoadSpeed * 0.4, lDash) * lThin * step(0.4 - _HS_RoadSpeed * 0.3, lRnd);
-                    float lNear = saturate(1.0 - distance(input.positionWS, GetCameraPositionWS()) * 0.002);
-                    lColor = lerp(lColor, half3(1, 1, 1), lStreak * _HS_RoadSpeed * 0.85 * lNear);
+                    const float SPACING = 34.0;
+                    float lLane = input.uv.x / SPACING;
+                    float lId = floor(lLane);
+                    float lRnd = frac(sin(lId * 91.17) * 4375.85);
+                    float lY = input.uv.y + _HS_RoadScroll * (0.18 + lRnd * 0.22) + lRnd * 300.0;
+                    float lPeriod = 18.0 + lRnd * 14.0;
+                    float lZig = (abs(frac(lY / lPeriod) - 0.5) * 2.0 - 0.5) * (5.0 + lRnd * 4.0);
+                    float lAcross = abs((frac(lLane) - 0.5) * SPACING - lZig);
+                    float lW = max(fwidth(lAcross) * 1.2, 0.05);
+                    float lThread = 1.0 - smoothstep(0.35, 0.35 + lW, lAcross);
+                    float lGust = frac(lY * (0.0035 + lRnd * 0.002));
+                    float lOn = smoothstep(0.0, 0.06, lGust) * (1.0 - smoothstep(0.3 + _HS_RoadSpeed * 0.25, 0.36 + _HS_RoadSpeed * 0.25, lGust));
+                    float lNear = saturate(1.0 - distance(input.positionWS, GetCameraPositionWS()) / 450.0);
+                    lColor = lerp(lColor, lColor * 1.25 + 0.06, lThread * lOn * step(0.3, lRnd) * _HS_RoadSpeed * 0.6 * lNear);
                 }
 
                 lColor = lerp(lColor, half3(1, 1, 1) * 1.5, _Flash);

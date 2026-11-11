@@ -177,16 +177,18 @@ Shader "Hyperspeed/Toon"
                 half lSpec = step(1.0 - _SpecSize * 0.08, dot(lNormal, lHalf)) * step(0.001, _SpecSize);
                 lColor += _SpecColor.rgb * lSpec * lLight.shadowAttenuation;
 
-                // Anime ground speed lines : dashes along the track that run faster than the player.
+                // Wind on the ground : faint zigzag threads in gusts, never straight speed lines.
                 if (_RoadStreaks > 0 && input.uv.x >= 0.0 && _HS_RoadSpeed > 0.01)
                 {
                     float lColumn = floor(input.uv.x * 26.0);
                     float lRnd = frac(sin(lColumn * 91.17) * 4375.85);
-                    float lLane = frac(input.uv.x * 26.0);
-                    float lThin = smoothstep(0.5, 0.2, abs(lLane - 0.5)) ;
-                    float lDash = frac(input.uv.y * (0.03 + lRnd * 0.03) + _HS_RoadScroll * (0.02 + lRnd * 0.02) + lRnd * 7.0);
-                    float lStreak = step(0.62 - _HS_RoadSpeed * 0.25, lDash) * lThin * step(0.35, lRnd);
-                    lColor = lerp(lColor, half3(1, 1, 1), lStreak * _HS_RoadSpeed * 0.55);
+                    float lY = input.uv.y + _HS_RoadScroll * (0.01 + lRnd * 0.01);
+                    float lZig = (abs(frac(lY * (0.6 + lRnd * 0.4)) - 0.5) * 2.0 - 0.5) * 0.35;
+                    float lLane = frac(input.uv.x * 26.0 + lZig);
+                    float lThin = smoothstep(0.12, 0.04, abs(lLane - 0.5));
+                    float lGust = frac(lY * (0.03 + lRnd * 0.03) + lRnd * 7.0);
+                    float lOn = step(lGust, 0.3 + _HS_RoadSpeed * 0.2) * step(0.35, lRnd);
+                    lColor = lerp(lColor, lColor * 1.25 + 0.05, lThin * lOn * _HS_RoadSpeed * 0.5);
                 }
 
                 lColor += _EmissionColor.rgb;

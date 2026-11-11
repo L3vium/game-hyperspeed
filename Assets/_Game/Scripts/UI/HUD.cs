@@ -35,6 +35,12 @@ namespace Com.IsartDigital.Hyperspeed
         private RectTransform _rivalPointer;
         private UIBanner _notify;
         private UIBanner _hint;
+        private UIBanner _wrongWay;
+        private float _wrongWayTimer;
+        // A callout that must be read (PERFECT START) holds the top slot ; the next one waits its turn.
+        private float _notifyHold;
+        private string _pendingText;
+        private Color _pendingColor;
         private float _lastHyperNotice = -100f;
         private Canvas _endCanvas;
         private int _hintIndex;
@@ -56,7 +62,7 @@ namespace Com.IsartDigital.Hyperspeed
             lHud._level = pLevel;
             lHud.Build();
             Juice.OnPopup += lHud.ShowPopup;
-            pPlayer.OnPerfectStart += () => lHud.Notify("PERFECT START", UIKit.GOLD);
+            pPlayer.OnPerfectStart += () => lHud.Notify("PERFECT START", UIKit.GOLD, 1.6f);
             pPlayer.OnHyper += () =>
             {
                 if (Time.unscaledTime - lHud._lastHyperNotice < 8f) return;
@@ -127,6 +133,7 @@ namespace Com.IsartDigital.Hyperspeed
             // Big callouts at the top centre, instructions at the bottom : anime style, in 3D.
             _notify = UIBanner.Create(lRoot3D, "Notify", new Vector2(0.5f, 1f), new Vector2(0f, -190f), new Vector2(900f, 120f), 96f);
             _hint = UIBanner.Create(lRoot3D, "Hint", new Vector2(0.5f, 0f), new Vector2(260f, 330f), new Vector2(900f, 80f), 50f);
+            _wrongWay = UIBanner.Create(lRoot3D, "WrongWay", new Vector2(0.5f, 0.5f), new Vector2(0f, 120f), new Vector2(900f, 120f), 90f);
         }
 
         private string RivalShortName()
@@ -176,7 +183,9 @@ namespace Com.IsartDigital.Hyperspeed
                 UpdateRivalPointer();
                 UpdateHints(lDt);
                 UpdateSpeedo(lDt);
+                UpdateWrongWay(lDt);
             }
+            UpdateNotify(lDt);
             UpdateCount(lDt);
             if (_tagTimer > 0f)
             {
@@ -261,12 +270,46 @@ namespace Com.IsartDigital.Hyperspeed
             }
         }
 
-        // Top centre, big, in 3D : the moments that matter.
-        public void Notify(string pText, Color pColor)
+        // Top centre, big, in 3D : the moments that matter. pHold keeps it on screen : later callouts queue behind it.
+        public void Notify(string pText, Color pColor, float pHold = 0f)
         {
             if (_notify == null) return;
-            _notify.Show(pText, pColor, 1.3f);
+            if (_notifyHold > 0f && pHold <= 0f)
+            {
+                _pendingText = pText;
+                _pendingColor = pColor;
+                return;
+            }
+            _notify.Show(pText, pColor, Mathf.Max(1.3f, pHold));
+            _notifyHold = pHold;
             AudioManager.Play("ui_hint", 0.7f, 1.2f);
+        }
+
+        private void UpdateNotify(float pDt)
+        {
+            if (_notifyHold <= 0f) return;
+            _notifyHold -= pDt;
+            if (_notifyHold > 0f || _pendingText == null) return;
+            string lText = _pendingText;
+            _pendingText = null;
+            Notify(lText, _pendingColor);
+        }
+
+        // Running against the track : a red callout in the middle, repeated while it lasts, and a beep.
+        private void UpdateWrongWay(float pDt)
+        {
+            _wrongWayTimer -= pDt;
+            if (!_player.WrongWay || _wrongWayTimer > 0f) return;
+            _wrongWayTimer = 1.2f;
+            _wrongWay.Show("WRONG WAY", UIKit.RED, 1.1f);
+            AudioManager.Play("sfx_wrong_way", 0.8f);
+        }
+
+        // Paused : the race HUD steps aside so nothing covers the pause menu.
+        public void SetPaused(bool pPaused)
+        {
+            if (_canvas != null) _canvas.gameObject.SetActive(!pPaused);
+            if (_canvas3D != null) _canvas3D.gameObject.SetActive(!pPaused);
         }
 
         // A rare word, small, next to the speed.
@@ -407,14 +450,30 @@ namespace Com.IsartDigital.Hyperspeed
             
             NavTile lResume = Button(lPanel, "RESUME", new Vector2(0f, 0.5f), new Vector2(320f, 80f), new Vector2(480f, 96f), UIKit.WHITE, UIKit.INK);
             NavTile lRetry = Button(lPanel, "RESTART", new Vector2(0f, 0.5f), new Vector2(305f, -40f), new Vector2(480f, 96f), UIKit.WHITE, UIKit.INK);
-            NavTile lMenu = Button(lPanel, "STAGE SELECT", new Vector2(0f, 0.5f), new Vector2(290f, -160f), new Vector2(480f, 96f), new Color(0.3f, 0.3f, 0.32f), UIKit.WHITE);
+            NavTile lSettings = Button(lPanel, "SETTINGS", new Vector2(0f, 0.5f), new Vector2(290f, -160f), new Vector2(480f, 96f), UIKit.WHITE, UIKit.INK);
+            NavTile lMenu = Button(lPanel, "STAGE SELECT", new Vector2(0f, 0.5f), new Vector2(275f, -280f), new Vector2(480f, 96f), new Color(0.3f, 0.3f, 0.32f), UIKit.WHITE);
             UINav lNav = UINav.Create(lPanel.gameObject);
+            // Start resumes : it never also presses the highlighted button.
+            lNav.startSubmits = false;
+            Canvas lCanvas = lTilt.GetComponentInParent<Canvas>();
+            SettingsMenu lMenuSettings = SettingsMenu.Create(lCanvas.transform, false, () =>
+            {
+                lPanel.gameObject.SetActive(true);
+                lNav.active = true;
+                lNav.Select(2);
+            });
             lNav.Add((RectTransform)lResume.transform, new Vector2(0f, 1f), pResume, lResume.SetSelected);
             lNav.Add((RectTransform)lRetry.transform, new Vector2(0f, 0f), pRetry, lRetry.SetSelected);
-            lNav.Add((RectTransform)lMenu.transform, new Vector2(0f, -1f), pMenu, lMenu.SetSelected);
+            lNav.Add((RectTransform)lSettings.transform, new Vector2(0f, -1f), () =>
+            {
+                lNav.active = false;
+                lPanel.gameObject.SetActive(false);
+                lMenuSettings.Open();
+            }, lSettings.SetSelected);
+            lNav.Add((RectTransform)lMenu.transform, new Vector2(0f, -2f), pMenu, lMenu.SetSelected);
             lNav.onBack = pResume;
             lNav.Select(0);
-            return lTilt.GetComponentInParent<Canvas>().gameObject;
+            return lCanvas.gameObject;
         }
     }
 

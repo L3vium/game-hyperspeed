@@ -65,6 +65,8 @@ namespace Com.IsartDigital.Hyperspeed
             pData.Quad(lA, lB, lC, lD, Vector3.up, pColor);
         }
 
+        public override bool Accepts(PlayerController pPlayer) => Along(pPlayer);
+
         protected override void OnTouch(PlayerController pPlayer)
         {
             pPlayer.ApplyBoost(boost, transform.forward, 0f, null, false, true);

@@ -64,7 +64,8 @@ namespace Com.IsartDigital.Hyperspeed
             _heading = lTangent * _railDirection;
             _moveDir = _heading;
             _velocity = _heading * _speed;
-            Vector3 lTarget = lPos + lUp * 0.25f;
+            // Riding on top of the rope, not inside it.
+            Vector3 lTarget = lPos + lUp * 1.35f;
             if (_railBlend > 0f)
             {
                 _railBlend -= pDt;

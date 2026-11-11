@@ -34,5 +34,15 @@ namespace Com.IsartDigital.Hyperspeed
         }
 
         protected abstract void OnTouch(PlayerController pPlayer);
+
+        // Pads and strips only work the way they point : running over one backward does nothing.
+        public virtual bool Accepts(PlayerController pPlayer) => true;
+
+        protected bool Along(PlayerController pPlayer)
+        {
+            Vector3 lMotion = pPlayer.OnGroundVelocity;
+            if (lMotion.sqrMagnitude < 1f) lMotion = pPlayer.Heading;
+            return Vector3.Dot(lMotion.normalized, transform.forward) > 0.3f;
+        }
     }
 }

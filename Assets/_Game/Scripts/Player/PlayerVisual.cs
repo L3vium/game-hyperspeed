@@ -191,10 +191,21 @@ namespace Com.IsartDigital.Hyperspeed
             _sparks = FX.CreateSpikeSystem("Sparks", 600);
             _sparks.transform.SetParent(transform, false);
 
-            _player.OnJumped += () => { _stretchVelocity += 3.6f; Trigger(P_JUMP); };
+            _player.OnJumped += () =>
+            {
+                _stretchVelocity += 2.8f;
+                // A landing left pending must never play in the air.
+                if (_animated)
+                {
+                    _animator.ResetTrigger(P_LAND);
+                    _animator.ResetTrigger(P_LAND_HARD);
+                    _animator.ResetTrigger(P_LAND_ROLL);
+                }
+                Trigger(P_JUMP);
+            };
             _player.OnDoubleJumped += () =>
             {
-                _stretchVelocity += 2.6f;
+                _stretchVelocity += 1.9f;
                 if (_clipFlip) Trigger(P_FLIP);
                 else _flipT = 0f;
             };
@@ -465,7 +476,9 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void OnLanded(float pImpact)
         {
-            _stretchVelocity -= Mathf.Clamp(pImpact * 0.09f, 0.9f, 3.6f);
+            // A jump asked in the air (coyote) must not replay once on the ground.
+            if (_animated) _animator.ResetTrigger(P_JUMP);
+            _stretchVelocity -= Mathf.Clamp(pImpact * 0.07f, 0.6f, 2.8f);
             float lSpeed = _player.Speed;
             if (_player.LastLandingWasDive && pImpact > 30f) Trigger(lSpeed < 25f ? P_LAND_HARD : P_LAND_ROLL);
             else if (pImpact > 90f && lSpeed < 25f) Trigger(P_LAND_HARD);
@@ -633,9 +646,9 @@ namespace Com.IsartDigital.Hyperspeed
 
             // Squash & stretch around the same pivot, volume preserved.
             _stretchVelocity += ((1f - _stretch) * 320f - _stretchVelocity * 16f) * pDt;
-            _stretch = Mathf.Clamp(_stretch + _stretchVelocity * pDt, 0.74f, 1.27f);
+            _stretch = Mathf.Clamp(_stretch + _stretchVelocity * pDt, 0.8f, 1.2f);
             _zStretchVelocity += ((1f - _zStretch) * 260f - _zStretchVelocity * 15f) * pDt;
-            _zStretch = Mathf.Clamp(_zStretch + _zStretchVelocity * pDt, 0.82f, 1.3f);
+            _zStretch = Mathf.Clamp(_zStretch + _zStretchVelocity * pDt, 0.86f, 1.24f);
             Vector3 lScale = new Vector3(1f / Mathf.Sqrt(_stretch * _zStretch), _stretch / Mathf.Sqrt(_zStretch), _zStretch / Mathf.Sqrt(_stretch));
             Vector3 lPivot = new Vector3(0f, _pivotH, 0f);
             _body.localRotation = lRotation;
@@ -844,9 +857,8 @@ namespace Com.IsartDigital.Hyperspeed
             _lightForm = new GameObject("LightForm").transform;
             _lightForm.SetParent(transform, false);
             _lightForm.localPosition = new Vector3(0f, 1.2f, 0f);
-            Mats.Primitive(PrimitiveType.Sphere, _lightForm, Vector3.zero, Vector3.one * 4.6f, Mats.Glow(new Color(8f, 8f, 9f), false, 0f, 0f, true));
-            Mats.Primitive(PrimitiveType.Sphere, _lightForm, Vector3.zero, Vector3.one * 11f, Mats.Glow(new Color(0.7f, 1.3f, 3f, 0.5f), true, 1f));
-            Mats.Primitive(PrimitiveType.Sphere, _lightForm, Vector3.zero, Vector3.one * 19f, Mats.Glow(new Color(0.4f, 0.7f, 2f, 0.22f), true, 1f));
+            Mats.Primitive(PrimitiveType.Sphere, _lightForm, Vector3.zero, Vector3.one * 3.4f, Mats.Glow(new Color(8f, 8f, 9f), false, 0f, 0f, true));
+            Mats.Primitive(PrimitiveType.Sphere, _lightForm, Vector3.zero, Vector3.one * 7.5f, Mats.Glow(new Color(0.7f, 1.3f, 3f, 0.5f), true, 1f));
             _lightArcs = new LineRenderer[7];
             Material lArc = Mats.Glow(new Color(2.4f, 3.4f, 6f), true);
             for (int i = 0; i < _lightArcs.Length; i++)
@@ -862,8 +874,8 @@ namespace Com.IsartDigital.Hyperspeed
                 _lightArcs[i] = lLine;
             }
             _lightTrail = _lightForm.gameObject.AddComponent<TrailRenderer>();
-            _lightTrail.time = 0.7f;
-            _lightTrail.startWidth = 7f;
+            _lightTrail.time = 0.6f;
+            _lightTrail.startWidth = 4.5f;
             _lightTrail.endWidth = 0f;
             _lightTrail.sharedMaterial = Mats.Glow(new Color(1.2f, 2.2f, 3f), true);
             _lightTrail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -871,51 +883,56 @@ namespace Com.IsartDigital.Hyperspeed
             _lightWake = LightTrail.Create();
         }
 
+        // Dash wake : a flat V of wind opening behind the runner (apex at the body, arms sweeping back and out), not a
+        // cone. Only while dashing : it snaps open on the press and fades right after.
         private void BuildCone()
         {
-            _cone = new GameObject("BoostCone").transform;
+            _cone = new GameObject("DashWake").transform;
             _cone.SetParent(transform, false);
-            Mesh lMesh = MeshUtil.Cone(2.6f, 0.2f, 7.5f, 24);
-            _coneMaterial = new Material(Mats.Glow(new Color(0.7f, 1.6f, 2.6f, 0.6f), true, 0.6f, 1f));
-            _coneMaterial.SetFloat("_StripeFreq", 9f);
-            _coneMaterial.SetFloat("_Scroll", -6f);
-            MeshFilter lFilter = _cone.gameObject.AddComponent<MeshFilter>();
-            lFilter.sharedMesh = lMesh;
+            _coneMaterial = new Material(Mats.Glow(new Color(0.75f, 1.5f, 2.4f, 0.75f), true));
+            _coneMaterial.SetFloat("_StripeFreq", 7f);
+            _coneMaterial.SetFloat("_Scroll", -5f);
             MeshRenderer lRenderer = _cone.gameObject.AddComponent<MeshRenderer>();
+            _cone.gameObject.AddComponent<MeshFilter>().sharedMesh = MeshUtil.Wake(34f, 1f, 0.07f, 0.34f, 16);
             lRenderer.sharedMaterial = _coneMaterial;
             lRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            // A white inner sheath, tighter : the shock front.
-            GameObject lInner = new GameObject("Inner");
+            // A white edge, thinner and tighter : the front of the shock.
+            GameObject lInner = new GameObject("Edge");
             lInner.transform.SetParent(_cone, false);
-            lInner.transform.localScale = new Vector3(0.62f, 0.62f, 0.9f);
-            lInner.AddComponent<MeshFilter>().sharedMesh = lMesh;
-            _coneInnerMaterial = new Material(Mats.Glow(new Color(2.5f, 2.5f, 3f, 0.5f), true, 0.8f, 1f));
-            _coneInnerMaterial.SetFloat("_StripeFreq", 14f);
-            _coneInnerMaterial.SetFloat("_Scroll", -9f);
+            lInner.transform.localPosition = new Vector3(0f, 0.05f, 0.04f);
+            lInner.AddComponent<MeshFilter>().sharedMesh = MeshUtil.Wake(30f, 0.8f, 0.03f, 0.1f, 16);
+            _coneInnerMaterial = new Material(Mats.Glow(new Color(2.6f, 2.6f, 3f, 0.9f), true));
+            _coneInnerMaterial.SetFloat("_StripeFreq", 11f);
+            _coneInnerMaterial.SetFloat("_Scroll", -8f);
             MeshRenderer lInnerRenderer = lInner.AddComponent<MeshRenderer>();
             lInnerRenderer.sharedMaterial = _coneInnerMaterial;
             lInnerRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
             _cone.gameObject.SetActive(false);
         }
 
+        private float _wakeOpen;
+
         private void UpdateCone(float pDt)
         {
             if (_cone == null) return;
-            float lWant = _player.State == PlayerState.Dead || _player.State == PlayerState.Frozen || _lightOn ? 0f
-                : Mathf.Max(_player.BoostAmount, _player.Dashing ? 1f : 0f, _player.Hyper ? 0.55f : 0f, _player.Diving ? 0.5f + _player.Dive01 * 0.5f : 0f);
-            _coneAmount = Mathf.MoveTowards(_coneAmount, lWant, pDt * (lWant > _coneAmount ? 9f : 2.5f));
+            bool lDash = _player.Dashing && _player.State != PlayerState.Dead && _player.State != PlayerState.Frozen && !_lightOn;
+            // Opens in a blink, folds away in a quarter of a second.
+            _coneAmount = Mathf.MoveTowards(_coneAmount, lDash ? 1f : 0f, pDt * (lDash ? 14f : 4f));
+            _wakeOpen = lDash ? Mathf.MoveTowards(_wakeOpen, 1f, pDt * 10f) : _coneAmount > 0.02f ? _wakeOpen : 0f;
             bool lShow = _coneAmount > 0.02f;
             if (_cone.gameObject.activeSelf != lShow) _cone.gameObject.SetActive(lShow);
             if (!lShow) return;
-            Vector3 lMotion = _player.Velocity.sqrMagnitude > 1f ? _player.Velocity.normalized : transform.forward;
-            Vector3 lCenter = transform.position + transform.up * _comHeight;
-            float lLength = 1f + _player.Speed01 * 0.6f;
-            // Wide ring behind, tip just ahead of the head.
-            _cone.SetPositionAndRotation(lCenter - lMotion * 5.5f * lLength, Quaternion.LookRotation(-lMotion, transform.up));
-            float lFlicker = 1f + Mathf.Sin(Time.time * 47f) * 0.06f;
-            _cone.localScale = new Vector3(lFlicker * (0.7f + 0.3f * _coneAmount), lFlicker * (0.7f + 0.3f * _coneAmount), lLength * (0.6f + 0.4f * _coneAmount));
-            _coneMaterial.SetColor("_Color", new Color(0.7f, 1.6f, 2.6f, 0.6f * _coneAmount));
-            _coneInnerMaterial.SetColor("_Color", new Color(2.5f, 2.5f, 3f, 0.5f * _coneAmount));
+            Vector3 lMotion = _player.OnGroundVelocity.sqrMagnitude > 1f ? _player.OnGroundVelocity.normalized : transform.forward;
+            Vector3 lUp = Vector3.ProjectOnPlane(transform.up, lMotion).normalized;
+            if (lUp.sqrMagnitude < 0.01f) lUp = transform.up;
+            // Apex at the hips, the V lying a little above the ground and tipped up toward the camera behind.
+            Vector3 lApex = transform.position + transform.up * (_comHeight * 0.7f) + lMotion * 0.6f;
+            _cone.SetPositionAndRotation(lApex, Quaternion.LookRotation(lMotion, lUp) * Quaternion.Euler(-14f, 0f, 0f));
+            float lLength = 12f * (0.75f + 0.5f * _player.Speed01) * Mathf.Lerp(0.35f, 1f, _wakeOpen);
+            float lSpread = Mathf.Lerp(0.55f, 1f, _wakeOpen);
+            _cone.localScale = new Vector3(lLength * lSpread, lLength, lLength);
+            _coneMaterial.SetColor("_Color", new Color(0.75f, 1.5f, 2.4f, 0.75f * _coneAmount));
+            _coneInnerMaterial.SetColor("_Color", new Color(2.6f, 2.6f, 3f, 0.9f * _coneAmount));
         }
 
         private void UpdateLightForm()
@@ -945,7 +962,7 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 Vector3 lDir = Random.onUnitSphere;
                 Vector3 lSide = Vector3.Cross(lDir, Random.onUnitSphere).normalized;
-                float lReach = Random.Range(4.5f, 10f);
+                float lReach = Random.Range(3.2f, 7f);
                 for (int i = 0; i < lLine.positionCount; i++)
                 {
                     float lT = i / (lLine.positionCount - 1f);
@@ -1041,7 +1058,7 @@ namespace Com.IsartDigital.Hyperspeed
             _stepPhase += pDt * 3.2f * (_animated ? _animator.speed : 1f) * Mathf.Lerp(0.8f, 1.4f, Mathf.Clamp01(pSpeed / 60f));
             if (Mathf.Floor(lPrevious) == Mathf.Floor(_stepPhase)) return;
             EmitDust(2);
-            AudioManager.Play("sfx_step", 0.22f, 1f + Mathf.Clamp01(pSpeed / 120f) * 0.3f, 0.12f);
+            AudioManager.Play("sfx_step", 0.45f, 1f + Mathf.Clamp01(pSpeed / 120f) * 0.3f, 0.12f);
         }
 
         private void EmitDust(int pCount)

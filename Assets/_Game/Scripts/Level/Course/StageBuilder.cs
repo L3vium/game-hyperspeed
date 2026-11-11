@@ -31,6 +31,44 @@ namespace Com.IsartDigital.Hyperspeed
             return lLayout;
         }
 
+        // Every place where the next block starts higher than the one before ends (walls you would run into). The level
+        // rule is that the track only ever steps down. Returns one line per rise above pTolerance metres.
+        public static List<string> FindRises(LevelLayout pLayout, float pTolerance = 2f)
+        {
+            List<string> lRises = new List<string>();
+            List<TrackBlock> lBlocks = new List<TrackBlock>(pLayout.field.blocks);
+            lBlocks.Sort((pA, pB) => pA.s0.CompareTo(pB.s0));
+            for (int i = 1; i < lBlocks.Count; i++)
+            {
+                TrackBlock lA = lBlocks[i - 1];
+                TrackBlock lB = lBlocks[i];
+                if (lB.look == BlockLook.Plaza || lA.look == BlockLook.Plaza) continue;
+                if (lB.s0 - lA.s1 > 400f) continue;
+                SpineSample lEndA = pLayout.spine.Evaluate(lA.s1);
+                SpineSample lStartB = pLayout.spine.Evaluate(lB.s0);
+                if (lEndA.localGravity || lStartB.localGravity) continue;
+                float lWorst = float.MinValue;
+                float lFrom = Mathf.Max(lA.offset - lA.halfWidth, lB.offset - lB.halfWidth);
+                float lTo = Mathf.Min(lA.offset + lA.halfWidth, lB.offset + lB.halfWidth);
+                for (int k = 0; k <= 4; k++)
+                {
+                    float lX = Mathf.Lerp(lFrom, lTo, k / 4f);
+                    float lHeightA = FloorY(lEndA, lA, lX);
+                    float lHeightB = FloorY(lStartB, lB, lX);
+                    lWorst = Mathf.Max(lWorst, lHeightB - lHeightA);
+                }
+                if (lWorst > pTolerance) lRises.Add("rise " + lWorst.ToString("F0") + " m at s=" + lB.s0.ToString("F0") + " (" + lA.look + " -> " + lB.look + ")");
+            }
+            return lRises;
+        }
+
+        private static float FloorY(SpineSample pSample, TrackBlock pBlock, float pLateral)
+        {
+            float lLocal = pLateral - pBlock.offset;
+            Vector3 lPoint = pSample.position + pSample.Right * (pBlock.offset + lLocal * pBlock.Cos) + pSample.up * (-pBlock.drop - lLocal * pBlock.Sin);
+            return lPoint.y;
+        }
+
         public static void ReplaySpine(StageData pData, Spine pSpine)
         {
             pSpine.samples.Clear();
@@ -181,7 +219,7 @@ namespace Com.IsartDigital.Hyperspeed
             GameObject lObject = new GameObject("Rope");
             lObject.transform.SetParent(pParent, false);
             GrindRail lRail = lObject.AddComponent<GrindRail>();
-            lRail.catchRadius = 14f;
+            lRail.catchRadius = 7f;
             float lStep = Mathf.Max(8f, 10f * pLayout.profile.k);
             float lSpan = Mathf.Max(1f, pItem.s1 - pItem.s);
             for (float lS = pItem.s; lS < pItem.s1; lS += lStep)
@@ -191,7 +229,7 @@ namespace Com.IsartDigital.Hyperspeed
                 float lHeight = Mathf.Lerp(pItem.height, pItem.height1, lT);
                 lRail.AddPoint(lSample.position + lSample.Right * pItem.lateral + lSample.up * lHeight, lSample.up, lS);
             }
-            lRail.Finish(pTheme.accent, 4f);
+            lRail.Finish(pTheme.accent, 1.2f);
             pLayout.rails.Add(lRail);
             return lObject;
         }

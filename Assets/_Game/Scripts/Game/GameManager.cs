@@ -46,6 +46,8 @@ namespace Com.IsartDigital.Hyperspeed
         protected override void OnAwake()
         {
             if (_cheatCodes) GameSession.CheatsEnabled = true;
+            GameSession.ApplyDisplay();
+            AudioManager.LoadVolumes();
             Time.timeScale = 1f;
             Juice.Paused = false;
             RaceContext.Clear();
@@ -103,7 +105,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void Start()
         {
-            AudioManager.PlayMusic("music_intro", 0.45f);
+            AudioManager.PlayMusic("music_intro", 0.38f);
             StartCoroutine(Flow());
         }
 
@@ -152,7 +154,7 @@ namespace Com.IsartDigital.Hyperspeed
             AudioManager.Play("sfx_go", 1f);
             _rig.freeLook = false;
             _player.StartRunning();
-            AudioManager.PlayMusic(_level.music, 0.6f);
+            AudioManager.PlayMusic(_level.music, 0.42f);
             Juice.Shake(0.3f);
             Juice.FovKick(8f);
         }
@@ -161,7 +163,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             // Keys typed in another window must never reach a game running in the background.
             bool lFocused = Application.isFocused;
-            if (lFocused && HSInput.PausePressed && _phase != Phase.Ended && !SceneTransition.IsBusy)
+            if (lFocused && HSInput.PausePressed && _phase != Phase.Ended && !SceneTransition.IsBusy && SettingsMenu.Current == null)
             {
                 if (_paused) Resume();
                 else Pause();
@@ -358,6 +360,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void Pause()
         {
+            if (_paused) return;
             _paused = true;
             Juice.Paused = true;
             Time.timeScale = 0f;
@@ -365,18 +368,29 @@ namespace Com.IsartDigital.Hyperspeed
             AudioManager.Duck(9999f);
             if (PostFX.Instance != null) PostFX.Instance.pause = 1f;
             SetCursorLocked(false);
+            // Nothing of the race HUD stays over the pause menu.
+            _hud.SetPaused(true);
+            if (_cheatBar != null) _cheatBar.gameObject.SetActive(false);
             _pausePanel = _hud.ShowPause(Resume, Retry, ToStageSelect);
         }
 
         private void Resume()
         {
+            if (!_paused) return;
             _paused = false;
+            _hud.SetPaused(false);
+            if (_cheatBar != null) _cheatBar.gameObject.SetActive(true);
             Juice.Paused = false;
             Time.timeScale = _slowCheat ? 0.35f : 1f;
             AudioManager.Unduck();
             if (PostFX.Instance != null) PostFX.Instance.pause = 0f;
             SetCursorLocked(_phase != Phase.Ended);
-            if (_pausePanel != null) Destroy(_pausePanel);
+            if (_pausePanel != null)
+            {
+                // Off at once : the press that closed it must not also click one of its buttons this frame.
+                _pausePanel.SetActive(false);
+                Destroy(_pausePanel);
+            }
         }
 
         private static void SetCursorLocked(bool pLocked)

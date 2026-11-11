@@ -154,7 +154,7 @@ namespace Com.IsartDigital.Hyperspeed
                 Vector3 lFrom = lRock.transform.position - lAt;
                 // Left behind, or well under the world : it comes back somewhere ahead.
                 if (Vector3.Dot(lFrom, lForward) < -900f - lRock.radius * 3f || lFrom.y < -2500f) lRock.life = 0f;
-                if (!lRock.strike) continue;
+                // Every rock that meets the ground explodes on it, near or far.
                 lRock.check -= pDt;
                 if (lRock.check > 0f) continue;
                 lRock.check = 0.08f;
@@ -248,6 +248,7 @@ namespace Com.IsartDigital.Hyperspeed
             FX.Shockwave(pPoint, Vector3.up, new Color(1f, 0.5f, 0.15f), pRock.radius * 7f, 0.6f);
             float lDistance = Vector3.Distance(pPoint, pPlayer);
             if (lDistance < 1400f) Juice.Shake(Mathf.Clamp01(0.45f - lDistance / 3000f));
+            if (lDistance < 3000f) AudioManager.Play("sfx_explosion", Mathf.Clamp01(0.9f - lDistance / 3500f), Random.Range(0.6f, 0.9f));
         }
 
         // ================================================================ crests
@@ -440,7 +441,8 @@ namespace Com.IsartDigital.Hyperspeed
             FX.Shockwave(lTarget + Vector3.up * 5f, Vector3.up, new Color(0.7f, 0.85f, 1.4f), R(120f, 260f), 0.4f);
             if (R(0f, 1f) < 0.5f) Fracture.Explode(lTarget, R(20f, 50f), _theme.wall, Vector3.up + lOut, 140f, 0.4f);
             Juice.Flash(new Color(0.85f, 0.9f, 1f), 0.06f);
-            AudioManager.Play("sfx_rock", 0.4f, 0.5f);
+            float lDistance = Vector3.Distance(lTarget, pPlayer.transform.position);
+            AudioManager.Play("sfx_thunder", Mathf.Clamp(1.1f - lDistance / 4000f, 0.25f, 0.9f), Random.Range(0.8f, 1.1f));
         }
 
         // ================================================================ falling things

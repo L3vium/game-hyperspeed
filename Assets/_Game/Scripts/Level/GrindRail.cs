@@ -15,6 +15,7 @@ namespace Com.IsartDigital.Hyperspeed
         private readonly List<float> _distances = new List<float>();
         private readonly List<float> _spineS = new List<float>();
         private Bounds _bounds;
+        public Bounds Area => _bounds;
 
         public float Length { get; private set; }
         public float catchRadius = 20f;

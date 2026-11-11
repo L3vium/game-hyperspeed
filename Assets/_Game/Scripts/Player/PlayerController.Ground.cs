@@ -47,7 +47,7 @@ namespace Com.IsartDigital.Hyperspeed
                 Vector3 lAim = Vector3.ProjectOnPlane(_aimForward, _up);
                 if (lAim.sqrMagnitude > 0.0001f)
                 {
-                    float lTurn = Mathf.Lerp(11f, 5f, Speed01) * (Drifting ? 1.5f : 1f);
+                    float lTurn = Mathf.Lerp(14f, 8f, Speed01) * (Drifting ? 1.5f : 1f);
                     lForward = Vector3.RotateTowards(lForward, lAim.normalized, lTurn * pDt, 0f);
                 }
                 // On the sections that carry you (loops, twists) the track itself keeps you in : it is a ride, not a tightrope.
@@ -83,7 +83,6 @@ namespace Com.IsartDigital.Hyperspeed
                 return;
             }
             UpdateWallRide();
-            if (!_freeRoam && CheckOffTrack(pDt)) return;
 
             // A wall or a ceiling only holds you if you keep your speed, unless the track is built to carry you.
             bool lLocal = _layout != null && _layout.spine.samples[_layout.spine.IndexOf(Progress)].localGravity;
@@ -99,15 +98,16 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void StrafeStep(Vector3 pRight, float pDt)
         {
-            float lMax = _profile.StrafeMax(_speed);
+            float lMax = _profile.StrafeMax(_speed) * 1.25f;
             float lInput = Steer;
             if (Drifting)
             {
-                lInput = Mathf.Clamp(DriftDirection * 0.55f + Steer * 0.6f, -1f, 1f);
+                lInput = Mathf.Clamp(DriftDirection * 0.55f + DriftSteer * 0.6f, -1f, 1f);
                 lMax *= 1.35f;
             }
             float lTarget = lInput * lMax;
-            _slip = Mathf.MoveTowards(_slip, lTarget, lMax / (Mathf.Abs(lTarget) > Mathf.Abs(_slip) ? 0.12f : 0.2f) * pDt);
+            // Snappy both ways : the sidestep answers at once and stops at once.
+            _slip = Mathf.MoveTowards(_slip, lTarget, lMax / (Mathf.Abs(lTarget) > Mathf.Abs(_slip) ? 0.06f : 0.1f) * pDt);
             // The slope pushes you sideways : leaning blocks and walls shape your line.
             _slip += Vector3.Dot(GravityDown(), pRight) * SLOPE_ACCEL * 0.8f * pDt;
             // Up a mountain side : it slides you back down to the floor, harder the higher you went.
@@ -149,21 +149,32 @@ namespace Com.IsartDigital.Hyperspeed
                 _speed = Mathf.Clamp(_speed, lCruise * 0.55f, SpeedProfile.SAFETY_MAX);
                 return;
             }
-            float lTarget = lCruise * (1f + 0.1f * Mathf.Max(0f, HSInput.Forward));
+            // You run only while you ask for it. Let go and you coast down to a stop ; brake and you stop fast.
+            float lRun = RunInput;
+            if (lRun < 0.05f || BrakeInput > 0.05f)
+            {
+                float lDecel = Mathf.Max(lCruise * COAST_DECEL, _speed * 0.9f) * (1f + BrakeInput * (BRAKE_DECEL / COAST_DECEL - 1f));
+                if (Sliding || BellySliding) lDecel *= 0.35f;
+                _speed = Mathf.MoveTowards(_speed, 0f, lDecel * pDt);
+                _speed = Mathf.Clamp(_speed, 0f, SpeedProfile.SAFETY_MAX);
+                return;
+            }
+            float lTarget = lCruise * lRun;
             if (_speed < lTarget) _speed = Mathf.MoveTowards(_speed, lTarget, RUN_ACCEL * (Sliding ? 0.3f : 1f) * pDt);
+            else if (_speed <= lCruise) _speed = Mathf.MoveTowards(_speed, lTarget, RUN_ACCEL * 0.8f * pDt);
             else
             {
                 float lOver = _speed / lCruise - 1f;
                 float lDrag = LightForm ? DRAG_LIGHT : DRAG + DRAG_OVER * lOver;
                 _speed -= (_speed - lTarget) * (1f - Mathf.Exp(-lDrag * pDt));
             }
-            _speed = Mathf.Clamp(_speed, lCruise * 0.55f, SpeedProfile.SAFETY_MAX);
+            _speed = Mathf.Clamp(_speed, 0f, SpeedProfile.SAFETY_MAX);
         }
 
         // Before GO (and on the title) : jog anywhere on the plaza, relative to the view.
         private void FreeRoamSteer(float pDt)
         {
-            Vector3 lInput = InputLocked ? Vector3.zero : _aimForward * HSInput.Forward + Vector3.Cross(_up, _aimForward).normalized * HSInput.Steer;
+            Vector3 lInput = InputLocked ? Vector3.zero : _aimForward * HSInput.Forward + Vector3.Cross(_up, _aimForward).normalized * HSInput.Sideways;
             float lAmount = Mathf.Clamp01(lInput.magnitude);
             if (lAmount > 0.1f) _heading = Vector3.RotateTowards(_heading, lInput.normalized, 10f * pDt, 0f);
             _heading = Vector3.ProjectOnPlane(_heading, _up).normalized;
@@ -217,65 +228,11 @@ namespace Com.IsartDigital.Hyperspeed
             if (WallRiding && Random.value < 0.5f) FX.Sparks(transform.position, Color.white, 1, 10f, 0.5f, 0.25f);
         }
 
-        // ================================================================ recovery
+        // ================================================================ surface bookkeeping
 
         private int _groundLayer;
-        private float _offTrackTime;
-        private float _recoverTimer;
-        private float _recoverGrace;
         // Time spent in the air on a section that carries gravity (loop, corkscrew, twist).
         private float _localAirTime;
-
-        // Running on scenery, or far out of the track : a moment later a bounce throws you back onto it.
-        private bool CheckOffTrack(float pDt)
-        {
-            if (_layout == null || _autoRun) return false;
-            bool lOff = _groundLayer == Layers.SCENERY || Mathf.Abs(Lateral - _layout.field.CenterLateral(Progress)) > _layout.field.TotalHalfWidth(Progress) + 20f;
-            _offTrackTime = lOff ? _offTrackTime + pDt : 0f;
-            if (_offTrackTime < 0.5f) return false;
-            Recover();
-            return true;
-        }
-
-        // A trampoline throw : a ballistic arc that lands on solid track ahead, the view turned toward it.
-        public void Recover()
-        {
-            if (_layout == null) return;
-            float lS = Progress + Mathf.Max(220f, Speed * 1.4f);
-            for (int i = 0; i < 60 && lS < _layout.finishS; i++)
-            {
-                if (_layout.field.Solid(lS) && !_layout.spine.samples[_layout.spine.IndexOf(lS)].localGravity) break;
-                lS += 60f;
-            }
-            Vector3 lTarget = _layout.GroundPoint(lS, _layout.RouteLateral(lS)) + _layout.field.Normal(lS) * 6f;
-            Vector3 lDelta = lTarget - transform.position;
-            Vector3 lFlat = Vector3.ProjectOnPlane(lDelta, Vector3.up);
-            float lTime = Mathf.Clamp(lFlat.magnitude / Mathf.Max(Speed, _profile.cruise), 1.1f, 3f);
-            const float GRAVITY = 135f;
-            _velocity = lFlat / lTime + Vector3.up * (lDelta.y / lTime + 0.5f * GRAVITY * lTime);
-            _recoverTimer = lTime * 0.85f;
-            // The whole throw, and a moment after it, never counts as a fall.
-            _recoverGrace = lTime + 0.8f;
-            _offTrackTime = 0f;
-            _gravityUp = Vector3.up;
-            if (lFlat.sqrMagnitude > 1f)
-            {
-                _heading = lFlat.normalized;
-                _aimForward = _heading;
-            }
-            AimPitch = 0f;
-            Diving = false;
-            _invulnerable = Mathf.Max(_invulnerable, 1f);
-            HasDoubleJump = true;
-            SetState(PlayerState.Air);
-            AudioManager.Play("sfx_launch", 1f, 0.8f);
-            FX.Shockwave(transform.position + Vector3.up, Vector3.up, UIFactory.CYAN, 60f, 0.5f);
-            FX.Sparks(transform.position, UIFactory.CYAN, 40, 60f, 0.8f, 0.5f);
-            Juice.FovKick(10f);
-            Juice.Rollback(12f);
-            Juice.Shake(0.4f);
-            if (Autopilot.Enabled) Debug.Log("[HS-REC] recover s=" + Progress.ToString("F0") + " to=" + lS.ToString("F0") + " t=" + lTime.ToString("F1"));
-        }
 
         // Leaves the ground with the exact tangent velocity of the surface.
         private void TakeOff(TakeoffReason pReason)
@@ -296,9 +253,10 @@ namespace Com.IsartDigital.Hyperspeed
                 EndDrift(false);
                 return;
             }
-            // Ctrl + a turn, from the keys or from the mouse : the drift starts either way.
-            float lTurn = Mathf.Abs(Steer) > 0.35f ? Steer : Mathf.Clamp(MouseTurn / 90f, -1f, 1f);
-            if (!Drifting && _slideHeld && Mathf.Abs(lTurn) > 0.35f && _speed > 30f)
+            // Drift key + a real turn (keys, left stick, or a hard mouse swing) at a real speed : the drift starts.
+            float lTurn = DriftSteer;
+            if (Mathf.Abs(lTurn) < 0.35f && Mathf.Abs(MouseTurn) > 70f) lTurn = Mathf.Clamp(MouseTurn / 140f, -1f, 1f);
+            if (!Drifting && _slideHeld && Mathf.Abs(lTurn) > 0.35f && _speed > _profile.cruise * 0.5f)
             {
                 Drifting = true;
                 DriftDirection = lTurn > 0f ? 1 : -1;
@@ -313,7 +271,7 @@ namespace Com.IsartDigital.Hyperspeed
                 return;
             }
             int lTierBefore = DriftTier;
-            DriftCharge += pDt * (0.55f + Mathf.Max(Mathf.Abs(Steer), Mathf.Clamp01(Mathf.Abs(MouseTurn) / 120f)) * 0.65f);
+            DriftCharge += pDt * (0.55f + Mathf.Max(Mathf.Abs(DriftSteer), Mathf.Clamp01(Mathf.Abs(MouseTurn) / 120f)) * 0.65f);
             if (DriftTier > lTierBefore)
             {
                 AudioManager.Play("sfx_drift_tier", 0.6f, 0.9f + DriftTier * 0.15f, 0f);
@@ -321,6 +279,10 @@ namespace Com.IsartDigital.Hyperspeed
             }
             AudioManager.SetLoop("sfx_drift_loop", 0.45f, 0.9f + DriftTier * 0.12f);
         }
+
+        // The turn asked for a drift : sidestep keys, or the gamepad's steering stick.
+        private float DriftSteer => Mathf.Abs(Steer) >= Mathf.Abs(_turnStick) ? Steer : _turnStick;
+        private float _turnStick;
 
         private void EndDrift(bool pRelease)
         {
