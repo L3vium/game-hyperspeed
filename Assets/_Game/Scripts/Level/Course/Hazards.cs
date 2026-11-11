@@ -53,9 +53,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             Vector3 lLocal = transform.InverseTransformPoint(pPlayer.transform.position);
             if (new Vector2(lLocal.x, lLocal.y).magnitude > _radius + 2f) return;
-            pPlayer.ApplyBoost(pPlayer.Profile.cruise * 0.26f, transform.forward, 0f, null, true);
-            FX.Shockwave(transform.position, transform.forward, Color.white, _radius * 2.6f, 0.3f);
-            AudioManager.Play("sfx_ring", 0.9f, 1f + Random.Range(-0.05f, 0.1f));
+            pPlayer.ApplyBoost(pPlayer.Profile.cruise * 0.7f, transform.forward, 0f, null, true, false, JuiceId.Ring);
             if (_visual != null) _visual.gameObject.SetActive(false);
             Destroy(gameObject, 0.6f);
         }
@@ -64,6 +62,8 @@ namespace Com.IsartDigital.Hyperspeed
     // Giant crate : dash through it and it bursts into burning pieces, throwing you forward. Run into it and it stops you.
     public class Crate : Breakable
     {
+        public override string Material => "crate";
+
         private LevelLayout _layout;
         private float _s;
         private float _lateral;
@@ -220,6 +220,9 @@ namespace Com.IsartDigital.Hyperspeed
     public class Pane : Breakable
     {
         private Vector3 _half;
+        private PaneKind _kind;
+
+        public override string Material => _kind == PaneKind.Ice ? "ice" : _kind == PaneKind.Door ? "door" : "glass";
 
         public override bool Overlaps(Vector3 pPosition, float pRadius)
         {
@@ -236,6 +239,7 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lUp = pLayout.field.Normal(pS);
             lObject.transform.SetPositionAndRotation(pLayout.field.Point(pS, pLateral) + lUp * pHeight * 0.5f, Quaternion.LookRotation(pLayout.spine.Forward(pS), lUp));
             Pane lPane = lObject.AddComponent<Pane>();
+            lPane._kind = pKind;
             lPane._half = new Vector3(pWidth * 0.5f, pHeight * 0.5f, lDepth * 0.5f);
             lPane.radius = Mathf.Min(pWidth, pHeight) * 0.5f;
             lPane.big = true;
@@ -379,8 +383,7 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lPush = _pivot.TransformDirection(Vector3.right) * Mathf.Sign(Mathf.Cos(Time.time * 2.1f + _phase));
             pPlayer.Crash(_pivot.TransformPoint(new Vector3(0f, -ARM, 0f)));
             FX.Shockwave(lCenter, lPush, Color.white, 30f, 0.3f);
-            AudioManager.Play("sfx_hammer_hit", 1f);
-            Juice.Shake(0.8f);
+            HSJuice.Play(JuiceId.HazardHit, lCenter);
         }
     }
 }

@@ -92,7 +92,12 @@ namespace Com.IsartDigital.Hyperspeed
             AddRow(_main, -1, lLeft++, "SCREEN", ScreenModeText, ChangeScreenMode);
             AddRow(_main, -1, lLeft++, "VSYNC", () => OnOff(GameSession.VSync), d => GameSession.VSync = !GameSession.VSync);
             AddRow(_main, -1, lLeft++, "QUALITY", () => QualitySettings.names[GameSession.Quality].ToUpperInvariant(), d => GameSession.Quality = (GameSession.Quality + d + QualitySettings.names.Length) % QualitySettings.names.Length);
-            AddRow(_main, -1, lLeft++, "FIELD OF VIEW", () => (GameSession.FovOffset >= 0f ? "+" : "") + Mathf.RoundToInt(GameSession.FovOffset), d => GameSession.FovOffset += d * 5f);
+            AddRow(_main, -1, lLeft++, "FIELD OF VIEW", () => Mathf.RoundToInt(GameSession.FovScale * 100f) + "%", d => GameSession.FovScale += d * 0.05f);
+            AddRow(_main, -1, lLeft++, "WIDE ANGLE", () => OnOff(GameSession.WideAngle), d =>
+            {
+                GameSession.WideAngle = !GameSession.WideAngle;
+                if (PanoramaRig.Active != null) PanoramaRig.Active.SetEnabled(GameSession.WideAngle);
+            });
             AddRow(_main, -1, lLeft++, "CAMERA DISTANCE", () => Mathf.RoundToInt(GameSession.CameraDistance * 100f) + "%", d => GameSession.CameraDistance += d * 0.1f);
             if (pCredits) AddRow(_main, -1, lLeft++, "CREDITS", () => ">>", d => ShowPage(_credits), true);
 
@@ -106,6 +111,7 @@ namespace Com.IsartDigital.Hyperspeed
             AddRow(_main, 1, lRight++, "SCREEN SHAKE", () => Percent(GameSession.ShakeAmount), d => GameSession.ShakeAmount = Step01(GameSession.ShakeAmount, d));
             AddRow(_main, 1, lRight++, "ABERRATION", () => Percent(GameSession.AberrationAmount), d => GameSession.AberrationAmount = Step01(GameSession.AberrationAmount, d));
             AddRow(_main, 1, lRight++, "FLASHES", () => Percent(GameSession.FlashAmount), d => GameSession.FlashAmount = Step01(GameSession.FlashAmount, d));
+            AddRow(_main, 1, lRight++, "WIDE QUALITY", () => GameSession.PanoramaQuality == 0 ? "LOW" : GameSession.PanoramaQuality == 1 ? "MEDIUM" : "HIGH", d => GameSession.PanoramaQuality = (GameSession.PanoramaQuality + d + 3) % 3);
 
             BackArrow(_main, _mainNav, Close);
             BuildControls();

@@ -90,7 +90,7 @@ Shader "Hyperspeed/Flat"
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 output.color = input.color;
                 output.uv = input.uv;
-                output.fogFactor = ComputeFogFactor(lPos.positionCS.z);
+                output.fogFactor = ComputeFogFactorZ0ToFar(distance(lPos.positionWS, GetCameraPositionWS()));
                 return output;
             }
 

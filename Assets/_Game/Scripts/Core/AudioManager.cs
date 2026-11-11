@@ -20,6 +20,12 @@ namespace Com.IsartDigital.Hyperspeed
 
         private AudioSource _musicA;
         private AudioSource _musicB;
+        // Race music in three synchronised stems (base, hyper, light) mixed by the speed state.
+        private readonly AudioSource[] _layers = new AudioSource[3];
+        private readonly float[] _layerTargets = { 1f, 0f, 0f };
+        private string _layerKey;
+        private float _layerVolume;
+        private bool _layersOn;
         private AudioLowPassFilter _musicFilter;
         private float _duckTimer;
         private float _musicVolume = 0.6f;
@@ -72,6 +78,7 @@ namespace Com.IsartDigital.Hyperspeed
             lMusic.transform.SetParent(transform, false);
             _musicA = CreateMusicSource(lMusic);
             _musicB = CreateMusicSource(lMusic);
+            for (int i = 0; i < _layers.Length; i++) _layers[i] = CreateMusicSource(lMusic);
             _musicFilter = lMusic.AddComponent<AudioLowPassFilter>();
             _musicFilter.cutoffFrequency = 22000f;
         }
@@ -132,9 +139,53 @@ namespace Com.IsartDigital.Hyperspeed
                 _instance._loopTargets[lKey] = 0f;
         }
 
+        // pBase, then pBase's hyper and light stems if they exist (pBase without its "_base" suffix + "_hyper", "_light").
+        public static void PlayMusicLayers(string pPrefix, float pVolume = 0.55f)
+        {
+            AudioManager lManager = Instance;
+            if (lManager._layersOn && lManager._layerKey == pPrefix) return;
+            AudioClip lBase, lHyper, lLight;
+            if (!lManager._clips.TryGetValue(pPrefix + "_base", out lBase))
+            {
+                PlayMusic(pPrefix, pVolume);
+                return;
+            }
+            lManager._clips.TryGetValue(pPrefix + "_hyper", out lHyper);
+            lManager._clips.TryGetValue(pPrefix + "_light", out lLight);
+            lManager._layerKey = pPrefix;
+            lManager._layerVolume = pVolume;
+            lManager._layersOn = true;
+            lManager._currentMusic = null;
+            // The plain music fades out under the stems.
+            lManager._musicVolume = 0f;
+            double lStart = AudioSettings.dspTime + 0.08;
+            AudioClip[] lClips = { lBase, lHyper, lLight };
+            for (int i = 0; i < lManager._layers.Length; i++)
+            {
+                AudioSource lSource = lManager._layers[i];
+                lSource.Stop();
+                lSource.clip = lClips[i];
+                lSource.volume = 0f;
+                if (lClips[i] != null) lSource.PlayScheduled(lStart);
+            }
+            lManager._layerTargets[0] = 1f;
+            lManager._layerTargets[1] = 0f;
+            lManager._layerTargets[2] = 0f;
+        }
+
+        // 0..1 each : how much of the hyper and light stems plays over the base.
+        public static void SetMusicIntensity(float pHyper, float pLight)
+        {
+            if (_instance == null) return;
+            _instance._layerTargets[1] = Mathf.Clamp01(pHyper);
+            _instance._layerTargets[2] = Mathf.Clamp01(pLight);
+        }
+
         public static void PlayMusic(string pId, float pVolume = 0.55f)
         {
             AudioManager lManager = Instance;
+            lManager._layersOn = false;
+            lManager._layerKey = null;
             if (lManager._currentMusic == pId) return;
             AudioClip lClip;
             if (!lManager._clips.TryGetValue(pId, out lClip)) return;
@@ -179,7 +230,15 @@ namespace Com.IsartDigital.Hyperspeed
 
         public static void SetMusicPitch(float pPitch)
         {
-            if (_instance != null) _instance._musicA.pitch = pPitch;
+            if (_instance == null) return;
+            _instance._musicA.pitch = pPitch;
+            foreach (AudioSource lLayer in _instance._layers) lLayer.pitch = pPitch;
+        }
+
+        // One random take among numbered variations ("sfx_step" plays sfx_step_1 .. sfx_step_N when they exist).
+        public static void PlayVaried(string pId, int pCount, float pVolume = 1f, float pPitch = 1f, float pPitchVariance = 0.05f)
+        {
+            Play(pId + "_" + Random.Range(1, pCount + 1), pVolume, pPitch, pPitchVariance);
         }
 
         private void Update()
@@ -197,6 +256,14 @@ namespace Com.IsartDigital.Hyperspeed
             _musicA.volume = Mathf.MoveTowards(_musicA.volume, _musicVolume * MusicMaster * (lDuck > 0f ? 0.6f : 1f), MUSIC_FADE_SPEED * 2f * lDt);
             _musicB.volume = Mathf.MoveTowards(_musicB.volume, 0f, MUSIC_FADE_SPEED * lDt);
             if (_musicB.volume <= 0f && _musicB.isPlaying) _musicB.Stop();
+            for (int i = 0; i < _layers.Length; i++)
+            {
+                float lTarget = _layersOn ? _layerTargets[i] * _layerVolume * MusicMaster * (lDuck > 0f ? 0.6f : 1f) : 0f;
+                // The stems come in fast and leave slower : a kick of music on every surge of speed.
+                float lRate = lTarget > _layers[i].volume ? 2.5f : 0.8f;
+                _layers[i].volume = Mathf.MoveTowards(_layers[i].volume, lTarget, lRate * lDt);
+                if (!_layersOn && _layers[i].volume <= 0f && _layers[i].isPlaying) _layers[i].Stop();
+            }
         }
     }
 }

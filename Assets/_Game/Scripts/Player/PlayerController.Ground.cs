@@ -135,8 +135,12 @@ namespace Com.IsartDigital.Hyperspeed
             float lCruise = _profile.cruise;
             if (State == PlayerState.Finished)
             {
-                // Past the line : a real stop.
-                _speed = Mathf.MoveTowards(_speed, 0f, Mathf.Max(lCruise * 1.6f, _speed * 1.4f) * pDt);
+                // Past the line : the runner eases down to a proud run and keeps going (the results show it running),
+                // and only stops before the end of the track.
+                float lEnd = _layout != null ? _layout.Length - Mathf.Max(150f, lCruise * 1.5f) : float.MaxValue;
+                float lWanted = Progress < lEnd ? lCruise * 0.45f : 0f;
+                float lRate = _speed > lWanted ? Mathf.Max(lCruise * 0.8f, (_speed - lWanted) * 2.2f) : RUN_ACCEL;
+                _speed = Mathf.MoveTowards(_speed, lWanted, lRate * pDt);
                 return;
             }
             float lSlope = Vector3.Dot(pForward, GravityDown());
@@ -219,8 +223,7 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 if (lSide != 0 && WallSide == 0)
                 {
-                    AudioManager.Play("sfx_wall_attach", 0.7f);
-                    FX.Sparks(transform.position, Color.white, 16, 16f);
+                    HSJuice.Play(JuiceId.WallAttach, Jx(transform.position));
                 }
                 WallSide = lSide;
             }
@@ -262,7 +265,7 @@ namespace Com.IsartDigital.Hyperspeed
                 DriftDirection = lTurn > 0f ? 1 : -1;
                 DriftCharge = 0f;
                 _driftEntrySpeed = _speed;
-                AudioManager.Play("sfx_drift_start", 0.7f);
+                HSJuice.Play(JuiceId.DriftStart, Jx(transform.position));
             }
             if (!Drifting) return;
             if (!_slideHeld)
@@ -274,8 +277,7 @@ namespace Com.IsartDigital.Hyperspeed
             DriftCharge += pDt * (0.55f + Mathf.Max(Mathf.Abs(DriftSteer), Mathf.Clamp01(Mathf.Abs(MouseTurn) / 120f)) * 0.65f);
             if (DriftTier > lTierBefore)
             {
-                AudioManager.Play("sfx_drift_tier", 0.6f, 0.9f + DriftTier * 0.15f, 0f);
-                Juice.Pulse(0.25f);
+                HSJuice.Play(JuiceId.DriftTier, Jx(transform.position, DriftTier / 3f));
             }
             AudioManager.SetLoop("sfx_drift_loop", 0.45f, 0.9f + DriftTier * 0.12f);
         }
@@ -297,8 +299,8 @@ namespace Com.IsartDigital.Hyperspeed
             float lAlign = lAim.sqrMagnitude > 0.0001f ? Mathf.InverseLerp(0.5f, 0.97f, Vector3.Dot(lAim.normalized, _heading)) : 0f;
             _speed = Mathf.Max(_speed, _driftEntrySpeed * Mathf.Lerp(0.85f, 1f, lAlign));
             if (lTier == 0) return;
-            float[] lBoosts = { 0f, 0.3f, 0.55f, 0.8f };
-            ApplyBoost(lBoosts[lTier] * _profile.cruise * Mathf.Lerp(0.35f, 1f, lAlign), _heading, 0f, lAlign > 0.9f && lTier >= 2 ? "DRIFT BOOST" : null);
+            float[] lBoosts = { 0f, 0.6f, 1.1f, 1.6f };
+            ApplyBoost(lBoosts[lTier] * _profile.cruise * Mathf.Lerp(0.35f, 1f, lAlign), _heading, 0f, lAlign > 0.9f && lTier >= 2 ? "DRIFT BOOST" : null, false, false, JuiceId.DriftBoost);
         }
 
         private void ReprojectProgress()

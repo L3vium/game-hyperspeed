@@ -14,6 +14,12 @@ namespace Com.IsartDigital.Hyperspeed
         private static readonly int ROAD_SPEED = Shader.PropertyToID("_HS_RoadSpeed");
 
         private const float COUNT_STEP = 1.5f;
+        // Rank thresholds : the lead on the line as a share of the race time. A run at cruise with no boost is around a B.
+        private const float RANK_S = 0.4f;
+        private const float RANK_A = 0.25f;
+        private const float RANK_B = 0.1f;
+
+        private float _endLead;
 
         [Tooltip("Dev cheats, forced on by the HS_CHEATS define (Dev build).")]
         [SerializeField] private bool _cheatCodes;
@@ -79,6 +85,8 @@ namespace Com.IsartDigital.Hyperspeed
 
             Camera lCamera = CameraRig.CreateCamera();
             _rig = lCamera.gameObject.AddComponent<CameraRig>();
+            // Field of view past 180 degrees : six cameras recomposed (setting WIDE ANGLE).
+            PanoramaRig.Attach(lCamera);
             new GameObject("PostFX").AddComponent<PostFX>();
             new GameObject("Wind").AddComponent<WindField>();
 
@@ -105,6 +113,8 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void Start()
         {
+            CursorGuardBehaviour.OnFocusLost += FocusLost;
+            HSJuice.Warmup();
             AudioManager.PlayMusic("music_intro", 0.38f);
             StartCoroutine(Flow());
         }
@@ -132,7 +142,7 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 StartGate.Instance?.ShowCount(lSteps[i], Color.white);
                 _hud.ShowCount(lSteps[i], false);
-                AudioManager.Play("sfx_count", 1f);
+                HSJuice.Play(JuiceId.CountdownTick, _player.transform.position);
                 yield return new WaitForSeconds(COUNT_STEP);
             }
             BeginRace();
@@ -151,12 +161,11 @@ namespace Com.IsartDigital.Hyperspeed
             RaceContext.Running = true;
             StartGate.Instance?.Open();
             _hud.ShowCount("GO!", true);
-            AudioManager.Play("sfx_go", 1f);
             _rig.freeLook = false;
             _player.StartRunning();
-            AudioManager.PlayMusic(_level.music, 0.42f);
-            Juice.Shake(0.3f);
-            Juice.FovKick(8f);
+            // Each world its own drum & bass, in three stems mixed by the speed state (see DriveGlobals).
+            AudioManager.PlayMusicLayers("music_w" + (_level.world + 1), 0.5f);
+            HSJuice.Play(JuiceId.Go, _player.transform.position);
         }
 
         private void Update()
@@ -173,6 +182,7 @@ namespace Com.IsartDigital.Hyperspeed
 
             DriveGlobals();
             if (lFocused && GameSession.CheatsEnabled) Cheats();
+            if (GameSession.CheatsEnabled) PerfLog();
 
             RaceContext.PlayerProgress = _player.Progress;
             if (_phase != Phase.Racing) return;
@@ -187,7 +197,8 @@ namespace Com.IsartDigital.Hyperspeed
                 _beaten = true;
                 _beatenTime = _raceTime;
                 Juice.Popup("TOO SLOW", UIFactory.RED, 1f);
-                _hud.Notify("IT CROSSED FIRST", UIFactory.RED);
+                _hud.RivalFinished();
+                HSJuice.Play(JuiceId.RivalFinished, _rival.transform.position);
             }
             if (_player.Progress >= _layout.finishS && _player.State != PlayerState.Dead && !_respawn.Busy)
                 StartCoroutine(EndRoutine(!_beaten, _beaten ? "TOO SLOW" : "FINISH!!"));
@@ -210,8 +221,7 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 _climax = true;
                 _hud.Notify("FINAL SPRINT", UIFactory.YELLOW);
-                Juice.Pulse(1f);
-                Juice.Shake(0.3f);
+                HSJuice.Play(JuiceId.FinalSprint, _player.transform.position);
             }
             float lNeck = Mathf.Clamp01(1f - Mathf.Abs(_rival.Gap) / (_layout.profile.cruise * 1.2f));
             PostFX.Instance.letterbox = lIn ? Mathf.Lerp(0.1f, 0.16f, lNeck) : 0f;
@@ -239,9 +249,24 @@ namespace Com.IsartDigital.Hyperspeed
                 PostFX.Instance.hyper01 = _hyperBlend;
                 PostFX.Instance.light01 = _player.LightForm ? 1f : 0f;
             }
+            AudioManager.SetMusicIntensity(Mathf.Max(_hyperBlend, _player.BoostAmount * 0.6f), _player.LightForm ? 1f : 0f);
             _roadScroll += lSpeed * Time.deltaTime;
             Shader.SetGlobalFloat(ROAD_SCROLL, _roadScroll);
             Shader.SetGlobalFloat(ROAD_SPEED, Mathf.Clamp01(_player.Speed01 + 0.25f));
+        }
+
+        // Dev build : the average frame time every 10 s in the player log (wide angle cost check).
+        private float _perfTime;
+        private int _perfFrames;
+
+        private void PerfLog()
+        {
+            _perfTime += Time.unscaledDeltaTime;
+            _perfFrames++;
+            if (_perfTime < 10f) return;
+            Debug.Log("[HS-PERF] stage=" + (_levelIndex + 1) + " avg=" + (_perfTime / _perfFrames * 1000f).ToString("F1") + "ms fps=" + (_perfFrames / _perfTime).ToString("F0") + " wide=" + GameSession.WideAngle + " res=" + Screen.width + "x" + Screen.height);
+            _perfTime = 0f;
+            _perfFrames = 0;
         }
 
         // Digit keys, shown bottom-right in the Dev build only.
@@ -289,6 +314,9 @@ namespace Com.IsartDigital.Hyperspeed
         private IEnumerator EndRoutine(bool pWin, string pHeadline)
         {
             _phase = Phase.Ended;
+            // Lead on the line, in seconds of the rival's own running : measured before anything else moves.
+            float lRivalRate = Mathf.Max(1f, _rival.CurrentRate);
+            _endLead = _level.chaser ? Mathf.Max(0f, _player.Progress - _rival.distance) / lRivalRate : Mathf.Max(0f, _layout.finishS - _rival.distance) / lRivalRate;
             RaceContext.Running = false;
             Debug.Log("[HS-END] " + pHeadline + " stage=" + (_levelIndex + 1) + " time=" + _raceTime.ToString("F1") + " s=" + _player.Progress.ToString("F0") + "/" + _layout.finishS.ToString("F0") + " rival=" + _rival.distance.ToString("F0") + " respawns=" + _player.Respawns + " top=" + _player.TopSpeed.ToString("F0"));
             _player.Finish();
@@ -297,9 +325,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (pWin)
             {
                 _visual.SetVictory();
-                Impacts.Request(ImpactReason.Finish);
-                                AudioManager.Play("sfx_finish", 1f);
-                Juice.SlowMo(0.25f, 1f);
+                HSJuice.Play(JuiceId.FinishWin, _player.transform.position);
                 yield return new WaitForSecondsRealtime(1.1f);
                 _rig.SetFinishMode(true);
                 // Cinema : the runner keeps running, the camera goes round it, the bars close in, the colours burn.
@@ -315,10 +341,7 @@ namespace Com.IsartDigital.Hyperspeed
             else
             {
                 _visual.SetResult(false);
-                Juice.Flash(_level.rival == RivalKind.Supernova ? Color.white : UIFactory.RED, 0.6f);
-                Juice.Shake(0.6f);
-                AudioManager.Play("sfx_lose", 1f);
-                Juice.SlowMo(0.3f, 0.8f);
+                HSJuice.Play(JuiceId.FinishLose, _player.transform.position);
                 if (PostFX.Instance != null) { PostFX.Instance.letterbox = 0f; PostFX.Instance.intensity = 0f; }
                 yield return new WaitForSecondsRealtime(0.9f);
                 AudioManager.PlayMusic("music_lose", 0.5f);
@@ -328,19 +351,26 @@ namespace Com.IsartDigital.Hyperspeed
 
             int lRank = 0;
             bool lRecord = false;
+            string lMargin = null;
             if (pWin)
             {
-                float lRivalTime = _layout.finishS / LevelDatabase.RivalSpeed(_level);
-                float lRatio = _raceTime / lRivalTime;
-                lRank = lRatio < 0.8f ? 4 : lRatio < 0.88f ? 3 : lRatio < 0.96f ? 2 : 1;
-                if (_player.Respawns >= 3 && lRank > 2) lRank--;
+                // The rank is the lead you really had on the line : how long the rival still needed to finish, against
+                // the length of your race. Crossing neck and neck is a C, however fast the stage was.
+                float lLead = _endLead;
+                float lShare = lLead / Mathf.Max(1f, _raceTime);
+                lRank = lShare >= RANK_S ? 4 : lShare >= RANK_A ? 3 : lShare >= RANK_B ? 2 : 1;
+                if (_player.Respawns >= 3 && lRank > 1) lRank--;
                 lRecord = GameSession.RegisterWin(_levelIndex, _raceTime, lRank);
+                lMargin = _level.chaser ? "ESCAPED BY " + lLead.ToString("F1") + " s" : "AHEAD BY " + lLead.ToString("F1") + " s";
+                Debug.Log("[HS-RANK] stage=" + (_levelIndex + 1) + " lead=" + lLead.ToString("F1") + "s share=" + lShare.ToString("F2") + " rank=" + GameSession.RankLetter(lRank) + " respawns=" + _player.Respawns);
             }
+            else if (_beaten) lMargin = RivalFactory.DisplayName(_level.rival) + " WON BY " + (_raceTime - _beatenTime).ToString("F1") + " s";
             bool lHasNext = _levelIndex + 1 < LevelDatabase.Count;
             _hud.ShowResult(pWin, pHeadline, _raceTime, lRank, lRecord, GameSession.GetBestTime(_levelIndex), lHasNext,
                 () => { GameSession.SelectedLevel = _levelIndex + 1; SceneTransition.LoadStage(_levelIndex + 1); },
                 Retry,
-                ToStageSelect);
+                ToStageSelect,
+                lMargin);
             AudioManager.Play(pWin ? "sfx_rank" : "ui_back", 1f);
         }
 
@@ -364,7 +394,7 @@ namespace Com.IsartDigital.Hyperspeed
             _paused = true;
             Juice.Paused = true;
             Time.timeScale = 0f;
-            AudioManager.Play("ui_select", 0.7f);
+            HSJuice.Play(JuiceId.Pause, Vector3.zero);
             AudioManager.Duck(9999f);
             if (PostFX.Instance != null) PostFX.Instance.pause = 1f;
             SetCursorLocked(false);
@@ -382,6 +412,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (_cheatBar != null) _cheatBar.gameObject.SetActive(true);
             Juice.Paused = false;
             Time.timeScale = _slowCheat ? 0.35f : 1f;
+            HSJuice.Play(JuiceId.Resume, Vector3.zero);
             AudioManager.Unduck();
             if (PostFX.Instance != null) PostFX.Instance.pause = 0f;
             SetCursorLocked(_phase != Phase.Ended);
@@ -393,15 +424,19 @@ namespace Com.IsartDigital.Hyperspeed
             }
         }
 
-        private static void SetCursorLocked(bool pLocked)
+        private static void SetCursorLocked(bool pLocked) => CursorGuard.Set(pLocked ? CursorMode.Game : CursorMode.Menu);
+
+        // The window lost the focus (Alt-Tab, a click on another window) : the race waits for you in the pause menu.
+        private void FocusLost()
         {
-            Cursor.lockState = pLocked ? CursorLockMode.Locked : CursorLockMode.None;
-            Cursor.visible = !pLocked;
+            if (Autopilot.Enabled || _paused || _phase == Phase.Ended || SceneTransition.IsBusy || SettingsMenu.Current != null) return;
+            Pause();
         }
 
         protected override void OnDestroy()
         {
             base.OnDestroy();
+            CursorGuardBehaviour.OnFocusLost -= FocusLost;
             SetCursorLocked(false);
             RaceContext.Clear();
             AudioManager.StopAllLoops();

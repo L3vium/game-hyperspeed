@@ -69,8 +69,13 @@ namespace Com.IsartDigital.Hyperspeed
         // Right stick speed, horizontal and vertical, 0.3 to 2.5.
         public static float PadSensitivityX { get => GetSetting("hs_pad_x", 1f); set => SetSetting("hs_pad_x", Mathf.Clamp(value, 0.3f, 2.5f)); }
         public static float PadSensitivityY { get => GetSetting("hs_pad_y", 1f); set => SetSetting("hs_pad_y", Mathf.Clamp(value, 0.3f, 2.5f)); }
-        // Field of view added to the camera's own, degrees (-15 to +15).
-        public static float FovOffset { get => GetSetting("hs_fov", 0f); set => SetSetting("hs_fov", Mathf.Clamp(value, -15f, 15f)); }
+        // Field of view scale, 70 % to 140 % (the classic camera reads it as an offset in degrees).
+        public static float FovScale { get => GetSetting("hs_fov_scale", 1f); set => SetSetting("hs_fov_scale", Mathf.Clamp(value, 0.7f, 1.4f)); }
+        public static float FovOffset => (FovScale - 1f) * 40f;
+        // Wide angle view past 180 degrees (six cameras recomposed) ; off = the classic perspective camera.
+        public static bool WideAngle { get => GetSetting("hs_wide", 1f) > 0.5f; set => SetSetting("hs_wide", value ? 1f : 0f); }
+        // Wide angle resolution : 0 low, 1 medium, 2 high.
+        public static int PanoramaQuality { get => Mathf.Clamp(Mathf.RoundToInt(GetSetting("hs_wide_q", 1f)), 0, 2); set => SetSetting("hs_wide_q", Mathf.Clamp(value, 0, 2)); }
         // Camera distance scale, 0.7 to 1.5.
         public static float CameraDistance { get => GetSetting("hs_cam_dist", 1f); set => SetSetting("hs_cam_dist", Mathf.Clamp(value, 0.7f, 1.5f)); }
         // Screen shake, chromatic aberration and flashes, 0 to 1.

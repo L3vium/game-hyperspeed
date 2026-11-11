@@ -30,6 +30,8 @@ namespace Com.IsartDigital.Hyperspeed
         private void Awake()
         {
             Time.timeScale = 1f;
+            CursorGuard.Set(CursorMode.Menu);
+            HSJuice.Warmup();
             RaceContext.Clear();
             AudioManager.LoadVolumes();
             GameSession.ApplyDisplay();
@@ -67,8 +69,6 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void OnDestroy()
         {
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
             RaceContext.Clear();
             Interactable.All.Clear();
             Breakable.All.Clear();

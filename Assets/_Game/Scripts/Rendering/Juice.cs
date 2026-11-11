@@ -135,7 +135,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         // Anime impact frame, only ever called by Impacts : the real scene is inked
         // for a few frames (inverted first), thin manga lines around the edges, Vefects scene-sampled sprite.
-        public static void ImpactFrame(float pStrength = 1f, Vector3? pWorldPoint = null)
+        public static void ImpactFrame(float pStrength = 1f, Vector3? pWorldPoint = null, int pInkFrames = 0)
         {
             Juice lJuice = Instance;
             Theme lTheme = RaceContext.Theme;
@@ -143,10 +143,10 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 if (lTheme != null) PostFX.Instance.ImpactColor(lTheme.accent);
                 // Short ink on a block : the 3D burst in the world does the talking.
-                PostFX.Instance.Impact(pWorldPoint.HasValue ? 2 : pStrength > 0.9f ? 4 : 3);
+                PostFX.Instance.Impact(pInkFrames > 0 ? pInkFrames : pWorldPoint.HasValue ? 2 : pStrength > 0.9f ? 4 : 3);
             }
-            lJuice.ShowImpactOverlay(pStrength);
-            Shake(0.2f + 0.2f * pStrength);
+            lJuice.ShowImpactOverlay(Mathf.Clamp01(pStrength));
+            Shake(0.2f + 0.2f * Mathf.Clamp01(pStrength));
             GameObject lPrefab = GameAssets.Instance.impactFramePrefab;
             if (lPrefab != null && CameraRig.Instance != null && pStrength > 0.55f)
             {
@@ -172,6 +172,9 @@ namespace Com.IsartDigital.Hyperspeed
                     lFx = Instantiate(lPrefab, lCam);
                     lFx.transform.localPosition = new Vector3(0f, 0f, 3f);
                     lFx.transform.localRotation = Quaternion.identity;
+                    // Wide angle : drawn by the main camera over the recomposed picture, never inside one face.
+                    if (PanoramaRig.Active != null && PanoramaRig.Active.On)
+                        foreach (Transform lPart in lFx.GetComponentsInChildren<Transform>(true)) lPart.gameObject.layer = PanoramaRig.LAYER;
                 }
                 // The plugin distorts what is on screen : give it the colours of the place too.
                 if (lTheme != null)

@@ -22,9 +22,10 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _airTime += pDt;
             Vector3 lTargetUp = _layout != null ? _layout.GravityUp(Progress) : Vector3.up;
-            // Lost in the air inside a loop or a corkscrew for too long : that is a fall, you start again just behind.
+            // In the air inside a loop or a corkscrew : the surface pulls you back down onto it, harder the longer you
+            // float, so a jump or a dash in a loop always lands. Only a really lost flight (several seconds) is a fall.
             _localAirTime = lTargetUp != Vector3.up ? _localAirTime + pDt : 0f;
-            if (_localAirTime > 1.6f && !_freeRoam && !_autoRun)
+            if (_localAirTime > 4.5f && !_freeRoam && !_autoRun)
             {
                 _localAirTime = 0f;
                 if (Autopilot.Enabled) Debug.Log("[HS-LD] out (loop air) s=" + Progress.ToString("F0"));
@@ -52,6 +53,12 @@ namespace Com.IsartDigital.Hyperspeed
             if (Mathf.Abs(lVertical) < 14f && !Diving) lGravity *= 0.6f;
             if (LightForm) lGravity *= 0.25f;
             if (Dashing) lGravity *= 0.2f;
+            // Loop magnet : after a short hop the surface draws you back, and moving away from it is cancelled.
+            if (_localAirTime > 0.35f)
+            {
+                lGravity = Mathf.Max(lGravity, Ballistics.G_FALL) * (1f + (_localAirTime - 0.35f) * 2.5f);
+                if (lVertical > 0f) _velocity -= _gravityUp * lVertical * (1f - Mathf.Exp(-4f * pDt));
+            }
             _velocity -= _gravityUp * lGravity * pDt;
 
             if (State == PlayerState.Air) AirControl(pDt);
@@ -140,7 +147,15 @@ namespace Com.IsartDigital.Hyperspeed
             HasLandingPrediction = false;
             for (float lT = 0f; lT < 3.2f; lT += STEP)
             {
-                Vector3 lNext = lVelocity + -_gravityUp * Ballistics.G_FALL * STEP;
+                // Inside a loop the pull follows the surface under each point of the arc, not the gravity of now.
+                Vector3 lUpHere = _gravityUp;
+                if (_localAirTime > 0f)
+                {
+                    float lLat;
+                    float lS = _layout.spine.ProjectNear(lPosition, Progress, out lLat);
+                    lUpHere = _layout.GravityUp(lS);
+                }
+                Vector3 lNext = lVelocity + -lUpHere * Ballistics.G_FALL * STEP;
                 Vector3 lDelta = (lVelocity + lNext) * 0.5f * STEP;
                 RaycastHit lHit;
                 if (Physics.Raycast(lPosition, lDelta.normalized, out lHit, lDelta.magnitude + 1f, TRACK_MASK, QueryTriggerInteraction.Ignore))
@@ -198,36 +213,20 @@ namespace Com.IsartDigital.Hyperspeed
             Color lDust = RaceContext.Theme != null ? Color.Lerp(RaceContext.Theme.roadA, Color.white, 0.25f) : Color.white;
             if (lWasDiving)
             {
-                float lBonus = Mathf.Min(_profile.cruise * 0.8f, 0.5f * lImpact);
+                // A dive always pays : at least a solid kick, more the harder you hit.
+                float lBonus = Mathf.Clamp(0.6f * lImpact, _profile.cruise * 0.4f, _profile.cruise * 1.1f);
                 if (Time.time - _lastDiveLanding < 1.2f) _diveChain++;
                 else _diveChain = 0;
                 lBonus *= 1f + Mathf.Min(0.5f, _diveChain * 0.1f);
                 _lastDiveLanding = Time.time;
-                _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + lBonus);
-                _boostTimer = Mathf.Max(_boostTimer, 1f);
-                Juice.FovKick(10f);
-                Juice.Pulse(0.8f);
-                Juice.Rollback(10f);
-                AudioManager.Play("sfx_land_perfect", 0.9f);
+                _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + lBonus * KickScale(0.3f));
+                _boostTimer = Mathf.Max(_boostTimer, 1.5f);
             }
-            // Only a dive or a long drop hits hard : a plain jump lands softly and keeps the run flowing.
-            if ((lWasDiving ? lImpact > 22f : lImpact > 90f) && !lWasCrash)
-            {
-                // A real hit on the ground : ring, column of debris, dust.
-                float lSize = Mathf.Lerp(14f, 80f, lPower);
-                Juice.Shake(Mathf.Lerp(0.2f, 0.75f, lPower));
-                FX.Shockwave(pPoint + pNormal * 0.3f, pNormal, Color.white, lSize, 0.4f);
-                FX.Shockwave(pPoint + pNormal * 0.5f, pNormal, lDust, lSize * 0.6f, 0.3f);
-                FX.Shards(pPoint, RaceContext.Theme != null ? RaceContext.Theme.roadSide : Color.gray, Mathf.RoundToInt(Mathf.Lerp(10f, 44f, lPower)), Mathf.Lerp(26f, 80f, lPower), Mathf.Lerp(1.6f, 3.6f, lPower), pNormal * Mathf.Lerp(20f, 70f, lPower));
-                FX.Puff(pPoint, lDust, Mathf.RoundToInt(Mathf.Lerp(8f, 26f, lPower)), Mathf.Lerp(4f, 16f, lPower), Mathf.Lerp(8f, 30f, lPower));
-                FX.Sparks(pPoint, lDust, Mathf.RoundToInt(Mathf.Lerp(16f, 70f, lPower)), Mathf.Lerp(30f, 90f, lPower), 0.8f, 0.5f);
-                if (!lWasDiving) AudioManager.Play("sfx_land_heavy", 0.8f);
-            }
-            else
-            {
-                FX.Puff(pPoint, lDust, 6, 3f, 5f);
-                AudioManager.Play("sfx_land", 0.6f);
-            }
+            JuiceContext lJuice = new JuiceContext { position = pPoint, direction = _heading, normal = pNormal, intensity = lPower, size = 1f };
+            // A dive lands as a kick ; a long drop hits hard ; a plain jump lands softly and keeps the run flowing.
+            if (lWasDiving && !lWasCrash) HSJuice.Play(JuiceId.DiveLanding, lJuice);
+            else if (lImpact > 90f && !lWasCrash) HSJuice.Play(JuiceId.LandHard, lJuice);
+            else HSJuice.Play(JuiceId.Land, lJuice);
             OnLanded?.Invoke(lImpact);
             ReprojectProgress();
         }

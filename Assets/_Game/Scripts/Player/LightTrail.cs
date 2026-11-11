@@ -64,6 +64,12 @@ namespace Com.IsartDigital.Hyperspeed
             _points.Add(new Point { position = pPosition, right = pRight, up = pUp, time = Time.time });
         }
 
+        // Wider strands for a bigger ball.
+        public void SetWidth(float pScale)
+        {
+            foreach (LineRenderer lLine in _lines) lLine.widthMultiplier = pScale;
+        }
+
         public void Clear()
         {
             _points.Clear();

@@ -247,8 +247,7 @@ namespace Com.IsartDigital.Hyperspeed
             Fracture.Explode(pPoint, pRock.radius * 1.6f, _theme.wall, pRock.velocity, pRock.velocity.magnitude, 0.6f);
             FX.Shockwave(pPoint, Vector3.up, new Color(1f, 0.5f, 0.15f), pRock.radius * 7f, 0.6f);
             float lDistance = Vector3.Distance(pPoint, pPlayer);
-            if (lDistance < 1400f) Juice.Shake(Mathf.Clamp01(0.45f - lDistance / 3000f));
-            if (lDistance < 3000f) AudioManager.Play("sfx_explosion", Mathf.Clamp01(0.9f - lDistance / 3500f), Random.Range(0.6f, 0.9f));
+            if (lDistance < 3000f) HSJuice.Play(JuiceId.MeteorNear, pPoint, Mathf.Clamp01(1f - lDistance / 3000f) * 0.7f);
         }
 
         // ================================================================ crests
@@ -440,9 +439,8 @@ namespace Com.IsartDigital.Hyperspeed
             lObject.AddComponent<BoltFlicker>();
             FX.Shockwave(lTarget + Vector3.up * 5f, Vector3.up, new Color(0.7f, 0.85f, 1.4f), R(120f, 260f), 0.4f);
             if (R(0f, 1f) < 0.5f) Fracture.Explode(lTarget, R(20f, 50f), _theme.wall, Vector3.up + lOut, 140f, 0.4f);
-            Juice.Flash(new Color(0.85f, 0.9f, 1f), 0.06f);
             float lDistance = Vector3.Distance(lTarget, pPlayer.transform.position);
-            AudioManager.Play("sfx_thunder", Mathf.Clamp(1.1f - lDistance / 4000f, 0.25f, 0.9f), Random.Range(0.8f, 1.1f));
+            HSJuice.Play(JuiceId.LightningNear, lTarget, Mathf.Clamp01(1f - lDistance / 4000f));
         }
 
         // ================================================================ falling things
@@ -453,7 +451,16 @@ namespace Com.IsartDigital.Hyperspeed
             _debrisTimer -= pDt;
             if (_debrisTimer <= 0f)
             {
-                _debrisTimer = R(0.9f, 1.9f);
+                // 2026-11-11 : far more things falling, everywhere.
+                _debrisTimer = R(0.28f, 0.6f);
+                // One in three falls beside the track, into the valley : the whole world is coming down.
+                if (R(0f, 1f) < 0.35f)
+                {
+                    float lSideS = pPlayer.Progress + Mathf.Max(900f, lSpeed * FallingDebris.FALL * R(0.6f, 1.2f));
+                    float lSide = (R(0f, 1f) < 0.5f ? -1f : 1f) * (_layout.field.TotalHalfWidth(lSideS) + R(60f, 520f));
+                    FallingDebris.Create(transform, _layout, lSideS, _layout.field.CenterLateral(lSideS) + lSide, _theme, _random, true);
+                    return;
+                }
                 // Spawned far ahead and high up : you watch it come down for seconds before you reach it.
                 float lS = pPlayer.Progress + Mathf.Max(1200f, lSpeed * FallingDebris.FALL * 1.05f);
                 TrackBlock lBlock = _layout.field.BlockAt(lS);
@@ -461,7 +468,7 @@ namespace Com.IsartDigital.Hyperspeed
                 {
                     float lLateral = lBlock.offset + R(-0.85f, 0.85f) * lBlock.halfWidth;
                     // Most land out of your line : it is a hail around you, not a wall.
-                    if (Mathf.Abs(lLateral - pPlayer.Lateral) < 50f && R(0f, 1f) < 0.6f) lLateral += Mathf.Sign(lLateral - pPlayer.Lateral + 0.01f) * 110f;
+                    if (Mathf.Abs(lLateral - pPlayer.Lateral) < 70f && R(0f, 1f) < 0.7f) lLateral += Mathf.Sign(lLateral - pPlayer.Lateral + 0.01f) * 140f;
                     lLateral = Mathf.Clamp(lLateral, lBlock.offset - lBlock.halfWidth * 0.9f, lBlock.offset + lBlock.halfWidth * 0.9f);
                     FallingDebris.Create(transform, _layout, lS, lLateral, _theme, _random);
                 }
@@ -472,7 +479,8 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 _aimedTimer = R(7f, 12f);
                 float lS = pPlayer.Progress + lSpeed * 4.5f;
-                if (_layout.field.Solid(lS))
+                // Never into a loop, a twist or an inverted run : the rock would come from inside the loop.
+                if (_layout.field.Solid(lS) && _layout.LowestOfSection(lS) == float.MaxValue)
                 {
                     float lAim = R(0f, 1f) < 0.5f ? float.NaN : _layout.field.CenterLateral(lS) + R(-0.8f, 0.8f) * _layout.field.HalfWidth(lS);
                     Meteor.CreateIncoming(transform, _layout, pPlayer, lS, R(28f, 60f), _theme, lAim);
@@ -502,13 +510,16 @@ namespace Com.IsartDigital.Hyperspeed
         private const float AIR_GRAVITY = 60f;
         private bool _hit;
 
-        public static FallingDebris Create(Transform pParent, LevelLayout pLayout, float pS, float pLateral, Theme pTheme, System.Random pRandom)
+        public static FallingDebris Create(Transform pParent, LevelLayout pLayout, float pS, float pLateral, Theme pTheme, System.Random pRandom, bool pOffTrack = false)
         {
             Kind lKind = Pick(pTheme.decor, pRandom);
-            float lSize = lKind == Kind.Car ? 14f + (float)pRandom.NextDouble() * 12f : lKind == Kind.Tree ? 40f + (float)pRandom.NextDouble() * 50f : lKind == Kind.Slab ? 60f + (float)pRandom.NextDouble() * 60f : 18f + (float)pRandom.NextDouble() * 40f;
+            // Twice as big as they were : cars the size of houses, slabs of a whole street.
+            float lSize = lKind == Kind.Car ? 30f + (float)pRandom.NextDouble() * 26f : lKind == Kind.Tree ? 70f + (float)pRandom.NextDouble() * 80f : lKind == Kind.Slab ? 90f + (float)pRandom.NextDouble() * 90f : 36f + (float)pRandom.NextDouble() * 70f;
+            if (pOffTrack) lSize *= 1.4f;
             Vector3 lUp = pLayout.field.Normal(pS);
             Vector3 lGround = pLayout.GroundPoint(pS, pLateral);
-            float lHeight = 900f + (float)pRandom.NextDouble() * 500f;
+            // Higher up : seen coming from very far.
+            float lHeight = 1500f + (float)pRandom.NextDouble() * 1000f;
 
             GameObject lObject = new GameObject("Debris");
             lObject.transform.SetParent(pParent, false);
@@ -523,14 +534,49 @@ namespace Com.IsartDigital.Hyperspeed
             lDebris._up = lUp;
             lDebris._velocity = (lGround - lObject.transform.position) / FALL + lUp * 0.5f * AIR_GRAVITY * FALL;
             lDebris._spin = Random.onUnitSphere * Random.Range(60f, 260f);
+            lDebris._offTrack = pOffTrack;
             Color lColor = Tint(lKind, pTheme, pRandom);
             lDebris.color = lColor;
 
             GameObject lBody = new GameObject("Body");
             lBody.transform.SetParent(lObject.transform, false);
-            lBody.transform.localScale = Vector3.one * lSize;
-            lBody.AddComponent<MeshFilter>().sharedMesh = MeshFor(lKind, pTheme);
-            lBody.AddComponent<MeshRenderer>().sharedMaterial = Mats.Flat(pTheme.shade, false, lColor);
+            // Real vehicles tumbling out of the sky : a bus, a train car, a sports car...
+            GameObject lVehicle = lKind == Kind.Car ? VehicleModel(pRandom) : null;
+            if (lVehicle != null)
+            {
+                GameObject lModel = Object.Instantiate(lVehicle, lBody.transform);
+                Bounds lBounds = new Bounds(lModel.transform.position, Vector3.zero);
+                foreach (Renderer lPart in lModel.GetComponentsInChildren<Renderer>()) lBounds.Encapsulate(lPart.bounds);
+                float lLongest = Mathf.Max(0.01f, Mathf.Max(lBounds.size.x, Mathf.Max(lBounds.size.y, lBounds.size.z)));
+                lModel.transform.localScale *= lSize / lLongest;
+                lModel.transform.localPosition = -lModel.transform.InverseTransformVector(lBounds.center - lModel.transform.position) * (lSize / lLongest);
+                Material lPaint = Mats.Flat(pTheme.shade, false, lColor);
+                foreach (Renderer lPart in lModel.GetComponentsInChildren<Renderer>())
+                {
+                    Material[] lMaterials = new Material[lPart.sharedMaterials.Length];
+                    for (int i = 0; i < lMaterials.Length; i++) lMaterials[i] = lPaint;
+                    lPart.sharedMaterials = lMaterials;
+                }
+                foreach (Collider lCollider in lModel.GetComponentsInChildren<Collider>()) Destroy(lCollider);
+            }
+            else
+            {
+                lBody.transform.localScale = Vector3.one * lSize;
+                lBody.AddComponent<MeshFilter>().sharedMesh = MeshFor(lKind, pTheme);
+                lBody.AddComponent<MeshRenderer>().sharedMaterial = Mats.Flat(pTheme.shade, false, lColor);
+            }
+            // Burning on the way down, a column of smoke behind.
+            if (lKind == Kind.Car || lKind == Kind.Slab || lKind == Kind.Tree)
+            {
+                Mats.Primitive(PrimitiveType.Sphere, lObject.transform, Vector3.zero, Vector3.one * lSize * 0.5f, Mats.Glow(new Color(3f, 1.2f, 0.25f, 0.6f), true, 1f), "Fire");
+                TrailRenderer lSmoke = new GameObject("Smoke").AddComponent<TrailRenderer>();
+                lSmoke.transform.SetParent(lObject.transform, false);
+                lSmoke.sharedMaterial = Mats.Glow(new Color(0.18f, 0.16f, 0.17f, 0.75f), false, 1f);
+                lSmoke.widthMultiplier = lSize * 0.8f;
+                lSmoke.widthCurve = new AnimationCurve(new Keyframe(0f, 0.5f), new Keyframe(1f, 2.2f));
+                lSmoke.time = 2.6f;
+                lSmoke.minVertexDistance = 6f;
+            }
             if (lKind == Kind.LavaBomb) Mats.Primitive(PrimitiveType.Sphere, lObject.transform, Vector3.zero, Vector3.one * lSize * 0.8f, Mats.Glow(new Color(3.2f, 1.1f, 0.15f), false, 0f, 0f, true));
             // A streak behind it as it falls, so you see it coming.
             TrailRenderer lTrail = new GameObject("Trail").AddComponent<TrailRenderer>();
@@ -543,10 +589,23 @@ namespace Com.IsartDigital.Hyperspeed
             return lDebris;
         }
 
+        private bool _offTrack;
+
+        private static GameObject VehicleModel(System.Random pRandom)
+        {
+            GameObject[] lModels = GameAssets.Instance.rivalModels;
+            if (lModels == null) return null;
+            RivalKind[] lVehicles = { RivalKind.Bus, RivalKind.SportsCar, RivalKind.RaceCar, RivalKind.Train, RivalKind.Moto, RivalKind.Bus };
+            int lIndex = (int)lVehicles[pRandom.Next(0, lVehicles.Length)];
+            return lIndex < lModels.Length ? lModels[lIndex] : null;
+        }
+
         private static Kind Pick(DecorKind pDecor, System.Random pRandom)
         {
             // A piece of platform torn off somewhere up there, crashing down in front of you.
             if (pRandom.NextDouble() < 0.22) return Kind.Slab;
+            // Vehicles fall from every sky but space.
+            if (pDecor != DecorKind.Space && pDecor != DecorKind.Void && pRandom.NextDouble() < 0.4) return Kind.Car;
             int lRoll = pRandom.Next(0, 3);
             switch (pDecor)
             {
@@ -631,8 +690,8 @@ namespace Com.IsartDigital.Hyperspeed
             base.Update();
             float lDt = Time.deltaTime;
             PlayerController lPlayer = RaceContext.Player;
-            // Far behind : gone.
-            if (lPlayer != null && _s < lPlayer.Progress - 400f)
+            // Far behind, or fallen deep into the valley : gone.
+            if (lPlayer != null && (_s < lPlayer.Progress - 400f || (_offTrack && transform.position.y < lPlayer.transform.position.y - 2500f)))
             {
                 Destroy(gameObject);
                 return;
@@ -654,7 +713,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (lPlayer != null)
             {
                 float lDistance = Vector3.Distance(lPlayer.transform.position, lHit.point);
-                if (lDistance < 600f) Juice.Shake(Mathf.Clamp01(0.3f - lDistance / 2000f));
+                if (lDistance < 1500f) HSJuice.Play(JuiceId.FallingCrash, lHit.point, Mathf.Clamp01(1f - lDistance / 1500f) * (_bounces == 0 ? 1f : 0.4f));
             }
             if (++_bounces >= 2)
             {

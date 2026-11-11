@@ -124,7 +124,7 @@ Shader "Hyperspeed/Toon"
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 output.color = lerp(half4(1,1,1,1), input.color, _UseVertexColor);
                 output.screenPos = ComputeScreenPos(lPosInputs.positionCS);
-                output.fogFactor = ComputeFogFactor(lPosInputs.positionCS.z);
+                output.fogFactor = ComputeFogFactorZ0ToFar(distance(lPosInputs.positionWS, GetCameraPositionWS()));
                 output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
                 return output;
             }
@@ -234,7 +234,7 @@ Shader "Hyperspeed/Toon"
                 float lDist = distance(lWorld, GetCameraPositionWS());
                 lWorld += lNormal * _OutlineWidth * clamp(lDist * 0.08, 0.6, 4.0);
                 output.positionCS = TransformWorldToHClip(lWorld);
-                output.fogFactor = ComputeFogFactor(output.positionCS.z);
+                output.fogFactor = ComputeFogFactorZ0ToFar(lDist);
                 if (_OutlineWidth <= 0.0001) output.positionCS = float4(0, 0, -10, 1);
                 return output;
             }

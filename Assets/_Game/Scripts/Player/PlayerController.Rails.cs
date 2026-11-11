@@ -45,11 +45,7 @@ namespace Com.IsartDigital.Hyperspeed
             SetState(PlayerState.Grind);
             Diving = false;
             HasDoubleJump = true;
-            AudioManager.Play("sfx_grind_start", 0.8f);
-            FX.Sparks(pPoint, UIFactory.CYAN, 40, 34f);
-            FX.Shockwave(pPoint, _heading, UIFactory.CYAN, 18f, 0.3f);
-            Juice.Shake(0.25f);
-            Juice.FovKick(5f);
+            HSJuice.Play(JuiceId.RopeCatch, Jx(pPoint));
             AddCombo();
         }
 
@@ -80,10 +76,8 @@ namespace Com.IsartDigital.Hyperspeed
                 _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + _profile.cruise * 0.2f);
                 _velocity = _heading * _speed + _up * 14f;
                 LeaveRail();
-                Juice.FovKick(6f);
-                Juice.Rollback(6f);
                 _boostTimer = Mathf.Max(_boostTimer, 0.8f);
-                AudioManager.Play("sfx_boost_small", 0.7f);
+                HSJuice.Play(JuiceId.RopeExit, Jx(transform.position));
             }
         }
 

@@ -53,8 +53,13 @@ namespace Com.IsartDigital.Hyperspeed
         private static Gamepad Pad => Gamepad.current;
         private static Mouse Ms => Mouse.current;
 
-        private static bool Pressed(string pAction) => !HSBindings.Rebinding && HSBindings.Get(pAction).WasPressedThisFrame();
-        private static bool Held(string pAction) => !HSBindings.Rebinding && HSBindings.Get(pAction).IsPressed();
+        // Nothing reaches the game while its window is not focused, nor for a moment after it comes back : the click that
+        // gives the focus back must never also dash, jump or press a button.
+        public static float BlockedUntil;
+        public static bool Blocked => !Application.isFocused || Time.unscaledTime < BlockedUntil;
+
+        private static bool Pressed(string pAction) => !Blocked && !HSBindings.Rebinding && HSBindings.Get(pAction).WasPressedThisFrame();
+        private static bool Held(string pAction) => !Blocked && !HSBindings.Rebinding && HSBindings.Get(pAction).IsPressed();
 
         // The bot jumps by holding the button for a moment, like a player : variable jumps keep their height.
         public static void BotJump()
@@ -72,7 +77,7 @@ namespace Com.IsartDigital.Hyperspeed
             return pStick / lMagnitude * Mathf.Pow(lT, pCurve);
         }
 
-        public static Vector2 MoveStick => Pad != null ? Shape(Pad.leftStick.ReadValue(), 1.25f) : Vector2.zero;
+        public static Vector2 MoveStick => Pad != null && !Blocked ? Shape(Pad.leftStick.ReadValue(), 1.25f) : Vector2.zero;
 
         // Left stick pulled toward you : a brake, not a run.
         private static bool StickBraking(Vector2 pStick) => pStick.y < 0f && -pStick.y > Mathf.Abs(pStick.x);
@@ -152,7 +157,13 @@ namespace Com.IsartDigital.Hyperspeed
                 if (_lookFrame == Time.frameCount) return _look;
                 _lookFrame = Time.frameCount;
                 Vector2 lValue = Vector2.zero;
-                if (Ms != null) lValue += Ms.delta.ReadValue() * 0.07f * GameSession.MouseSensitivity;
+                if (Blocked)
+                {
+                    _look = lValue;
+                    return lValue;
+                }
+                // The mouse only steers while it is captured by the game (a free cursor is for the menus).
+                if (Ms != null && Cursor.lockState == CursorLockMode.Locked) lValue += Ms.delta.ReadValue() * 0.07f * GameSession.MouseSensitivity;
                 if (Pad != null)
                 {
                     Vector2 lStick = Shape(Pad.rightStick.ReadValue(), 1.6f);
@@ -181,22 +192,22 @@ namespace Com.IsartDigital.Hyperspeed
         public static bool RestartPressed => Pressed("Restart");
 
         public static bool PausePressed =>
-            !HSBindings.Rebinding && ((Kb != null && Kb.escapeKey.wasPressedThisFrame) || (Pad != null && Pad.startButton.wasPressedThisFrame));
+            !Blocked && !HSBindings.Rebinding && ((Kb != null && Kb.escapeKey.wasPressedThisFrame) || (Pad != null && Pad.startButton.wasPressedThisFrame));
 
         // Menus : A / Enter / Space confirm. Start confirms too, except where it pauses.
         public static bool SubmitPressed =>
-            !HSBindings.Rebinding && ((Kb != null && (Kb.enterKey.wasPressedThisFrame || Kb.spaceKey.wasPressedThisFrame || Kb.numpadEnterKey.wasPressedThisFrame)) ||
+            !Blocked && !HSBindings.Rebinding && ((Kb != null && (Kb.enterKey.wasPressedThisFrame || Kb.spaceKey.wasPressedThisFrame || Kb.numpadEnterKey.wasPressedThisFrame)) ||
             (Pad != null && (Pad.buttonSouth.wasPressedThisFrame || Pad.startButton.wasPressedThisFrame)));
 
         public static bool BackPressed =>
-            !HSBindings.Rebinding && ((Kb != null && (Kb.escapeKey.wasPressedThisFrame || Kb.backspaceKey.wasPressedThisFrame)) ||
+            !Blocked && !HSBindings.Rebinding && ((Kb != null && (Kb.escapeKey.wasPressedThisFrame || Kb.backspaceKey.wasPressedThisFrame)) ||
             (Pad != null && Pad.buttonEast.wasPressedThisFrame));
 
-        public static bool AnyPressed =>
+        public static bool AnyPressed => !Blocked && (
             (Kb != null && Kb.anyKey.wasPressedThisFrame) || (Ms != null && Ms.leftButton.wasPressedThisFrame) ||
-            (Pad != null && (Pad.buttonSouth.wasPressedThisFrame || Pad.startButton.wasPressedThisFrame || Pad.buttonEast.wasPressedThisFrame));
+            (Pad != null && (Pad.buttonSouth.wasPressedThisFrame || Pad.startButton.wasPressedThisFrame || Pad.buttonEast.wasPressedThisFrame)));
 
-        public static bool MouseClicked => BotMouseActive ? Bot(BotMouseClickFrame) : Ms != null && Ms.leftButton.wasPressedThisFrame;
+        public static bool MouseClicked => BotMouseActive ? Bot(BotMouseClickFrame) : !Blocked && Ms != null && Ms.leftButton.wasPressedThisFrame;
 
         public static bool MouseHeld => BotMouseActive ? BotMouseHeld : Ms != null && Ms.leftButton.isPressed;
 
@@ -204,7 +215,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         // Confirm in menus where Space has another use : Enter, A or Start.
         public static bool SubmitMenuPressed =>
-            !HSBindings.Rebinding && ((Kb != null && (Kb.enterKey.wasPressedThisFrame || Kb.numpadEnterKey.wasPressedThisFrame)) ||
+            !Blocked && !HSBindings.Rebinding && ((Kb != null && (Kb.enterKey.wasPressedThisFrame || Kb.numpadEnterKey.wasPressedThisFrame)) ||
             (Pad != null && (Pad.buttonSouth.wasPressedThisFrame || Pad.startButton.wasPressedThisFrame)));
 
         public static Vector2 MousePosition => BotMouseActive ? BotMousePosition : Ms != null ? Ms.position.ReadValue() : Vector2.zero;

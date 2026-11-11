@@ -12,10 +12,17 @@ namespace Com.IsartDigital.Hyperspeed
         // ---------------- tuning
         private const float RUN_ACCEL = 90f;
         private const float SLOPE_ACCEL = 46f;
-        private const float JUMP_VELOCITY = 55f;
+        // Jumps grow with the speed : a fast runner leaps far higher (base + share of the ground speed, capped).
+        private const float JUMP_VELOCITY = 62f;
+        private const float JUMP_SPEED_SHARE = 0.1f;
+        private const float JUMP_VELOCITY_MAX = 140f;
         private const float DASH_TIME = 0.26f;
-        private const float COYOTE_TIME = 0.14f;
-        private const float JUMP_BUFFER = 0.14f;
+        // After a dash press, breakables still shatter for this long : the timing is generous.
+        private const float BREAK_WINDOW = 0.6f;
+        // A dash pressed during the cooldown or with an empty gauge fires as soon as it can, within this time.
+        private const float DASH_BUFFER = 0.2f;
+        private const float COYOTE_TIME = 0.2f;
+        private const float JUMP_BUFFER = 0.18f;
         private const float RADIUS = 0.45f;
         private const float HEIGHT = 1.8f;
         private const float SKIN = 0.04f;
@@ -24,9 +31,9 @@ namespace Com.IsartDigital.Hyperspeed
         private const float START_WINDOW_AFTER = 0.2f;
         private const float FREE_ROAM_SPEED = 34f;
         // Above cruise : half of the extra speed is gone after about 5 s, sooner the further above you are.
-        private const float DRAG = 0.14f;
-        private const float DRAG_OVER = 0.085f;
-        private const float DRAG_LIGHT = 0.05f;
+        private const float DRAG = 0.13f;
+        private const float DRAG_OVER = 0.12f;
+        private const float DRAG_LIGHT = 0.1f;
         private const float LIGHT_HOLD = 0.5f;
         private const float AIM_PITCH_MIN = -80f;
         private const float AIM_PITCH_MAX = 70f;
@@ -39,6 +46,7 @@ namespace Com.IsartDigital.Hyperspeed
         private const float FALL_TIME = 0.55f;
         private const float SCENERY_TIME = 0.35f;
         private const float WRONG_WAY_TIME = 0.8f;
+        private const float BREAK_KICK = 0.3f;
 
         // ---------------- state
         public PlayerState State { get; private set; } = PlayerState.Frozen;
@@ -122,6 +130,8 @@ namespace Com.IsartDigital.Hyperspeed
         private float _lastGrounded;
         private float _jumpBufferedAt = -10f;
         private float _dashTimer;
+        private float _breakTimer;
+        private float _dashBufferedAt = -10f;
         private float _dashCooldown;
         private float _dashEnergy = DASH_ENERGY;
         private float _dashHeldTime;
@@ -258,10 +268,7 @@ namespace Com.IsartDigital.Hyperspeed
             _speed = Mathf.Max(_speed, _profile.cruise * 1.45f);
             _boostTimer = 2f;
             OnPerfectStart?.Invoke();
-            Juice.Pulse(1f);
-            Juice.Rollback(14f);
-            Juice.FovKick(12f);
-            AudioManager.Play("sfx_perfect_start", 1f);
+            HSJuice.Play(JuiceId.PerfectStart, Jx(transform.position));
         }
 
         private bool StartInputPressed => HSInput.JumpPressed || HSInput.DashPressed || HSInput.RunPressed;
@@ -419,7 +426,12 @@ namespace Com.IsartDigital.Hyperspeed
 
             if (_jumpPressed) _jumpBufferedAt = Time.time;
             if (_punchPressed && _punchCooldown <= 0f) Punch();
-            if (_dashPressed && _dashCooldown <= 0f) Dash();
+            if (_dashPressed) _dashBufferedAt = Time.time;
+            if (lCanAct && Time.time - _dashBufferedAt < DASH_BUFFER && _dashCooldown <= 0f && _dashEnergy >= 1f)
+            {
+                _dashBufferedAt = -10f;
+                Dash();
+            }
             if (_jumpPressed) TryJump();
             UpdateThrust(pDt);
         }
@@ -428,6 +440,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             StateTime += pDt;
             _dashTimer -= pDt;
+            _breakTimer -= pDt;
             _dashCooldown -= pDt;
             _punchTimer -= pDt;
             _punchCooldown -= pDt;
@@ -478,12 +491,14 @@ namespace Com.IsartDigital.Hyperspeed
                 if (lItem.Test(lCenter) && lItem.Accepts(this)) lItem.Touch(this);
             }
 
-            bool lSmash = Dashing || LightForm || Punching;
+            // Dashing, or just after a dash : smash. The reach is wider then, so a near miss still breaks it.
+            bool lSmash = Dashing || _breakTimer > 0f || LightForm || Punching;
+            float lReach = lSmash ? 7f : 1.5f;
             for (int i = Breakable.All.Count - 1; i >= 0; i--)
             {
                 if (i >= Breakable.All.Count) continue;
                 Breakable lBreakable = Breakable.All[i];
-                if (!lBreakable.Overlaps(lCenter, 1.5f)) continue;
+                if (!lBreakable.Overlaps(lCenter, lReach)) continue;
                 if (lSmash) Burst(lBreakable);
                 else BodyHit(lBreakable);
             }
@@ -498,12 +513,15 @@ namespace Com.IsartDigital.Hyperspeed
             pBreakable.Smash(_heading, Speed);
             AddCombo();
             _dashEnergy = Mathf.Min(DASH_ENERGY, _dashEnergy + 0.4f);
-            Juice.Freeze(0.05f);
-            Juice.Shake(0.55f);
-            Juice.Pulse(1.2f);
-            Juice.FovKick(8f);
-            Impacts.Request(ImpactReason.Smash, lAt);
-            AudioManager.Play("sfx_punch_hit", 0.9f);
+            // Every break is a small speed pad.
+            if (OnSurface) _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + _profile.cruise * BREAK_KICK * KickScale(0.3f));
+            else _velocity += _velocity.normalized * _profile.cruise * BREAK_KICK * KickScale(0.3f);
+            _boostTimer = Mathf.Max(_boostTimer, 0.6f);
+            JuiceContext lJuice = Jx(lAt);
+            lJuice.size = pBreakable.radius / 16f;
+            // The break sounds like what broke : glass, ice, a door, a crate, rock.
+            lJuice.label = pBreakable.Material;
+            HSJuice.Play(JuiceId.BreakSmall, lJuice);
         }
 
         // Running into it without a dash : it still breaks, but it takes a good part of your speed.
@@ -514,10 +532,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (OnSurface) _speed = Mathf.Max(RunFloor, _speed * 0.75f);
             else _velocity *= 0.75f;
             _invulnerable = 0.3f;
-            Juice.Shake(0.35f);
-            Juice.Hitstop(0.04f);
-            AudioManager.Play("sfx_crash", 0.6f, 1.2f);
-            FX.Sparks(pBreakable.transform.position, Color.white, 20, 26f);
+            HSJuice.Play(JuiceId.BodyHit, Jx(pBreakable.transform.position));
         }
 
         // One punch : wide reach, it explodes and you pick up speed.
@@ -534,8 +549,7 @@ namespace Com.IsartDigital.Hyperspeed
                 if (!_punchHit)
                 {
                     _punchHit = true;
-                    Juice.Hitstop(0.06f);
-                    AudioManager.Play("sfx_punch_hit", 1f);
+                    HSJuice.Play(JuiceId.PunchHit, Jx(lWhere));
                     _visual?.PunchImpact(lWhere);
                 }
             }
@@ -607,8 +621,9 @@ namespace Com.IsartDigital.Hyperspeed
             if (lBlock != null && (LightForm || (Dashing && _profile.worldBreaker)))
             {
                 lBlock.Smash(_heading, Speed);
-                Juice.Shake(0.5f);
-                Impacts.Request(ImpactReason.BlockBroken);
+                JuiceContext lJuice = Jx(pHit.point);
+                lJuice.size = 3f;
+                HSJuice.Play(JuiceId.BreakBig, lJuice);
                 AddCombo();
                 return true;
             }
@@ -627,7 +642,9 @@ namespace Com.IsartDigital.Hyperspeed
                 _moveDir = _heading;
             }
             else _velocity = Vector3.ProjectOnPlane(_velocity, pHit.normal) * lLoss;
-            FX.Sparks(pHit.point, Color.white, 8, 20f);
+            JuiceContext lGlance = Jx(pHit.point);
+            lGlance.normal = pHit.normal;
+            HSJuice.Play(JuiceId.GlanceOff, lGlance);
             transform.position += pHit.normal * 0.05f;
             return false;
         }
@@ -662,14 +679,13 @@ namespace Com.IsartDigital.Hyperspeed
             if (!Hyper && lSpeed >= _profile.hyperEnter && !_freeRoam)
             {
                 Hyper = true;
-                AudioManager.Play("sfx_hyper", 0.7f);
-                Juice.Rollback(10f);
+                HSJuice.Play(JuiceId.HyperEnter, Jx(transform.position + PhysUp));
                 OnHyper?.Invoke();
             }
             else if (Hyper && lSpeed < _profile.hyperExit)
             {
                 Hyper = false;
-                AudioManager.Play("sfx_hyper_out", 0.5f);
+                HSJuice.Play(JuiceId.HyperExit, Jx(transform.position));
             }
 
             // Past this, there is no runner left : only light. Hard to reach : it takes holding it for a moment.
@@ -677,24 +693,24 @@ namespace Com.IsartDigital.Hyperspeed
             if (!LightForm && _overLight >= LIGHT_HOLD)
             {
                 LightForm = true;
-                Juice.Flash(Color.white, 0.8f);
-                Juice.Shake(0.7f);
-                Juice.Rollback(16f);
-                Impacts.Request(ImpactReason.LightSpeed);
-                AudioManager.Play("sfx_light", 1f, 1f, 0.02f);
+                HSJuice.Play(JuiceId.LightEnter, Jx(transform.position + PhysUp));
                 OnLight?.Invoke();
                 Debug.Log("[HS-FEEL] light entered at v=" + lSpeed.ToString("F0") + " cruise=" + _profile.cruise.ToString("F0") + " s=" + Progress.ToString("F0"));
             }
             else if (LightForm && lSpeed < _profile.lightExit)
             {
                 LightForm = false;
-                AudioManager.Play("sfx_hyper_out", 0.7f, 1.2f);
+                HSJuice.Play(JuiceId.LightExit, Jx(transform.position));
             }
             // The wind is the speed you hear : a low roar at a jog, a howl near light.
-            AudioManager.SetLoop("sfx_wind_loop", Mathf.Clamp01(Speed / Mathf.Max(1f, _profile.cruise) * 0.45f + Speed01 * 0.5f) * 0.95f, 0.75f + Speed01 * 0.7f);
+            // Three layers of wind : a low roar from the first steps, the body of the wind, a howl near light.
+            float lWind = Mathf.Clamp01(Speed / Mathf.Max(1f, _profile.cruise));
+            AudioManager.SetLoop("sfx_wind_low", Mathf.Clamp01(lWind * 0.7f) * 0.9f, 0.8f + Speed01 * 0.4f);
+            AudioManager.SetLoop("sfx_wind_mid", Mathf.Clamp01(Speed01 * 1.2f) * 0.85f, 0.85f + Speed01 * 0.5f);
+            AudioManager.SetLoop("sfx_wind_high", Mathf.Clamp01((Speed01 - 0.45f) * 1.8f) * 0.8f, 0.9f + Speed01 * 0.4f);
             AudioManager.SetLoop("sfx_light_loop", LightForm ? 0.7f : 0f, 1f + Speed01 * 0.2f);
             AudioManager.SetLoop("sfx_dive_loop", Diving ? 0.3f + Dive01 * 0.6f : 0f, 0.85f + Dive01 * 0.4f);
-            if (Diving && !_wasDiving) AudioManager.Play("sfx_dive", 0.8f);
+            if (Diving && !_wasDiving) HSJuice.Play(JuiceId.DiveStart, Jx(transform.position));
             _wasDiving = Diving;
         }
 
@@ -812,13 +828,17 @@ namespace Com.IsartDigital.Hyperspeed
             EndDrift(false);
             SetState(PlayerState.Dead);
             Combo = 0;
-            AudioManager.Play("sfx_death", 1f);
+            HSJuice.Play(JuiceId.Death, Jx(transform.position));
             AudioManager.SetLoop("sfx_dive_loop", 0f);
             AudioManager.SetLoop("sfx_light_loop", 0f);
             OnDied?.Invoke();
         }
 
         public Breadcrumb PickRespawn() => _crumbs.PickSafe(Progress, Speed, _layout);
+
+        // Context of a juice event happening to the runner : where, the way it runs, its up.
+        private JuiceContext Jx(Vector3 pAt, float pIntensity = 1f) =>
+            new JuiceContext { position = pAt, direction = _heading, normal = PhysUp, intensity = pIntensity, size = 1f };
 
         public Breadcrumbs Crumbs => _crumbs;
 

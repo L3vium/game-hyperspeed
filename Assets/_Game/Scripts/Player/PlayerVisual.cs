@@ -74,13 +74,28 @@ namespace Com.IsartDigital.Hyperspeed
         private Material _coneInnerMaterial;
         private float _coneAmount;
         private float _turnSwirl;
-        private LineRenderer[] _lightArcs;
-        private float _arcTimer;
         private float _windPhase;
         private float _smokeTimer;
 
         // Humanoid bones (null on the placeholder).
         private Transform _hips, _spine, _chest, _neck, _head;
+        private Transform _upperLegL, _lowerLegL, _footL, _upperLegR, _lowerLegR, _footR;
+
+        // Air tricks : flips, back flips, corkscrews, spins and side flips sized to the time in the air, body tucked.
+        private enum Trick { FrontFlip, BackFlip, Cork, Spin, SideFlip }
+        private float _trickT = 1f;
+        private float _trickDuration = 1f;
+        private int _trickTurns = 1;
+        private Trick _trick;
+        private int _trickIndex;
+        private bool _trickedThisAir;
+        private float _tuck;
+        // Secondary motion : the upper body lags behind accelerations on springs (a light active ragdoll).
+        private Vector3 _lastVelocity;
+        private Vector2 _lean;
+        private Vector2 _leanVelocity;
+        private bool _pendingWin;
+        private PlayerLightBall _ball;
         private Transform _upperArmL, _lowerArmL, _handL, _upperArmR, _lowerArmR, _handR;
         private Vector3 _headForward = Vector3.forward;
 
@@ -270,6 +285,12 @@ namespace Com.IsartDigital.Hyperspeed
                 _upperArmR = _animator.GetBoneTransform(HumanBodyBones.RightUpperArm);
                 _lowerArmR = _animator.GetBoneTransform(HumanBodyBones.RightLowerArm);
                 _handR = _animator.GetBoneTransform(HumanBodyBones.RightHand);
+                _upperLegL = _animator.GetBoneTransform(HumanBodyBones.LeftUpperLeg);
+                _lowerLegL = _animator.GetBoneTransform(HumanBodyBones.LeftLowerLeg);
+                _footL = _animator.GetBoneTransform(HumanBodyBones.LeftFoot);
+                _upperLegR = _animator.GetBoneTransform(HumanBodyBones.RightUpperLeg);
+                _lowerLegR = _animator.GetBoneTransform(HumanBodyBones.RightLowerLeg);
+                _footR = _animator.GetBoneTransform(HumanBodyBones.RightFoot);
                 if (_hips != null) _comHeight = Mathf.Clamp(Vector3.Dot(_hips.position - transform.position, transform.up), 0.6f, 1.3f);
                 if (_head != null) _headForward = Quaternion.Inverse(_head.rotation) * transform.forward;
                 PlayerOutfit.Dress(transform, _animator);
@@ -478,6 +499,9 @@ namespace Com.IsartDigital.Hyperspeed
         {
             // A jump asked in the air (coyote) must not replay once on the ground.
             if (_animated) _animator.ResetTrigger(P_JUMP);
+            // A trick not finished in time snaps to its end : never a half flip on the ground.
+            _trickT = 1f;
+            _trickedThisAir = false;
             _stretchVelocity -= Mathf.Clamp(pImpact * 0.07f, 0.6f, 2.8f);
             float lSpeed = _player.Speed;
             if (_player.LastLandingWasDive && pImpact > 30f) Trigger(lSpeed < 25f ? P_LAND_HARD : P_LAND_ROLL);
@@ -511,14 +535,28 @@ namespace Com.IsartDigital.Hyperspeed
             _ribbonsReset = true;
             _trailL?.Clear();
             _trailR?.Clear();
+            _trickT = 1f;
+            _trickedThisAir = false;
+            if (_ball != null) _ball.Clear();
+            if (_lightWake != null) _lightWake.Clear();
         }
 
         public void SetVictory() => SetResult(true);
 
+        // Juice : kicks the body springs (up stretches tall, negative squashes ; forward stretches along the run).
+        public void Punch(float pUp, float pForward, float pFlash)
+        {
+            _stretchVelocity += pUp;
+            _zStretchVelocity += pForward;
+            _flash = Mathf.Max(_flash, pFlash);
+        }
+
+        // A win : the runner keeps running past the line first, and only celebrates once it has stopped.
         public void SetResult(bool pWin)
         {
             if (!_animated) return;
-            _animator.SetBool(pWin ? P_WIN : P_LOSE, true);
+            if (pWin) _pendingWin = true;
+            else _animator.SetBool(P_LOSE, true);
         }
 
         public void Taunt() => Trigger(P_TAUNT);
@@ -577,6 +615,13 @@ namespace Com.IsartDigital.Hyperspeed
             UpdateCone(pDt);
             _flipT = Mathf.MoveTowards(_flipT, 1f, pDt / FLIP_TIME);
             _tumbleT = Mathf.MoveTowards(_tumbleT, 1f, pDt / TUMBLE_TIME);
+            UpdateTrick(lState, pDt);
+            UpdateLean(pDt);
+            if (_pendingWin && _animated && _player.Speed < 4f)
+            {
+                _pendingWin = false;
+                _animator.SetBool(P_WIN, true);
+            }
             _punchT = Mathf.MoveTowards(_punchT, 1f, pDt / PUNCH_TIME);
             _flash = Mathf.MoveTowards(_flash, 0f, pDt * 4f);
 
@@ -636,12 +681,27 @@ namespace Com.IsartDigital.Hyperspeed
             float lSwirl = _swirlT < 1f ? EaseInOut(_swirlT) * 360f * _swirlDir : 0f;
             float lFlip = _flipT < 1f ? EaseInOut(_flipT) * 360f : 0f;
             float lTumble = _tumbleT < 1f ? (1f - (1f - _tumbleT) * (1f - _tumbleT)) * 360f : 0f;
-            bool lAround = !lGrounded || (_swirlT < 1f && _swirlAir) || _flipT < 1f || _tumbleT < 1f;
+            bool lAround = !lGrounded || (_swirlT < 1f && _swirlAir) || _flipT < 1f || _tumbleT < 1f || _trickT < 1f;
             _pivotH = Mathf.MoveTowards(_pivotH, lAround ? _comHeight : 0f, pDt * 8f);
 
-            float lYawOffset = _swirlAir ? 0f : lSwirl;
-            float lRoll = -_bank - (_swirlAir ? lSwirl : 0f) + lTumble * 0.35f;
-            float lPitchTotal = _pitch + lFlip + lTumble;
+            // The trick in progress : whole turns, eased in and out, around the centre of mass.
+            float lTrickPitch = 0f, lTrickYaw = 0f, lTrickRoll = 0f;
+            if (_trickT < 1f)
+            {
+                float lTurns = EaseInOut(_trickT) * 360f * _trickTurns;
+                switch (_trick)
+                {
+                    case Trick.FrontFlip: lTrickPitch = lTurns; break;
+                    case Trick.BackFlip: lTrickPitch = -lTurns; break;
+                    case Trick.Cork: lTrickPitch = lTurns; lTrickYaw = EaseInOut(_trickT) * 360f; break;
+                    case Trick.Spin: lTrickYaw = lTurns; break;
+                    case Trick.SideFlip: lTrickRoll = lTurns * (_trickIndex % 2 == 0 ? 1f : -1f); break;
+                }
+            }
+
+            float lYawOffset = (_swirlAir ? 0f : lSwirl) + lTrickYaw;
+            float lRoll = -_bank - (_swirlAir ? lSwirl : 0f) + lTumble * 0.35f + lTrickRoll;
+            float lPitchTotal = _pitch + lFlip + lTumble + lTrickPitch;
             Quaternion lRotation = Quaternion.AngleAxis(lYawOffset, Vector3.up) * Quaternion.AngleAxis(lRoll, Vector3.forward) * Quaternion.AngleAxis(lPitchTotal, Vector3.right);
 
             // Squash & stretch around the same pivot, volume preserved.
@@ -688,7 +748,8 @@ namespace Com.IsartDigital.Hyperspeed
         private void UpdateAnimator(PlayerState pState, bool pGrounded, float pSpeed, float pVertical, float pDt)
         {
             if (!_animated) return;
-            float lSpeedParam = pState == PlayerState.Frozen ? 0f : Mathf.Clamp01(pSpeed / Mathf.Min(55f, _player.Profile.cruise * 0.6f));
+            // Jog, run, sprint across the real speed range : the stride follows how fast you go.
+            float lSpeedParam = pState == PlayerState.Frozen ? 0f : Mathf.Clamp01(pSpeed / Mathf.Max(20f, _player.Profile.cruise * 0.85f));
             _animator.SetFloat(P_SPEED, lSpeedParam, 0.08f, pDt);
             _animator.SetFloat(P_VERTICAL, pVertical);
             _animator.SetBool(P_GROUNDED, pGrounded);
@@ -702,7 +763,7 @@ namespace Com.IsartDigital.Hyperspeed
             _animator.SetBool(P_WALLSLIDE, false);
             _animator.SetBool(P_PRERACE, pState == PlayerState.Frozen || _player.FreeRoam);
             // Stylized cadence : the legs keep up with speeds no human reaches.
-            _animator.speed = pGrounded && pState != PlayerState.Frozen ? 1f + _player.Speed01 * 1.1f : 1f;
+            _animator.speed = pGrounded && pState != PlayerState.Frozen ? Mathf.Lerp(0.9f, 2.3f, Mathf.Clamp01(pSpeed / Mathf.Max(1f, _player.Profile.cruise * 2.2f))) : 1f;
         }
 
         // ---------------------------------------------------------------- procedural layer (after the Animator)
@@ -757,6 +818,35 @@ namespace Com.IsartDigital.Hyperspeed
                 float lPunch = Mathf.Sin(_punchT * Mathf.PI);
                 ArmTo(_upperArmR, _lowerArmR, _handR, Dir(lRight, lUp, lForward, 0.1f, 0.05f, 1f), lPunch);
                 Rotate(_chest, lUp, -25f * lPunch);
+            }
+
+            // Springs : the chest and the head lag behind the accelerations (lean back on a kick, sway in the turns).
+            Rotate(_chest != null ? _chest : _spine, lRight, _lean.x);
+            Rotate(_chest != null ? _chest : _spine, lForward, _lean.y);
+            Rotate(_head, lRight, _lean.x * 0.6f);
+            Rotate(_head, lForward, _lean.y * 0.5f);
+
+            // Tucked in a flip : knees to the chest, hands on the shins.
+            if (_tuck > 0.01f)
+            {
+                Vector3 lBR = _body.right, lBU = _body.up, lBF = _body.forward;
+                Vector3 lThigh = Dir(lBR, lBU, lBF, 0f, 0.35f, 1f);
+                Vector3 lShin = Dir(lBR, lBU, lBF, 0f, -1f, -0.15f);
+                Aim(_upperLegL, _lowerLegL, lThigh + lBR * -0.15f, _tuck);
+                Aim(_lowerLegL, _footL, lShin, _tuck);
+                Aim(_upperLegR, _lowerLegR, lThigh + lBR * 0.15f, _tuck);
+                Aim(_lowerLegR, _footR, lShin, _tuck);
+                ArmTo(_upperArmL, _lowerArmL, _handL, Dir(lBR, lBU, lBF, -0.25f, -0.35f, 1f), _tuck);
+                ArmTo(_upperArmR, _lowerArmR, _handR, Dir(lBR, lBU, lBF, 0.25f, -0.35f, 1f), _tuck);
+                Rotate(_spine, lBR, 25f * _tuck);
+                Rotate(_neck, lBR, 20f * _tuck);
+            }
+            // Just before touching down : legs reach for the ground, arms open for balance.
+            else if (_player.State == PlayerState.Air && _player.HasLandingPrediction && _player.LandingTime < 0.25f && !_player.Diving)
+            {
+                float lReach = 1f - _player.LandingTime / 0.25f;
+                ArmTo(_upperArmL, _lowerArmL, _handL, Dir(lRight, lUp, lForward, -1f, 0.35f, 0.2f), lReach * 0.7f);
+                ArmTo(_upperArmR, _lowerArmR, _handR, Dir(lRight, lUp, lForward, 1f, 0.35f, 0.2f), lReach * 0.7f);
             }
 
             // Head reads the trajectory : the landing point in the air, the route ahead on the ground.
@@ -848,59 +938,28 @@ namespace Com.IsartDigital.Hyperspeed
 
         // ---------------------------------------------------------------- light form
 
-        private Transform _lightForm;
-        private TrailRenderer _lightTrail;
         private bool _lightOn;
 
-        private void BuildLightForm()
-        {
-            _lightForm = new GameObject("LightForm").transform;
-            _lightForm.SetParent(transform, false);
-            _lightForm.localPosition = new Vector3(0f, 1.2f, 0f);
-            Mats.Primitive(PrimitiveType.Sphere, _lightForm, Vector3.zero, Vector3.one * 3.4f, Mats.Glow(new Color(8f, 8f, 9f), false, 0f, 0f, true));
-            Mats.Primitive(PrimitiveType.Sphere, _lightForm, Vector3.zero, Vector3.one * 7.5f, Mats.Glow(new Color(0.7f, 1.3f, 3f, 0.5f), true, 1f));
-            _lightArcs = new LineRenderer[7];
-            Material lArc = Mats.Glow(new Color(2.4f, 3.4f, 6f), true);
-            for (int i = 0; i < _lightArcs.Length; i++)
-            {
-                LineRenderer lLine = new GameObject("Arc").AddComponent<LineRenderer>();
-                lLine.transform.SetParent(_lightForm, false);
-                lLine.useWorldSpace = false;
-                lLine.positionCount = 8;
-                lLine.sharedMaterial = lArc;
-                lLine.startWidth = 0.6f;
-                lLine.endWidth = 0.05f;
-                lLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                _lightArcs[i] = lLine;
-            }
-            _lightTrail = _lightForm.gameObject.AddComponent<TrailRenderer>();
-            _lightTrail.time = 0.6f;
-            _lightTrail.startWidth = 4.5f;
-            _lightTrail.endWidth = 0f;
-            _lightTrail.sharedMaterial = Mats.Glow(new Color(1.2f, 2.2f, 3f), true);
-            _lightTrail.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            _lightForm.gameObject.SetActive(false);
-            _lightWake = LightTrail.Create();
-        }
-
-        // Dash wake : a flat V of wind opening behind the runner (apex at the body, arms sweeping back and out), not a
-        // cone. Only while dashing : it snaps open on the press and fades right after.
+        // Dash shield (2026-11-11 : "rounder toward the front") : a rounded shock wave wrapped around the front of the
+        // runner, its nose just ahead of the chest, opening backward like the air bending around it. Only while dashing or
+        // boosted : it snaps on and fades right after.
         private void BuildCone()
         {
-            _cone = new GameObject("DashWake").transform;
+            _cone = new GameObject("DashShield").transform;
             _cone.SetParent(transform, false);
-            _coneMaterial = new Material(Mats.Glow(new Color(0.75f, 1.5f, 2.4f, 0.75f), true));
-            _coneMaterial.SetFloat("_StripeFreq", 7f);
-            _coneMaterial.SetFloat("_Scroll", -5f);
+            _coneMaterial = new Material(Mats.Glow(new Color(0.75f, 1.5f, 2.4f, 0.75f), true, 0f, 2.5f));
+            _coneMaterial.SetFloat("_StripeFreq", 6f);
+            _coneMaterial.SetFloat("_Scroll", -4f);
             MeshRenderer lRenderer = _cone.gameObject.AddComponent<MeshRenderer>();
-            _cone.gameObject.AddComponent<MeshFilter>().sharedMesh = MeshUtil.Wake(34f, 1f, 0.07f, 0.34f, 16);
+            _cone.gameObject.AddComponent<MeshFilter>().sharedMesh = MeshUtil.Shield(12, 32);
             lRenderer.sharedMaterial = _coneMaterial;
             lRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            // A white edge, thinner and tighter : the front of the shock.
+            // A white skin just inside, tighter : the front of the shock.
             GameObject lInner = new GameObject("Edge");
             lInner.transform.SetParent(_cone, false);
-            lInner.transform.localPosition = new Vector3(0f, 0.05f, 0.04f);
-            lInner.AddComponent<MeshFilter>().sharedMesh = MeshUtil.Wake(30f, 0.8f, 0.03f, 0.1f, 16);
+            lInner.transform.localPosition = new Vector3(0f, 0f, -0.05f);
+            lInner.transform.localScale = new Vector3(0.82f, 0.82f, 0.8f);
+            lInner.AddComponent<MeshFilter>().sharedMesh = MeshUtil.Shield(10, 28);
             _coneInnerMaterial = new Material(Mats.Glow(new Color(2.6f, 2.6f, 3f, 0.9f), true));
             _coneInnerMaterial.SetFloat("_StripeFreq", 11f);
             _coneInnerMaterial.SetFloat("_Scroll", -8f);
@@ -915,7 +974,7 @@ namespace Com.IsartDigital.Hyperspeed
         private void UpdateCone(float pDt)
         {
             if (_cone == null) return;
-            bool lDash = _player.Dashing && _player.State != PlayerState.Dead && _player.State != PlayerState.Frozen && !_lightOn;
+            bool lDash = (_player.Dashing || _player.BoostAmount > 0.45f) && _player.State != PlayerState.Dead && _player.State != PlayerState.Frozen && !_lightOn;
             // Opens in a blink, folds away in a quarter of a second.
             _coneAmount = Mathf.MoveTowards(_coneAmount, lDash ? 1f : 0f, pDt * (lDash ? 14f : 4f));
             _wakeOpen = lDash ? Mathf.MoveTowards(_wakeOpen, 1f, pDt * 10f) : _coneAmount > 0.02f ? _wakeOpen : 0f;
@@ -925,50 +984,94 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lMotion = _player.OnGroundVelocity.sqrMagnitude > 1f ? _player.OnGroundVelocity.normalized : transform.forward;
             Vector3 lUp = Vector3.ProjectOnPlane(transform.up, lMotion).normalized;
             if (lUp.sqrMagnitude < 0.01f) lUp = transform.up;
-            // Apex at the hips, the V lying a little above the ground and tipped up toward the camera behind.
-            Vector3 lApex = transform.position + transform.up * (_comHeight * 0.7f) + lMotion * 0.6f;
-            _cone.SetPositionAndRotation(lApex, Quaternion.LookRotation(lMotion, lUp) * Quaternion.Euler(-14f, 0f, 0f));
-            float lLength = 12f * (0.75f + 0.5f * _player.Speed01) * Mathf.Lerp(0.35f, 1f, _wakeOpen);
-            float lSpread = Mathf.Lerp(0.55f, 1f, _wakeOpen);
-            _cone.localScale = new Vector3(lLength * lSpread, lLength, lLength);
+            // Nose just ahead of the chest, wrapping the body and opening backward ; longer with speed.
+            Vector3 lNose = transform.position + transform.up * (_comHeight * 1.05f) + lMotion * 1.6f;
+            _cone.SetPositionAndRotation(lNose, Quaternion.LookRotation(lMotion, lUp));
+            float lRadius = 2.6f * Mathf.Lerp(0.6f, 1f, _wakeOpen) * (1f + Mathf.Sin(Time.time * 30f) * 0.04f);
+            float lLength = 7f * (0.8f + 0.7f * _player.Speed01) * Mathf.Lerp(0.5f, 1f, _wakeOpen);
+            _cone.localScale = new Vector3(lRadius, lRadius, lLength);
             _coneMaterial.SetColor("_Color", new Color(0.75f, 1.5f, 2.4f, 0.75f * _coneAmount));
             _coneInnerMaterial.SetColor("_Color", new Color(2.6f, 2.6f, 3f, 0.9f * _coneAmount));
         }
 
+        // On a rope, in hyper and at light speed the runner is a ball of light (bigger each time).
+        private BallMode WantedBall()
+        {
+            PlayerState lState = _player.State;
+            if (lState == PlayerState.Dead || lState == PlayerState.Frozen || lState == PlayerState.Finished) return BallMode.None;
+            if (_player.LightForm) return BallMode.Light;
+            if (_player.Hyper) return BallMode.Hyper;
+            if (lState == PlayerState.Grind) return BallMode.Rope;
+            return BallMode.None;
+        }
+
         private void UpdateLightForm()
         {
-            if (_lightForm == null) BuildLightForm();
-            bool lWant = _player.LightForm && _player.State != PlayerState.Dead;
+            if (_ball == null)
+            {
+                _ball = PlayerLightBall.Create(transform);
+                _lightWake = LightTrail.Create();
+            }
+            BallMode lMode = WantedBall();
+            bool lWant = lMode != BallMode.None;
             if (lWant != _lightOn)
             {
                 _lightOn = lWant;
-                _lightForm.gameObject.SetActive(lWant);
-                _lightTrail.Clear();
                 if (_model != null) _model.gameObject.SetActive(!lWant);
                 FX.Burst(transform.position + transform.up, transform.forward, Color.white, 40f);
                 FX.Shockwave(transform.position + transform.up, transform.forward, Color.white, 44f, 0.4f);
                 _trailL.Clear();
                 _trailR.Clear();
             }
+            _ball.SetMode(lMode);
             if (!lWant) return;
+            _ball.Tick(Time.deltaTime, _player.Speed01, _player.OnGroundVelocity);
+            if (lMode == BallMode.Rope) return;
+            _lightWake.SetWidth(lMode == BallMode.Light ? 4f : 2.4f);
             _lightWake.Add(transform.position, transform.right, transform.up);
-            float lPulse = 1f + Mathf.Sin(Time.time * 37f) * 0.14f;
-            _lightForm.localScale = new Vector3(lPulse, lPulse, lPulse * (1f + _player.Speed01 * 0.5f));
-            // New lightning every few frames, out from the core.
-            _arcTimer -= Time.deltaTime;
-            if (_arcTimer > 0f) return;
-            _arcTimer = 0.035f;
-            foreach (LineRenderer lLine in _lightArcs)
+        }
+
+
+        // ---------------------------------------------------------------- tricks and springs
+
+        private void UpdateTrick(PlayerState pState, float pDt)
+        {
+            if (_trickT < 1f)
             {
-                Vector3 lDir = Random.onUnitSphere;
-                Vector3 lSide = Vector3.Cross(lDir, Random.onUnitSphere).normalized;
-                float lReach = Random.Range(3.2f, 7f);
-                for (int i = 0; i < lLine.positionCount; i++)
-                {
-                    float lT = i / (lLine.positionCount - 1f);
-                    lLine.SetPosition(i, lDir * lReach * lT + lSide * Mathf.Sin(lT * Mathf.PI) * Random.Range(-1.1f, 1.1f));
-                }
+                _trickT = Mathf.MoveTowards(_trickT, 1f, pDt / Mathf.Max(0.3f, _trickDuration));
+                if (pState != PlayerState.Air) _trickT = 1f;
             }
+            // A real flight (not a dive, not a hop) : a trick sized to the time left before the landing.
+            else if (pState == PlayerState.Air && !_trickedThisAir && !_player.Diving && !_lightOn && _player.AirTime > 0.1f
+                     && _player.HasLandingPrediction && _player.LandingTime > 0.55f)
+            {
+                _trickedThisAir = true;
+                _trickDuration = _player.LandingTime - 0.12f;
+                _trickTurns = Mathf.Clamp(Mathf.RoundToInt(_trickDuration / 0.75f), 1, 3);
+                _trickIndex++;
+                Trick[] lCycle = { Trick.FrontFlip, Trick.Cork, Trick.BackFlip, Trick.Spin, Trick.SideFlip };
+                _trick = lCycle[_trickIndex % lCycle.Length];
+                if (_trick == Trick.Spin) _trickTurns = Mathf.Max(1, _trickTurns);
+                _trickT = 0f;
+                HSJuice.Play(JuiceId.Flip, new JuiceContext { position = transform.position, direction = transform.forward, normal = transform.up, intensity = _trickTurns / 3f, size = 1f });
+            }
+            // Tucked during flips (not spins), opening up near the end so the landing reads.
+            float lTuck = _trickT < 1f && _trick != Trick.Spin ? Mathf.Clamp01(Mathf.Sin(_trickT * Mathf.PI) * 1.6f) : 0f;
+            _tuck = Mathf.MoveTowards(_tuck, lTuck, pDt * 8f);
+        }
+
+        // The chest and the head hang back on springs when the body is pushed (kicks, landings, turns).
+        private void UpdateLean(float pDt)
+        {
+            Vector3 lVelocity = _player.OnGroundVelocity;
+            Vector3 lAccel = (lVelocity - _lastVelocity) / Mathf.Max(0.0001f, pDt);
+            _lastVelocity = lVelocity;
+            Vector3 lLocal = transform.InverseTransformDirection(lAccel);
+            Vector2 lTarget = new Vector2(Mathf.Clamp(-lLocal.z * 0.05f, -16f, 16f), Mathf.Clamp(lLocal.x * 0.035f, -14f, 14f));
+            if (_player.State == PlayerState.Dead || lAccel.sqrMagnitude > 1e8f) lTarget = Vector2.zero;
+            _leanVelocity += ((lTarget - _lean) * 90f - _leanVelocity * 11f) * pDt;
+            _lean += _leanVelocity * pDt;
+            _lean = Vector2.ClampMagnitude(_lean, 22f);
         }
 
         // ---------------------------------------------------------------- aura, afterimages
@@ -1058,7 +1161,7 @@ namespace Com.IsartDigital.Hyperspeed
             _stepPhase += pDt * 3.2f * (_animated ? _animator.speed : 1f) * Mathf.Lerp(0.8f, 1.4f, Mathf.Clamp01(pSpeed / 60f));
             if (Mathf.Floor(lPrevious) == Mathf.Floor(_stepPhase)) return;
             EmitDust(2);
-            AudioManager.Play("sfx_step", 0.45f, 1f + Mathf.Clamp01(pSpeed / 120f) * 0.3f, 0.12f);
+            AudioManager.PlayVaried("sfx_step", 4, 0.45f, 1f + Mathf.Clamp01(pSpeed / 120f) * 0.3f, 0.1f);
         }
 
         private void EmitDust(int pCount)
