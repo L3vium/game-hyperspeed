@@ -340,6 +340,19 @@ namespace Com.IsartDigital.Hyperspeed
             lHead.transform.SetParent(lHammer._pivot, false);
             lHead.AddComponent<MeshFilter>().sharedMesh = lSwing.ToMesh("Hammer");
             lHead.AddComponent<MeshRenderer>().sharedMaterial = Mats.Flat(pTheme.shade, false);
+            // Solid : the head and the posts block you like any wall (Default layer, so the camera ignores them).
+            BoxCollider lHeadCollider = lHead.AddComponent<BoxCollider>();
+            lHeadCollider.center = new Vector3(0f, -ARM, 0f);
+            lHeadCollider.size = new Vector3(90f, 70f, 70f);
+            Rigidbody lBody = lHammer._pivot.gameObject.AddComponent<Rigidbody>();
+            lBody.isKinematic = true;
+            lBody.interpolation = RigidbodyInterpolation.None;
+            BoxCollider lPostL = lBeam.AddComponent<BoxCollider>();
+            lPostL.center = new Vector3(-lHalf - 6f, -ARM * 0.5f - 3f, 0f);
+            lPostL.size = new Vector3(14f, ARM + 30f, 14f);
+            BoxCollider lPostR = lBeam.AddComponent<BoxCollider>();
+            lPostR.center = new Vector3(lHalf + 6f, -ARM * 0.5f - 3f, 0f);
+            lPostR.size = new Vector3(14f, ARM + 30f, 14f);
             return lHammer;
         }
 
@@ -348,19 +361,25 @@ namespace Com.IsartDigital.Hyperspeed
             if (_pivot != null) _pivot.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(Time.time * 2.1f + _phase) * 62f);
         }
 
-        protected override void OnTouch(PlayerController pPlayer)
+        // The hit matches what you see : the whole head block and the arm holding it. Tested every frame while you
+        // are near ; only a real hit starts the cooldown.
+        public override bool Accepts(PlayerController pPlayer)
         {
-            if (pPlayer.LightForm) return;
-            // The hit matches what you see : the whole head block and the arm holding it.
-            Vector3 lCenter = pPlayer.transform.position + pPlayer.Up;
-            Vector3 lLocal = _pivot.InverseTransformPoint(lCenter);
-            const float PAD = 3f;
+            if (pPlayer.LightForm || _pivot == null) return false;
+            Vector3 lLocal = _pivot.InverseTransformPoint(pPlayer.transform.position + pPlayer.Up);
+            const float PAD = 4f;
             bool lHead = Mathf.Abs(lLocal.x) <= 48f + PAD && Mathf.Abs(lLocal.y + ARM) <= 35f + PAD && Mathf.Abs(lLocal.z) <= 39f + PAD;
             bool lArm = Mathf.Abs(lLocal.x) <= 5f + PAD && Mathf.Abs(lLocal.z) <= 5f + PAD && lLocal.y <= 0f && lLocal.y >= -ARM;
-            if (!lHead && !lArm) return;
+            return lHead || lArm;
+        }
+
+        protected override void OnTouch(PlayerController pPlayer)
+        {
+            Vector3 lCenter = pPlayer.transform.position + pPlayer.Up;
             Vector3 lPush = _pivot.TransformDirection(Vector3.right) * Mathf.Sign(Mathf.Cos(Time.time * 2.1f + _phase));
             pPlayer.Crash(_pivot.TransformPoint(new Vector3(0f, -ARM, 0f)));
             FX.Shockwave(lCenter, lPush, Color.white, 30f, 0.3f);
+            AudioManager.Play("sfx_hammer_hit", 1f);
             Juice.Shake(0.8f);
         }
     }

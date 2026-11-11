@@ -145,7 +145,7 @@ namespace Com.IsartDigital.Hyperspeed
             _rewind = Mathf.MoveTowards(_rewind, rewind, lDt * 6f);
             _pause = Mathf.MoveTowards(_pause, pause, lDt * 6f);
             // Clarity first : the center of the screen (runner + route) stays sharp at any speed.
-            _chromatic.intensity.Override(Mathf.Clamp01(0.18f + lSpeed * 0.7f + _pulse * 0.7f + hyper01 * 0.25f + _light * 0.3f + _rewind * 0.6f));
+            _chromatic.intensity.Override(Mathf.Clamp01((0.18f + lSpeed * 0.7f + _pulse * 0.7f + hyper01 * 0.25f + _light * 0.3f) * GameSession.AberrationAmount + _rewind * 0.6f));
             _vignette.intensity.Override(0.2f + lSpeed * 0.16f + _vignetteBoost * 0.2f + _pause * 0.25f);
             _vignette.color.Override(Color.Lerp(Color.black, _vignetteColor, Mathf.Clamp01(_vignetteBoost * 1.5f)));
             _light = Mathf.MoveTowards(_light, light01, lDt * 2f);
@@ -157,7 +157,7 @@ namespace Com.IsartDigital.Hyperspeed
             _color.postExposure.Override(_pulse * 0.15f + hyper01 * 0.1f - _pause * 0.35f);
             _color.saturation.Override(30f - _pause * 40f);
 
-            Shader.SetGlobalFloat(ABERRATION, 0.3f + lSpeed * 2f + _pulse * 2.4f + hyper01 * 1.2f + _light * 1.2f + _rewind * 2f);
+            Shader.SetGlobalFloat(ABERRATION, (0.3f + lSpeed * 2f + _pulse * 2.4f + hyper01 * 1.2f + _light * 1.2f) * GameSession.AberrationAmount + _rewind * 2f);
             Shader.SetGlobalFloat(RADIAL_BLUR, Mathf.Min(2.2f, Mathf.Clamp01(lSpeed - 0.06f) * 1.35f + _pulse * 0.8f + hyper01 * 0.35f + _light * 0.5f));
             Shader.SetGlobalFloat(REWIND, _rewind);
             Shader.SetGlobalFloat(DESATURATE, _rewind * 0.75f);
@@ -166,7 +166,7 @@ namespace Com.IsartDigital.Hyperspeed
             _fade = Mathf.MoveTowards(_fade, fade, lDt * 5f);
             _letterbox = Mathf.MoveTowards(_letterbox, letterbox, lDt * 0.6f);
             _intensity = Mathf.MoveTowards(_intensity, intensity, lDt * 1.5f);
-            Shader.SetGlobalFloat(FISHEYE, _light * 1.1f);
+            Shader.SetGlobalFloat(FISHEYE, 0f);
             Shader.SetGlobalFloat(FADE, _fade);
             Shader.SetGlobalFloat(LETTERBOX, _letterbox);
             Shader.SetGlobalFloat(INTENSITY, _intensity);

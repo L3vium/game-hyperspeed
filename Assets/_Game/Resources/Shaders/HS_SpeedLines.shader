@@ -61,13 +61,13 @@ Shader "Hyperspeed/SpeedLines"
                 float lCell = floor(lAngle * pDensity);
                 float lLocal = frac(lAngle * pDensity);
                 float lRnd = Hash(lCell + pSeed);
-                float lAlive = step(1.0 - _Intensity * (pColored ? 0.72 : 0.92), lRnd);
+                float lAlive = step(1.0 - _Intensity * (pColored ? 0.42 : 0.55), lRnd);
                 float lWidth = pWidth * (0.4 + Hash(lCell * 1.7 + pSeed) * 0.8);
                 float lShape = smoothstep(lWidth, 0.0, abs(lLocal - 0.5));
                 // Each streak is a dash travelling outward ; inner start gets closer to the center with speed. A boost
                 // throws them all the way in for an instant, then they settle back where the speed puts them.
                 float lStart = lerp(0.55, pReach, sqrt(_Intensity)) + Hash(lCell * 3.1 + pSeed) * 0.08;
-                lStart = max(0.02, lStart - _Burst * 0.32);
+                lStart = max(0.2, lStart - _Burst * 0.22);
                 float lPhase = frac(lRadius * (1.2 + Hash(lCell + 5.0)) - _Time.y * pSpeed * (0.7 + lRnd) + Hash(lCell * 7.3));
                 float lDash = smoothstep(0.0, 0.08, lPhase) * smoothstep(0.75, 0.35, lPhase);
                 float lAlpha = lAlive * lShape * lDash * smoothstep(lStart, lStart + 0.15, lRadius);
@@ -93,7 +93,7 @@ Shader "Hyperspeed/SpeedLines"
                 half4 lColor = lThick;
                 lColor.rgb = lerp(lThick.rgb, lThin.rgb, saturate(lThin.a));
                 // A clear window in the middle : you always see where you are going. The burst bites into it briefly.
-                float lClear = lerp(0.36, 0.12, _Burst);
+                float lClear = lerp(0.5, 0.3, _Burst);
                 lColor.a = saturate(lThick.a * 0.8 + lThin.a * 0.75) * smoothstep(lClear * 0.55, lClear, lRadius);
                 return half4(lColor.rgb, lColor.a * _LineColor.a * input.color.a);
             }

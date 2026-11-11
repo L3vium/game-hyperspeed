@@ -52,6 +52,8 @@ namespace Com.IsartDigital.Hyperspeed
             return lStrip;
         }
 
+        public override bool Accepts(PlayerController pPlayer) => Along(pPlayer);
+
         protected override void OnTouch(PlayerController pPlayer)
         {
             pPlayer.Launch(_up);

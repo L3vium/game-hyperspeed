@@ -57,6 +57,7 @@ namespace Com.IsartDigital.Hyperspeed
         private void Release()
         {
             HSInput.BotSteer = 0f;
+            HSInput.BotRun = 0f;
             HSInput.BotSlideHeld = false;
             HSInput.BotDashHeld = false;
             HSInput.BotAimActive = false;
@@ -104,6 +105,8 @@ namespace Com.IsartDigital.Hyperspeed
             HSInput.BotAimDirection = lPoint - _player.transform.position;
             HSInput.BotAimPitch = 0f;
             HSInput.BotSteer = 0f;
+            // A player runs by holding the run key : so does the bot.
+            HSInput.BotRun = 1f;
 
             // Past a lip with nothing below : look down to dive for a moment.
             if (_diveTimer > 0f)
@@ -122,7 +125,7 @@ namespace Com.IsartDigital.Hyperspeed
                 }
                 else if (lAct.action == RouteAction.Jump)
                 {
-                    HSInput.BotJumpFrame = lNext;
+                    HSInput.BotJump();
                     _actIndex++;
                 }
                 else if (lAct.action == RouteAction.Dash)
@@ -135,7 +138,7 @@ namespace Com.IsartDigital.Hyperspeed
             // Over a hole with the speed dropping : a jump and a dash buy distance, as a player would.
             if (_player.State == PlayerState.Air && !_layout.field.Solid(lS) && Vector3.Dot(_player.Velocity, _player.GravityUp) < -30f && _diveTimer <= 0f)
             {
-                if (_player.HasDoubleJump) HSInput.BotJumpFrame = lNext;
+                if (_player.HasDoubleJump) HSInput.BotJump();
                 else if (_player.DashEnergy >= 1f) HSInput.BotDashFrame = lNext;
             }
 

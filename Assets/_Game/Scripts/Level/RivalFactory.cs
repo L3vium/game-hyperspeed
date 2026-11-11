@@ -177,7 +177,7 @@ namespace Com.IsartDigital.Hyperspeed
             lObject.transform.localRotation = Quaternion.identity;
             lObject.transform.localScale = Vector3.one * lScale;
             // Toon with a strong rim : the rival's silhouette catches the light and reads against any ground.
-            Material lMaterial = Mats.Toon(new Color(0.95f, 0.9f, 1f), new Color(0.55f, 0.48f, 0.78f), 0f, 0.75f);
+            Material lMaterial = Mats.Flat(new Color(0.62f, 0.58f, 0.78f), false);
             foreach (Renderer lRenderer in lObject.GetComponentsInChildren<Renderer>())
             {
                 Material[] lMaterials = new Material[lRenderer.sharedMaterials.Length];

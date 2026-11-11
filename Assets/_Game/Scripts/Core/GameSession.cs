@@ -45,6 +45,54 @@ namespace Com.IsartDigital.Hyperspeed
             }
         }
 
+        // ---------------- other saved settings (cached floats)
+        private static readonly System.Collections.Generic.Dictionary<string, float> _floats = new System.Collections.Generic.Dictionary<string, float>();
+
+        public static float GetSetting(string pKey, float pDefault)
+        {
+            float lValue;
+            if (!_floats.TryGetValue(pKey, out lValue))
+            {
+                lValue = PlayerPrefs.GetFloat(pKey, pDefault);
+                _floats[pKey] = lValue;
+            }
+            return lValue;
+        }
+
+        public static void SetSetting(string pKey, float pValue)
+        {
+            _floats[pKey] = pValue;
+            PlayerPrefs.SetFloat(pKey, pValue);
+            PlayerPrefs.Save();
+        }
+
+        // Right stick speed, horizontal and vertical, 0.3 to 2.5.
+        public static float PadSensitivityX { get => GetSetting("hs_pad_x", 1f); set => SetSetting("hs_pad_x", Mathf.Clamp(value, 0.3f, 2.5f)); }
+        public static float PadSensitivityY { get => GetSetting("hs_pad_y", 1f); set => SetSetting("hs_pad_y", Mathf.Clamp(value, 0.3f, 2.5f)); }
+        // Field of view added to the camera's own, degrees (-15 to +15).
+        public static float FovOffset { get => GetSetting("hs_fov", 0f); set => SetSetting("hs_fov", Mathf.Clamp(value, -15f, 15f)); }
+        // Camera distance scale, 0.7 to 1.5.
+        public static float CameraDistance { get => GetSetting("hs_cam_dist", 1f); set => SetSetting("hs_cam_dist", Mathf.Clamp(value, 0.7f, 1.5f)); }
+        // Screen shake, chromatic aberration and flashes, 0 to 1.
+        public static float ShakeAmount { get => GetSetting("hs_shake", 1f); set => SetSetting("hs_shake", Mathf.Clamp01(value)); }
+        public static float AberrationAmount { get => GetSetting("hs_aberration", 1f); set => SetSetting("hs_aberration", Mathf.Clamp01(value)); }
+        public static float FlashAmount { get => GetSetting("hs_flash", 1f); set => SetSetting("hs_flash", Mathf.Clamp01(value)); }
+        public static bool Vibration { get => GetSetting("hs_vibration", 1f) > 0.5f; set => SetSetting("hs_vibration", value ? 1f : 0f); }
+        public static bool VSync { get => GetSetting("hs_vsync", 1f) > 0.5f; set { SetSetting("hs_vsync", value ? 1f : 0f); ApplyDisplay(); } }
+        public static int Quality
+        {
+            get => Mathf.Clamp(Mathf.RoundToInt(GetSetting("hs_quality", QualitySettings.GetQualityLevel())), 0, QualitySettings.names.Length - 1);
+            set { SetSetting("hs_quality", Mathf.Clamp(value, 0, QualitySettings.names.Length - 1)); ApplyDisplay(); }
+        }
+
+        // Saved display options that Unity does not keep by itself (resolution and window mode it does).
+        public static void ApplyDisplay()
+        {
+            if (QualitySettings.GetQualityLevel() != Quality) QualitySettings.SetQualityLevel(Quality, true);
+            QualitySettings.vSyncCount = VSync ? 1 : 0;
+            Application.targetFrameRate = VSync ? -1 : 240;
+        }
+
 #if HS_CHEATS
         public static bool CheatsEnabled = true;
 #else

@@ -154,7 +154,7 @@ namespace Com.IsartDigital.Hyperspeed
                 Vector3 lFrom = lRock.transform.position - lAt;
                 // Left behind, or well under the world : it comes back somewhere ahead.
                 if (Vector3.Dot(lFrom, lForward) < -900f - lRock.radius * 3f || lFrom.y < -2500f) lRock.life = 0f;
-                if (!lRock.strike) continue;
+                // Every rock that meets the ground explodes on it, near or far.
                 lRock.check -= pDt;
                 if (lRock.check > 0f) continue;
                 lRock.check = 0.08f;
@@ -248,6 +248,7 @@ namespace Com.IsartDigital.Hyperspeed
             FX.Shockwave(pPoint, Vector3.up, new Color(1f, 0.5f, 0.15f), pRock.radius * 7f, 0.6f);
             float lDistance = Vector3.Distance(pPoint, pPlayer);
             if (lDistance < 1400f) Juice.Shake(Mathf.Clamp01(0.45f - lDistance / 3000f));
+            if (lDistance < 3000f) AudioManager.Play("sfx_explosion", Mathf.Clamp01(0.9f - lDistance / 3500f), Random.Range(0.6f, 0.9f));
         }
 
         // ================================================================ crests

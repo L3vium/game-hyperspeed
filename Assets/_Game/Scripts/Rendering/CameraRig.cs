@@ -171,19 +171,23 @@ namespace Com.IsartDigital.Hyperspeed
 
         // Far back and well above the runner, looking down onto it : the runner is small in a huge world, and the
         // ground's bumps barely move the view. Even the slowest run sits twice as far as before.
+        // Base distance behind the runner : far already at a jog, much further at hyper speed, very far at light.
+        private float BackDistance(float pSpeed) => Mathf.Lerp(30f, 85f, Mathf.Sqrt(pSpeed)) + _hyperBlend * 35f + _lightBlend * 90f;
+
+        private float UserScale => freeLook ? 1f : GameSession.CameraDistance;
+
         private Vector3 DesiredPosition(float pSpeed)
         {
-            float lDistance = (freeLook ? 14f : Mathf.Lerp(18f, 60f, Mathf.Sqrt(pSpeed)) + _lightBlend * 20f + _lag) * distanceScale;
-            float lHeight = (freeLook ? 4f : Mathf.Lerp(7f, 16f, pSpeed)) * distanceScale;
-            // In a loop the line behind you curves away under the track : come closer and higher instead.
-            lDistance *= Mathf.Lerp(1f, 0.42f, _curl);
-            lHeight *= Mathf.Lerp(1f, 1.6f, _curl);
+            float lDistance = (freeLook ? 14f : BackDistance(pSpeed) + _lag) * distanceScale * UserScale;
+            float lHeight = (freeLook ? 4f : Mathf.Lerp(10f, 24f, pSpeed) + _hyperBlend * 8f + _lightBlend * 25f) * distanceScale * UserScale;
+            // In a loop the view keeps its distance and rises a little : it stays inside the curve without coming close.
+            lHeight *= Mathf.Lerp(1f, 1.25f, _curl);
             return _focus + _up * lHeight - _look * lDistance;
         }
 
         private Vector3 LookPoint(float pSpeed)
         {
-            float lAhead = Mathf.Lerp(18f, 60f, Mathf.Sqrt(pSpeed)) * 0.25f * distanceScale;
+            float lAhead = (freeLook ? 14f : BackDistance(pSpeed)) * 0.25f * distanceScale;
             return _focus + _up * Mathf.Lerp(1.2f, 2.5f, pSpeed) * distanceScale + _look * lAhead;
         }
 
@@ -203,9 +207,10 @@ namespace Com.IsartDigital.Hyperspeed
         private void LateUpdate()
         {
             if (target == null && !_override) return;
-            float lDt = Time.deltaTime;
             float lUnscaled = Time.unscaledDeltaTime;
-            bool lFrozen = Time.timeScale <= 0f;
+            // Paused : frozen. A hit-stop only holds the world : the view keeps answering the aim.
+            bool lFrozen = Juice.Paused;
+            float lDt = Time.timeScale > 0f ? Time.deltaTime : lUnscaled;
             float lTargetBlend = _override ? 1f : 0f;
             if (!lFrozen) _overrideBlend = Mathf.MoveTowards(_overrideBlend, lTargetBlend, lUnscaled * _overrideRate);
             if (target == null)
@@ -268,10 +273,9 @@ namespace Com.IsartDigital.Hyperspeed
             Quaternion lWindRot = Quaternion.Euler((Mathf.PerlinNoise(_windTime, 11f) - 0.5f) * lWind * 5f, 0f, (Mathf.PerlinNoise(13f, _windTime) - 0.5f) * lWind * 9f);
             Vector3 lPosition = _base + lRotation * (lShakeOffset + lWindOffset);
             lRotation *= lShakeRot * lWindRot;
-            if (!_finishMode) lPosition = KeepAboveSurface(lPosition);
+            if (!_finishMode) lPosition = KeepAboveSurface(lPosition, lDt);
 
-            float lCalm = _player != null ? Mathf.InverseLerp(260f, 450f, _player.Profile.cruise) : 1f;
-            float lFovTarget = Mathf.Lerp(FOV_MIN - 8f + lCalm * 8f, FOV_MAX, Mathf.Sqrt(lSpeed)) + _hyperBlend * FOV_HYPER + _lightBlend * 10f + _kick + _dive * 10f;
+            float lFovTarget = Mathf.Lerp(FOV_MIN, FOV_MAX, Mathf.Sqrt(lSpeed)) + _hyperBlend * FOV_HYPER + _lightBlend * 10f + _kick + _dive * 10f + GameSession.FovOffset;
             if (freeLook) lFovTarget = 84f;
             _fov = Mathf.SmoothDamp(_fov, lFovTarget, ref _fovVelocity, 0.22f, FOV_RATE, lDt);
 
@@ -308,7 +312,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (lLength < 0.01f) return pDesired;
             float lWanted = 1f;
             RaycastHit lHit;
-            if (Physics.SphereCast(lFocus, 0.4f, lDelta / lLength, out lHit, lLength, (1 << Layers.PROP) | (1 << Layers.DECK), QueryTriggerInteraction.Ignore) && lHit.distance > 2f)
+            if (Physics.SphereCast(lFocus, 0.4f, lDelta / lLength, out lHit, lLength, VIEW_BLOCKERS, QueryTriggerInteraction.Ignore) && lHit.distance > 2f)
                 lWanted = Mathf.Clamp01((lHit.distance - 0.5f) / lLength);
             _blockDistance = lWanted < _blockDistance ? Mathf.Lerp(_blockDistance, lWanted, 1f - Mathf.Exp(-40f * pDt)) : Mathf.Lerp(_blockDistance, lWanted, 1f - Mathf.Exp(-3f * pDt));
             return lFocus + lDelta * _blockDistance;
@@ -324,17 +328,27 @@ namespace Com.IsartDigital.Hyperspeed
             return 0f;
         }
 
-        // Last guard : the camera never ends up under or inside the surface the runner is on.
-        private Vector3 KeepAboveSurface(Vector3 pPosition)
+        // Last guard : the camera never ends up under or inside anything solid (track, scenery, props). The correction is
+        // smoothed : it pushes in fast and lets go slowly, never a pop.
+        private Vector3 KeepAboveSurface(Vector3 pPosition, float pDt)
         {
             Vector3 lFrom = _focus + _up * 3f;
             Vector3 lDelta = pPosition - lFrom;
             float lLength = lDelta.magnitude;
+            Vector3 lWanted = Vector3.zero;
             RaycastHit lHit;
-            if (lLength > 0.5f && Physics.SphereCast(lFrom, 0.6f, lDelta / lLength, out lHit, lLength + 1f, 1 << Layers.DECK, QueryTriggerInteraction.Ignore))
-                pPosition = lFrom + lDelta / lLength * Mathf.Max(0.5f, lHit.distance - 1.5f) + lHit.normal * 1.5f;
-            return pPosition;
+            if (lLength > 0.5f && Physics.SphereCast(lFrom, 1.2f, lDelta / lLength, out lHit, lLength + 2f, VIEW_BLOCKERS, QueryTriggerInteraction.Ignore))
+                lWanted = (lFrom + lDelta / lLength * Mathf.Max(0.5f, lHit.distance - 2f) + lHit.normal * 3f) - pPosition;
+            // And always a few metres of air under the lens.
+            if (Physics.Raycast(pPosition + lWanted + _up * 6f, -_up, out lHit, 9f, VIEW_BLOCKERS, QueryTriggerInteraction.Ignore))
+                lWanted += _up * Mathf.Max(0f, 3f - (lHit.distance - 6f));
+            float lRate = lWanted.sqrMagnitude > _surfacePush.sqrMagnitude ? 30f : 4f;
+            _surfacePush = Vector3.Lerp(_surfacePush, lWanted, 1f - Mathf.Exp(-lRate * pDt));
+            return pPosition + _surfacePush;
         }
+
+        private Vector3 _surfacePush;
+        private const int VIEW_BLOCKERS = (1 << Layers.DECK) | (1 << Layers.SCENERY) | (1 << Layers.PROP);
 
         private void ApplyShot(float pDt)
         {
