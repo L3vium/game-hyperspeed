@@ -103,6 +103,17 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     JuiceDefaults.Fill(lId, lPlayer);
                     lAdded++;
                 }
+                // The look of each speed state (wide angle, camera distance, screen) : added once, then yours.
+                HashSet<SpeedState> lLooks = new HashSet<SpeedState>();
+                foreach (HSSpeedStateLook lLook in lRoot.GetComponentsInChildren<HSSpeedStateLook>(true)) lLooks.Add(lLook.state);
+                foreach (SpeedState lState in Enum.GetValues(typeof(SpeedState)))
+                {
+                    if (lLooks.Contains(lState)) continue;
+                    GameObject lObject = new GameObject("Juice_State_" + lState);
+                    lObject.transform.SetParent(Group(lRoot.transform, "Speed States"), false);
+                    HSSpeedStateLook.Defaults(lObject.AddComponent<HSSpeedStateLook>(), lState);
+                    lAdded++;
+                }
                 if (lAdded > 0 || lRebuilt > 0) PrefabUtility.SaveAsPrefabAsset(lRoot, PATH);
             }
             finally

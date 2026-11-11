@@ -20,12 +20,12 @@ namespace Com.IsartDigital.Hyperspeed
     // hard. Every change is smoothed. Shake never feeds back into the position, and a paused game freezes it completely.
     public class CameraRig : MonoBehaviour
     {
-        private const float FOV_MIN = 105f;
-        private const float FOV_MAX = 145f;
-        private const float FOV_CLAMP = 155f;
+        private const float FOV_CLAMP = 160f;
+        // Wide angle : FOV kicks (given in classic degrees) count this much more on the panorama, max horizontal FOV.
+        private const float PANO_KICK_SCALE = 2.5f;
+        private const float PANO_FOV_MAX = 330f;
         // How far the focus may trail behind the runner along the view's up (bumps are filtered, long falls are not).
         private const float FOCUS_VERTICAL_LAG = 5f;
-        private const float FOV_HYPER = 4f;
         private const float FOV_RATE = 140f;
         // Room for the juice : a pad or a dash may kick the FOV and throw the camera back a long way.
         private const float KICK_MAX = 45f;
@@ -55,6 +55,11 @@ namespace Com.IsartDigital.Hyperspeed
         private float _kickTarget;
         private float _fov = 90f;
         private float _fovVelocity;
+        // Wide angle view (PanoramaRig) : horizontal FOV, shape and cylinder, smoothed.
+        private float _hfov = 190f;
+        private float _hfovVelocity;
+        private float _shape = 0.5f;
+        private float _cylinder = 0.55f;
         private float _trauma;
         private float _roll;
         private float _dive;
@@ -177,16 +182,24 @@ namespace Com.IsartDigital.Hyperspeed
         public void Punch(Vector3 pDegrees) => _punch = Vector3.ClampMagnitude(_punch + pDegrees, 25f);
 
         // Far back and well above the runner, looking down onto it : the runner is small in a huge world, and the
-        // ground's bumps barely move the view. Even the slowest run sits twice as far as before.
-        // Base distance behind the runner : far already at a jog, much further at hyper speed, very far at light.
-        private float BackDistance(float pSpeed) => Mathf.Lerp(30f, 85f, Mathf.Sqrt(pSpeed)) + _hyperBlend * 35f + _lightBlend * 90f;
+        // ground's bumps barely move the view. Much further at hyper speed, very far at light : a drastic change.
+        // Every value comes from the speed state looks (HS_Juice prefab, "Speed States").
+        private static HSSpeedStateLook Normal => HSSpeedStateLook.Get(SpeedState.Normal);
+        private static HSSpeedStateLook HyperLook => HSSpeedStateLook.Get(SpeedState.Hyper);
+        private static HSSpeedStateLook LightLook => HSSpeedStateLook.Get(SpeedState.Light);
+
+        private float BackDistance(float pSpeed) => Mathf.Lerp(Normal.distance.x, Normal.distance.y, Mathf.Sqrt(pSpeed)) + _hyperBlend * HyperLook.distance.x + _lightBlend * LightLook.distance.x;
+
+        private float UpHeight(float pSpeed) => Mathf.Lerp(Normal.height.x, Normal.height.y, pSpeed) + _hyperBlend * HyperLook.height.x + _lightBlend * LightLook.height.x;
+
+        public bool WideAngle => PanoramaRig.Active != null && PanoramaRig.Active.On && PanoramaRig.Active.Main == Cam;
 
         private float UserScale => freeLook ? 1f : GameSession.CameraDistance;
 
         private Vector3 DesiredPosition(float pSpeed)
         {
             float lDistance = (freeLook ? 14f : BackDistance(pSpeed) + _lag) * distanceScale * UserScale;
-            float lHeight = (freeLook ? 4f : Mathf.Lerp(10f, 24f, pSpeed) + _hyperBlend * 8f + _lightBlend * 25f) * distanceScale * UserScale;
+            float lHeight = (freeLook ? 4f : UpHeight(pSpeed)) * distanceScale * UserScale;
             // In a loop the view keeps its distance and rises a little : it stays inside the curve without coming close.
             lHeight *= Mathf.Lerp(1f, 1.25f, _curl);
             return _focus + _up * lHeight - _look * lDistance;
@@ -225,6 +238,7 @@ namespace Com.IsartDigital.Hyperspeed
                 ApplyShot(lUnscaled);
                 transform.SetPositionAndRotation(_shotPosition, _shotRotation);
                 Cam.fieldOfView = _overrideFov;
+                ApplyWide(ProjectionMath.EquivalentHFov(_overrideFov, Cam.aspect, _shape) * 1.15f);
                 return;
             }
             // Paused : the image stays exactly where it is.
@@ -239,8 +253,8 @@ namespace Com.IsartDigital.Hyperspeed
             _look = Vector3.Slerp(_look, target.AimDirection, 1f - Mathf.Exp(-12f * lDt)).normalized;
             UpdateFocus(lDt);
 
-            _hyperBlend = Mathf.MoveTowards(_hyperBlend, target.HyperMode ? 1f : 0f, lDt * 1.5f);
-            _lightBlend = Mathf.MoveTowards(_lightBlend, _player != null && _player.LightForm ? 1f : 0f, lDt * 1.2f);
+            _hyperBlend = Mathf.MoveTowards(_hyperBlend, target.HyperMode ? 1f : 0f, lDt / Mathf.Max(0.05f, HyperLook.blendTime));
+            _lightBlend = Mathf.MoveTowards(_lightBlend, _player != null && _player.LightForm ? 1f : 0f, lDt / Mathf.Max(0.05f, LightLook.blendTime));
             _lag = Mathf.SmoothDamp(_lag, 0f, ref _lagVelocity, 0.55f, Mathf.Infinity, lDt);
             _kick = Mathf.MoveTowards(_kick, _kickTarget, lUnscaled * KICK_MAX / 0.08f);
             _kickTarget = Mathf.MoveTowards(_kickTarget, 0f, lUnscaled * KICK_MAX / 0.7f);
@@ -284,9 +298,18 @@ namespace Com.IsartDigital.Hyperspeed
             lRotation *= lShakeRot * lWindRot * Quaternion.Euler(_punch);
             if (!_finishMode) lPosition = KeepAboveSurface(lPosition, lDt);
 
-            float lFovTarget = Mathf.Lerp(FOV_MIN, FOV_MAX, Mathf.Sqrt(lSpeed)) + _hyperBlend * FOV_HYPER + _lightBlend * 10f + _kick + _dive * 10f + GameSession.FovOffset;
+            float lHyperB = HSMath.Smooth(_hyperBlend);
+            float lLightB = HSMath.Smooth(_lightBlend);
+            float lFovTarget = Mathf.Lerp(Normal.classicFov.x, Normal.classicFov.y, Mathf.Sqrt(lSpeed)) + lHyperB * HyperLook.classicFov.x + lLightB * LightLook.classicFov.x + _kick + _dive * 10f + GameSession.FovOffset;
             if (freeLook) lFovTarget = 84f;
             _fov = Mathf.SmoothDamp(_fov, lFovTarget, ref _fovVelocity, 0.22f, FOV_RATE, lDt);
+            // The wide angle view : the same state machine, in horizontal degrees past 180, with its own shape.
+            float lHFovTarget = (Mathf.Lerp(Normal.fov.x, Normal.fov.y, Mathf.Sqrt(lSpeed)) + lHyperB * HyperLook.fov.x + lLightB * LightLook.fov.x) * GameSession.FovScale
+                                + (_kick + _dive * 10f) * PANO_KICK_SCALE;
+            if (freeLook) lHFovTarget = 150f * GameSession.FovScale;
+            _hfov = Mathf.SmoothDamp(_hfov, Mathf.Min(PANO_FOV_MAX, lHFovTarget), ref _hfovVelocity, 0.2f, FOV_RATE * PANO_KICK_SCALE, lDt);
+            _shape = Mathf.Lerp(Mathf.Lerp(Normal.shape, HyperLook.shape, lHyperB), LightLook.shape, lLightB);
+            _cylinder = Mathf.Lerp(Mathf.Lerp(Normal.cylinder, HyperLook.cylinder, lHyperB), LightLook.cylinder, lLightB);
 
             if (_overrideBlend > 0f)
             {
@@ -296,11 +319,13 @@ namespace Com.IsartDigital.Hyperspeed
                 lRotation = Quaternion.Slerp(lRotation, _shotRotation, lBlend);
                 transform.SetPositionAndRotation(lPosition, lRotation);
                 Cam.fieldOfView = Mathf.Lerp(_fov, _overrideFov, lBlend);
+                ApplyWide(Mathf.Lerp(_hfov, ProjectionMath.EquivalentHFov(_overrideFov, Cam.aspect, _shape) * 1.15f, lBlend));
                 if (_overrideBlend >= 1f) _velocity = Vector3.zero;
                 return;
             }
             transform.SetPositionAndRotation(lPosition, lRotation);
             Cam.fieldOfView = Mathf.Clamp(_fov, 40f, FOV_CLAMP);
+            ApplyWide(_hfov);
             if (lensShiftX != 0f)
             {
                 Cam.ResetProjectionMatrix();
@@ -308,6 +333,15 @@ namespace Com.IsartDigital.Hyperspeed
                 lProjection[0, 2] = lensShiftX;
                 Cam.projectionMatrix = lProjection;
             }
+        }
+
+        private void ApplyWide(float pHFov)
+        {
+            if (!WideAngle) return;
+            PanoramaRig lRig = PanoramaRig.Active;
+            lRig.hfov = pHFov;
+            lRig.shape = _shape;
+            lRig.cylinder = _cylinder;
         }
 
         // Anything solid between the runner and the camera pulls it in fast and lets it out slowly.

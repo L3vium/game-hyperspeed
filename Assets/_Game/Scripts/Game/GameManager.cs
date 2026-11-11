@@ -85,6 +85,8 @@ namespace Com.IsartDigital.Hyperspeed
 
             Camera lCamera = CameraRig.CreateCamera();
             _rig = lCamera.gameObject.AddComponent<CameraRig>();
+            // Field of view past 180 degrees : six cameras recomposed (setting WIDE ANGLE).
+            PanoramaRig.Attach(lCamera);
             new GameObject("PostFX").AddComponent<PostFX>();
             new GameObject("Wind").AddComponent<WindField>();
 

@@ -191,23 +191,32 @@ namespace Com.IsartDigital.Hyperspeed
 
             float lSpeed = speed01;
             SumKicks();
+            // The wide angle view already bends the picture : no Panini, no camera motion blur (wrong on a recomposed
+            // image), a lighter lens. The speed state looks add their own screen.
+            bool lWide = PanoramaRig.Active != null && PanoramaRig.Active.On;
+            HSSpeedStateLook lHyper = HSSpeedStateLook.Get(SpeedState.Hyper);
+            HSSpeedStateLook lLight = HSSpeedStateLook.Get(SpeedState.Light);
+            float lStateAberration = hyper01 * lHyper.aberration + _light * lLight.aberration;
+            float lStateRadial = hyper01 * lHyper.radialBlur + _light * lLight.radialBlur;
+            float lStateBloom = hyper01 * lHyper.bloom + _light * lLight.bloom;
+            float lStateSaturation = hyper01 * lHyper.saturation + _light * lLight.saturation;
             _rewind = Mathf.MoveTowards(_rewind, rewind, lDt * 6f);
             _pause = Mathf.MoveTowards(_pause, pause, lDt * 6f);
             // Clarity first : the center of the screen (runner + route) stays sharp at any speed.
-            _chromatic.intensity.Override(Mathf.Clamp01((0.18f + lSpeed * 0.7f + _pulse * 0.7f + hyper01 * 0.25f + _light * 0.3f) * GameSession.AberrationAmount + _kAberration * 0.5f + _rewind * 0.6f));
+            _chromatic.intensity.Override(Mathf.Clamp01((0.18f + lSpeed * 0.7f + _pulse * 0.7f + hyper01 * 0.25f + _light * 0.3f + lStateAberration * 0.3f) * GameSession.AberrationAmount + _kAberration * 0.5f + _rewind * 0.6f));
             _vignette.intensity.Override(0.2f + lSpeed * 0.16f + _vignetteBoost * 0.2f + _pause * 0.25f);
             _vignette.color.Override(Color.Lerp(Color.black, _vignetteColor, Mathf.Clamp01(_vignetteBoost * 1.5f)));
             _light = Mathf.MoveTowards(_light, light01, lDt * 2f);
-            _lens.intensity.Override(Mathf.Clamp(-(lSpeed * 0.3f + _pulse * 0.14f + _light * 0.14f + _kLens), -0.85f, 0f));
+            _lens.intensity.Override(Mathf.Clamp(-(lSpeed * 0.3f + _pulse * 0.14f + _light * 0.14f + _kLens) * (lWide ? 0.35f : 1f), -0.85f, 0f));
             _lens.scale.Override(1f);
-            _panini.distance.Override(Mathf.Clamp01((lSpeed - 0.15f) * 0.7f));
-            _motionBlur.intensity.Override(0.05f + lSpeed * 0.3f);
-            _bloom.intensity.Override(0.8f + lSpeed * 0.5f + hyper01 * 0.3f + _pulse * 0.8f + _light * 0.6f + _kBloom);
+            _panini.distance.Override(lWide ? 0f : Mathf.Clamp01((lSpeed - 0.15f) * 0.7f));
+            _motionBlur.intensity.Override(lWide ? 0f : 0.05f + lSpeed * 0.3f);
+            _bloom.intensity.Override(0.8f + lSpeed * 0.5f + hyper01 * 0.3f + _pulse * 0.8f + _light * 0.6f + _kBloom + lStateBloom);
             _color.postExposure.Override(_pulse * 0.15f + hyper01 * 0.1f - _pause * 0.35f + _kExposure);
-            _color.saturation.Override(Mathf.Clamp(30f - _pause * 40f + _kSaturation, -100f, 100f));
+            _color.saturation.Override(Mathf.Clamp(30f - _pause * 40f + _kSaturation + lStateSaturation, -100f, 100f));
 
-            Shader.SetGlobalFloat(ABERRATION, (0.3f + lSpeed * 2f + _pulse * 2.4f + hyper01 * 1.2f + _light * 1.2f) * GameSession.AberrationAmount + _kAberration * 2.4f + _rewind * 2f);
-            Shader.SetGlobalFloat(RADIAL_BLUR, Mathf.Min(3f, Mathf.Clamp01(lSpeed - 0.06f) * 1.35f + _pulse * 0.8f + hyper01 * 0.35f + _light * 0.5f + _kRadial));
+            Shader.SetGlobalFloat(ABERRATION, (0.3f + lSpeed * 2f + _pulse * 2.4f + hyper01 * 1.2f + _light * 1.2f + lStateAberration * 2f) * GameSession.AberrationAmount + _kAberration * 2.4f + _rewind * 2f);
+            Shader.SetGlobalFloat(RADIAL_BLUR, Mathf.Min(3f, Mathf.Clamp01(lSpeed - 0.06f) * 1.35f + _pulse * 0.8f + hyper01 * 0.35f + _light * 0.5f + _kRadial + lStateRadial));
             Shader.SetGlobalFloat(REWIND, _rewind);
             Shader.SetGlobalFloat(DESATURATE, _rewind * 0.75f);
             // Flat colour : no dither, no posterize.

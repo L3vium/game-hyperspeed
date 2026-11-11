@@ -301,7 +301,9 @@ namespace Com.IsartDigital.Hyperspeed
             Camera lCamera = CameraRig.Instance != null ? CameraRig.Instance.Cam : null;
             if (_rival == null || lCamera == null || (!_rival.chaser && _rival.distance < _player.Progress)) { _rivalPointer.gameObject.SetActive(false); return; }
             _rivalPointer.gameObject.SetActive(true);
-            Vector3 lScreen = lCamera.WorldToScreenPoint(_rival.transform.position + Vector3.up * 6f);
+            Vector3 lScreen;
+            if (PanoramaRig.Active != null && PanoramaRig.Active.On) PanoramaRig.Active.WorldToScreen(_rival.transform.position + Vector3.up * 6f, out lScreen);
+            else lScreen = lCamera.WorldToScreenPoint(_rival.transform.position + Vector3.up * 6f);
             float lScale = _canvas.scaleFactor;
             Vector2 lSize = new Vector2(Screen.width, Screen.height);
             bool lBehind = lScreen.z < 0f;

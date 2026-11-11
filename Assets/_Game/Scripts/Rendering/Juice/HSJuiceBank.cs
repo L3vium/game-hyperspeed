@@ -9,7 +9,14 @@ namespace Com.IsartDigital.Hyperspeed
     public class HSJuiceBank : MonoBehaviour
     {
         private readonly Dictionary<JuiceId, HSJuiceEvent> _events = new Dictionary<JuiceId, HSJuiceEvent>();
+        private readonly HSSpeedStateLook[] _looks = new HSSpeedStateLook[3];
         private bool _prepared;
+
+        public HSSpeedStateLook GetLook(SpeedState pState)
+        {
+            Prepare();
+            return _looks[(int)pState];
+        }
 
         private void Awake()
         {
@@ -33,6 +40,7 @@ namespace Com.IsartDigital.Hyperspeed
                 if (_events.ContainsKey(lEvent.id)) Debug.LogWarning("[HS-JUICE] two events with id " + lEvent.id + " : " + lEvent.name);
                 else _events.Add(lEvent.id, lEvent);
             }
+            foreach (HSSpeedStateLook lLook in GetComponentsInChildren<HSSpeedStateLook>(true)) _looks[(int)lLook.state] = lLook;
         }
 
         public HSJuiceEvent Get(JuiceId pId)
