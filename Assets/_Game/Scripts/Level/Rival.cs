@@ -77,8 +77,7 @@ namespace Com.IsartDigital.Hyperspeed
                 bool lPlayerAhead = RaceContext.PlayerProgress > distance;
                 if (!chaser && lPlayerAhead && !_playerWasAhead && _elapsed > startDelay + 0.5f)
                 {
-                    AudioManager.Play("sfx_pass", 1f);
-                    Juice.Rollback(6f);
+                    HSJuice.Play(JuiceId.Overtake, transform.position);
                     // Overtaken : it flails.
                     if (_wobble != null) _wobble.Hiccup(1f);
                 }

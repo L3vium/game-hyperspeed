@@ -268,10 +268,7 @@ namespace Com.IsartDigital.Hyperspeed
             _speed = Mathf.Max(_speed, _profile.cruise * 1.45f);
             _boostTimer = 2f;
             OnPerfectStart?.Invoke();
-            Juice.Pulse(1f);
-            Juice.Rollback(14f);
-            Juice.FovKick(12f);
-            AudioManager.Play("sfx_perfect_start", 1f);
+            HSJuice.Play(JuiceId.PerfectStart, Jx(transform.position));
         }
 
         private bool StartInputPressed => HSInput.JumpPressed || HSInput.DashPressed || HSInput.RunPressed;
@@ -520,12 +517,9 @@ namespace Com.IsartDigital.Hyperspeed
             if (OnSurface) _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + _profile.cruise * BREAK_KICK * KickScale(0.3f));
             else _velocity += _velocity.normalized * _profile.cruise * BREAK_KICK * KickScale(0.3f);
             _boostTimer = Mathf.Max(_boostTimer, 0.6f);
-            Juice.Freeze(0.05f);
-            Juice.Shake(0.55f);
-            Juice.Pulse(1.2f);
-            Juice.FovKick(8f);
-            Impacts.Request(ImpactReason.Smash, lAt);
-            AudioManager.Play("sfx_punch_hit", 0.9f);
+            JuiceContext lJuice = Jx(lAt);
+            lJuice.size = pBreakable.radius / 16f;
+            HSJuice.Play(JuiceId.BreakSmall, lJuice);
         }
 
         // Running into it without a dash : it still breaks, but it takes a good part of your speed.
@@ -536,10 +530,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (OnSurface) _speed = Mathf.Max(RunFloor, _speed * 0.75f);
             else _velocity *= 0.75f;
             _invulnerable = 0.3f;
-            Juice.Shake(0.35f);
-            Juice.Hitstop(0.04f);
-            AudioManager.Play("sfx_crash", 0.6f, 1.2f);
-            FX.Sparks(pBreakable.transform.position, Color.white, 20, 26f);
+            HSJuice.Play(JuiceId.BodyHit, Jx(pBreakable.transform.position));
         }
 
         // One punch : wide reach, it explodes and you pick up speed.
@@ -556,8 +547,7 @@ namespace Com.IsartDigital.Hyperspeed
                 if (!_punchHit)
                 {
                     _punchHit = true;
-                    Juice.Hitstop(0.06f);
-                    AudioManager.Play("sfx_punch_hit", 1f);
+                    HSJuice.Play(JuiceId.PunchHit, Jx(lWhere));
                     _visual?.PunchImpact(lWhere);
                 }
             }
@@ -629,8 +619,9 @@ namespace Com.IsartDigital.Hyperspeed
             if (lBlock != null && (LightForm || (Dashing && _profile.worldBreaker)))
             {
                 lBlock.Smash(_heading, Speed);
-                Juice.Shake(0.5f);
-                Impacts.Request(ImpactReason.BlockBroken);
+                JuiceContext lJuice = Jx(pHit.point);
+                lJuice.size = 3f;
+                HSJuice.Play(JuiceId.BreakBig, lJuice);
                 AddCombo();
                 return true;
             }
@@ -649,7 +640,9 @@ namespace Com.IsartDigital.Hyperspeed
                 _moveDir = _heading;
             }
             else _velocity = Vector3.ProjectOnPlane(_velocity, pHit.normal) * lLoss;
-            FX.Sparks(pHit.point, Color.white, 8, 20f);
+            JuiceContext lGlance = Jx(pHit.point);
+            lGlance.normal = pHit.normal;
+            HSJuice.Play(JuiceId.GlanceOff, lGlance);
             transform.position += pHit.normal * 0.05f;
             return false;
         }
@@ -684,14 +677,13 @@ namespace Com.IsartDigital.Hyperspeed
             if (!Hyper && lSpeed >= _profile.hyperEnter && !_freeRoam)
             {
                 Hyper = true;
-                AudioManager.Play("sfx_hyper", 0.7f);
-                Juice.Rollback(10f);
+                HSJuice.Play(JuiceId.HyperEnter, Jx(transform.position + PhysUp));
                 OnHyper?.Invoke();
             }
             else if (Hyper && lSpeed < _profile.hyperExit)
             {
                 Hyper = false;
-                AudioManager.Play("sfx_hyper_out", 0.5f);
+                HSJuice.Play(JuiceId.HyperExit, Jx(transform.position));
             }
 
             // Past this, there is no runner left : only light. Hard to reach : it takes holding it for a moment.
@@ -699,24 +691,20 @@ namespace Com.IsartDigital.Hyperspeed
             if (!LightForm && _overLight >= LIGHT_HOLD)
             {
                 LightForm = true;
-                Juice.Flash(Color.white, 0.8f);
-                Juice.Shake(0.7f);
-                Juice.Rollback(16f);
-                Impacts.Request(ImpactReason.LightSpeed);
-                AudioManager.Play("sfx_light", 1f, 1f, 0.02f);
+                HSJuice.Play(JuiceId.LightEnter, Jx(transform.position + PhysUp));
                 OnLight?.Invoke();
                 Debug.Log("[HS-FEEL] light entered at v=" + lSpeed.ToString("F0") + " cruise=" + _profile.cruise.ToString("F0") + " s=" + Progress.ToString("F0"));
             }
             else if (LightForm && lSpeed < _profile.lightExit)
             {
                 LightForm = false;
-                AudioManager.Play("sfx_hyper_out", 0.7f, 1.2f);
+                HSJuice.Play(JuiceId.LightExit, Jx(transform.position));
             }
             // The wind is the speed you hear : a low roar at a jog, a howl near light.
             AudioManager.SetLoop("sfx_wind_loop", Mathf.Clamp01(Speed / Mathf.Max(1f, _profile.cruise) * 0.45f + Speed01 * 0.5f) * 0.95f, 0.75f + Speed01 * 0.7f);
             AudioManager.SetLoop("sfx_light_loop", LightForm ? 0.7f : 0f, 1f + Speed01 * 0.2f);
             AudioManager.SetLoop("sfx_dive_loop", Diving ? 0.3f + Dive01 * 0.6f : 0f, 0.85f + Dive01 * 0.4f);
-            if (Diving && !_wasDiving) AudioManager.Play("sfx_dive", 0.8f);
+            if (Diving && !_wasDiving) HSJuice.Play(JuiceId.DiveStart, Jx(transform.position));
             _wasDiving = Diving;
         }
 
@@ -834,13 +822,17 @@ namespace Com.IsartDigital.Hyperspeed
             EndDrift(false);
             SetState(PlayerState.Dead);
             Combo = 0;
-            AudioManager.Play("sfx_death", 1f);
+            HSJuice.Play(JuiceId.Death, Jx(transform.position));
             AudioManager.SetLoop("sfx_dive_loop", 0f);
             AudioManager.SetLoop("sfx_light_loop", 0f);
             OnDied?.Invoke();
         }
 
         public Breadcrumb PickRespawn() => _crumbs.PickSafe(Progress, Speed, _layout);
+
+        // Context of a juice event happening to the runner : where, the way it runs, its up.
+        private JuiceContext Jx(Vector3 pAt, float pIntensity = 1f) =>
+            new JuiceContext { position = pAt, direction = _heading, normal = PhysUp, intensity = pIntensity, size = 1f };
 
         public Breadcrumbs Crumbs => _crumbs;
 

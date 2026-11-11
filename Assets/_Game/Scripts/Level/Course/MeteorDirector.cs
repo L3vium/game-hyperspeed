@@ -141,9 +141,8 @@ namespace Com.IsartDigital.Hyperspeed
             if (_trail != null) Destroy(_trail.gameObject);
             PlayerController lPlayer = RaceContext.Player;
             float lDistance = lPlayer != null ? Vector3.Distance(lPlayer.transform.position, transform.position) : 999f;
-            if (lDistance < 700f) Juice.Shake(Mathf.Clamp01(0.7f - lDistance / 1000f));
             if (lPlayer != null && lDistance < radius * 1.6f && !lPlayer.Dashing && !lPlayer.LightForm) lPlayer.Crash(transform.position);
-            AudioManager.Play("sfx_explosion", Mathf.Clamp01(1.1f - lDistance / 1200f), Random.Range(0.85f, 1.1f));
+            HSJuice.Play(JuiceId.MeteorNear, transform.position, Mathf.Clamp01(1f - lDistance / 1200f));
             Smash(Vector3.up, radius * 6f);
         }
     }

@@ -201,6 +201,10 @@ namespace Com.IsartDigital.Hyperspeed
 
         private float _lineBurst;
         private float _lastBoost;
+        private static float _externalBurst;
+
+        // Juice events snap the screen speed lines toward the centre (they ease back out by themselves).
+        public static void LinesBurst(float pAmount) => _externalBurst = Mathf.Max(_externalBurst, Mathf.Clamp01(pAmount));
 
         private void Update()
         {
@@ -213,6 +217,8 @@ namespace Com.IsartDigital.Hyperspeed
                 float lBoost = _player.BoostAmount;
                 if (lBoost > _lastBoost + 0.05f) _lineBurst = 1f;
                 _lastBoost = lBoost;
+                _lineBurst = Mathf.Max(_lineBurst, _externalBurst);
+                _externalBurst = 0f;
                 _lineBurst = Mathf.MoveTowards(_lineBurst, 0f, lDt / 0.4f);
                 _speedLinesMaterial.SetFloat("_Intensity", _player.State == PlayerState.Frozen ? 0f : _lineIntensity);
                 _speedLinesMaterial.SetFloat("_Boost", lBoost);
@@ -323,7 +329,7 @@ namespace Com.IsartDigital.Hyperspeed
                 _hintIndex++;
                 if (string.IsNullOrEmpty(lHint)) return;
                 _hint.Show(lHint, UIKit.CYAN, 3.4f);
-                AudioManager.Play("ui_hint", 0.5f);
+                HSJuice.Play(JuiceId.Hint, _player.transform.position);
             }
         }
 
@@ -359,7 +365,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (!_player.WrongWay || _wrongWayTimer > 0f) return;
             _wrongWayTimer = 1.2f;
             _wrongWay.Show("WRONG WAY", UIKit.RED, 1.1f);
-            AudioManager.Play("sfx_wrong_way", 0.8f);
+            HSJuice.Play(JuiceId.WrongWay, _player.transform.position);
         }
 
         // Paused : the race HUD steps aside so nothing covers the pause menu.
@@ -485,7 +491,9 @@ namespace Com.IsartDigital.Hyperspeed
                 UI3DText lLetter = UI3DText.Create(lRank, GameSession.RankLetter(pRank), 380f, new Vector2(0.5f, 0.5f), new Vector2(90f, 20f), new Vector2(360f, 420f), pRank >= 4 ? UIKit.GOLD : UIKit.RED, UIKit.RED_DARK, 24, 5f);
                 lLetter.tiltX = 14f;
                 lLetter.tiltY = 10f;
-                lLetter.gameObject.AddComponent<UIRankDrop>().letter = lLetter;
+                UIRankDrop lDrop = lLetter.gameObject.AddComponent<UIRankDrop>();
+                lDrop.letter = lLetter;
+                lDrop.rank = pRank;
                 UIKit.Text(lRank, "RANK", 40f, UIKit.INK, new Vector2(0.5f, 0.5f), new Vector2(0f, -140f), new Vector2(300f, 50f), UIKit.Font.Heavy);
             }
 
@@ -629,6 +637,7 @@ namespace Com.IsartDigital.Hyperspeed
     public class UIRankDrop : MonoBehaviour
     {
         public UI3DText letter;
+        public int rank = 4;
         private float _time;
         private bool _landed;
         private Vector2 _home;
@@ -658,10 +667,7 @@ namespace Com.IsartDigital.Hyperspeed
                 _landed = true;
                 letter.Kick(-9f);
                 letter.punch = 0.5f;
-                Juice.Shake(0.8f);
-                Juice.Pulse(1.4f);
-                Juice.Flash(Color.white, 0.25f);
-                AudioManager.Play("sfx_rank", 1f, 0.8f);
+                HSJuice.Play(JuiceId.RankReveal, Vector3.zero, rank / 4f);
             }
             if (_landed) lRect.anchoredPosition = _home + new Vector2(0f, Mathf.Sin(_time * 2.2f) * 6f);
         }

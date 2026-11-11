@@ -27,8 +27,9 @@ namespace Com.IsartDigital.Hyperspeed
         private const float FOCUS_VERTICAL_LAG = 5f;
         private const float FOV_HYPER = 4f;
         private const float FOV_RATE = 140f;
-        private const float KICK_MAX = 16f;
-        private const float LAG_MAX = 26f;
+        // Room for the juice : a pad or a dash may kick the FOV and throw the camera back a long way.
+        private const float KICK_MAX = 45f;
+        private const float LAG_MAX = 70f;
 
         public static CameraRig Instance { get; private set; }
 
@@ -66,6 +67,9 @@ namespace Com.IsartDigital.Hyperspeed
         private float _curl;
         private float _finishOrbit;
         private float _windTime;
+        // Rotation punch (degrees pitch / yaw / roll) on a stiff spring : hits you feel in the view.
+        private Vector3 _punch;
+        private Vector3 _punchVelocity;
 
         private bool _override;
         private float _overrideBlend;
@@ -169,6 +173,9 @@ namespace Com.IsartDigital.Hyperspeed
         // Thrown back : the camera falls behind, then the spring brings it home.
         public void Rollback(float pAmount) => _lag = Mathf.Min(LAG_MAX, Mathf.Max(_lag, pAmount) + pAmount * 0.3f);
 
+        // Knocks the view (pitch, yaw, roll in degrees) ; a stiff spring brings it back in a fraction of a second.
+        public void Punch(Vector3 pDegrees) => _punch = Vector3.ClampMagnitude(_punch + pDegrees, 25f);
+
         // Far back and well above the runner, looking down onto it : the runner is small in a huge world, and the
         // ground's bumps barely move the view. Even the slowest run sits twice as far as before.
         // Base distance behind the runner : far already at a jog, much further at hyper speed, very far at light.
@@ -238,6 +245,8 @@ namespace Com.IsartDigital.Hyperspeed
             _kick = Mathf.MoveTowards(_kick, _kickTarget, lUnscaled * KICK_MAX / 0.08f);
             _kickTarget = Mathf.MoveTowards(_kickTarget, 0f, lUnscaled * KICK_MAX / 0.7f);
             _trauma = Mathf.MoveTowards(_trauma, 0f, lUnscaled * 1.4f);
+            _punchVelocity += (-_punch * 260f - _punchVelocity * 22f) * lUnscaled;
+            _punch += _punchVelocity * lUnscaled;
             _roll = Mathf.Lerp(_roll, target.CameraRoll, 1f - Mathf.Exp(-6f * lDt));
             _dive = Mathf.Lerp(_dive, target.Dive01, 1f - Mathf.Exp(-5f * lDt));
 
@@ -272,7 +281,7 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lWindOffset = new Vector3(Mathf.PerlinNoise(_windTime, 3.3f) - 0.5f, Mathf.PerlinNoise(8.1f, _windTime) - 0.5f, 0f) * lWind * 3.2f;
             Quaternion lWindRot = Quaternion.Euler((Mathf.PerlinNoise(_windTime, 11f) - 0.5f) * lWind * 5f, 0f, (Mathf.PerlinNoise(13f, _windTime) - 0.5f) * lWind * 9f);
             Vector3 lPosition = _base + lRotation * (lShakeOffset + lWindOffset);
-            lRotation *= lShakeRot * lWindRot;
+            lRotation *= lShakeRot * lWindRot * Quaternion.Euler(_punch);
             if (!_finishMode) lPosition = KeepAboveSurface(lPosition, lDt);
 
             float lFovTarget = Mathf.Lerp(FOV_MIN, FOV_MAX, Mathf.Sqrt(lSpeed)) + _hyperBlend * FOV_HYPER + _lightBlend * 10f + _kick + _dive * 10f + GameSession.FovOffset;

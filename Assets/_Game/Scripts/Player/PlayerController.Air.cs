@@ -221,29 +221,12 @@ namespace Com.IsartDigital.Hyperspeed
                 _lastDiveLanding = Time.time;
                 _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + lBonus * KickScale(0.3f));
                 _boostTimer = Mathf.Max(_boostTimer, 1.5f);
-                Juice.FovKick(10f);
-                Juice.Pulse(0.8f);
-                Juice.Rollback(10f);
-                AudioManager.Play("sfx_land_perfect", 0.9f);
             }
-            // Only a dive or a long drop hits hard : a plain jump lands softly and keeps the run flowing.
-            if ((lWasDiving ? lImpact > 22f : lImpact > 90f) && !lWasCrash)
-            {
-                // A real hit on the ground : ring, column of debris, dust.
-                float lSize = Mathf.Lerp(14f, 80f, lPower);
-                Juice.Shake(Mathf.Lerp(0.2f, 0.75f, lPower));
-                FX.Shockwave(pPoint + pNormal * 0.3f, pNormal, Color.white, lSize, 0.4f);
-                FX.Shockwave(pPoint + pNormal * 0.5f, pNormal, lDust, lSize * 0.6f, 0.3f);
-                FX.Shards(pPoint, RaceContext.Theme != null ? RaceContext.Theme.roadSide : Color.gray, Mathf.RoundToInt(Mathf.Lerp(10f, 44f, lPower)), Mathf.Lerp(26f, 80f, lPower), Mathf.Lerp(1.6f, 3.6f, lPower), pNormal * Mathf.Lerp(20f, 70f, lPower));
-                FX.Puff(pPoint, lDust, Mathf.RoundToInt(Mathf.Lerp(8f, 26f, lPower)), Mathf.Lerp(4f, 16f, lPower), Mathf.Lerp(8f, 30f, lPower));
-                FX.Sparks(pPoint, lDust, Mathf.RoundToInt(Mathf.Lerp(16f, 70f, lPower)), Mathf.Lerp(30f, 90f, lPower), 0.8f, 0.5f);
-                if (!lWasDiving) AudioManager.Play("sfx_land_heavy", 0.8f);
-            }
-            else
-            {
-                FX.Puff(pPoint, lDust, 6, 3f, 5f);
-                AudioManager.Play("sfx_land", 0.6f);
-            }
+            JuiceContext lJuice = new JuiceContext { position = pPoint, direction = _heading, normal = pNormal, intensity = lPower, size = 1f };
+            // A dive lands as a kick ; a long drop hits hard ; a plain jump lands softly and keeps the run flowing.
+            if (lWasDiving && !lWasCrash) HSJuice.Play(JuiceId.DiveLanding, lJuice);
+            else if (lImpact > 90f && !lWasCrash) HSJuice.Play(JuiceId.LandHard, lJuice);
+            else HSJuice.Play(JuiceId.Land, lJuice);
             OnLanded?.Invoke(lImpact);
             ReprojectProgress();
         }

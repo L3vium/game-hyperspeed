@@ -40,8 +40,7 @@ namespace Com.IsartDigital.Hyperspeed
                 _lastGrounded = -10f;
                 if (Drifting) EndDrift(true);
                 SetState(PlayerState.Air);
-                AudioManager.Play("sfx_jump", 0.8f);
-                FX.Puff(transform.position, Color.white, 5, 1.8f, 5f);
+                HSJuice.Play(JuiceId.Jump, Jx(transform.position, Speed01));
                 OnJumped?.Invoke();
             }
             else if (State == PlayerState.Grind)
@@ -51,7 +50,7 @@ namespace Com.IsartDigital.Hyperspeed
                 _jumpCut = true;
                 _jumpBufferedAt = -10f;
                 SetState(PlayerState.Air);
-                AudioManager.Play("sfx_jump", 0.8f, 1.1f);
+                HSJuice.Play(JuiceId.RopeJump, Jx(transform.position));
                 OnJumped?.Invoke();
             }
             // Pressed just before touching down : that is a ground jump on landing (buffered), not the double jump.
@@ -63,8 +62,7 @@ namespace Com.IsartDigital.Hyperspeed
                 _velocity = lFlat + _gravityUp * JumpSpeed * 0.9f;
                 _jumpBufferedAt = -10f;
                 _jumpCut = true;
-                AudioManager.Play("sfx_doublejump", 0.85f);
-                FX.Shockwave(transform.position, _gravityUp, Color.white, 10f, 0.25f);
+                HSJuice.Play(JuiceId.DoubleJump, Jx(transform.position));
                 OnDoubleJumped?.Invoke();
             }
         }
@@ -91,12 +89,9 @@ namespace Com.IsartDigital.Hyperspeed
                 float lNew = _velocity.magnitude + lCruise * AIR_DASH_KICK * lScale;
                 _velocity = AimDirection * Mathf.Min(SpeedProfile.SAFETY_MAX, lNew);
             }
-            AudioManager.Play("sfx_dash", 0.85f);
-            Juice.FovKick(9f);
-            Juice.Rollback(9f);
-            Juice.Pulse(0.6f);
-            Juice.Shake(0.18f);
-            FX.Sparks(transform.position + PhysUp, Color.white, 22, 30f);
+            JuiceContext lDashJuice = Jx(transform.position + PhysUp);
+            lDashJuice.direction = OnSurface ? _heading : AimDirection;
+            HSJuice.Play(OnSurface ? JuiceId.Dash : JuiceId.DashAir, lDashJuice);
             OnDashed?.Invoke();
         }
 
@@ -108,7 +103,7 @@ namespace Com.IsartDigital.Hyperspeed
             float lSpeed = _speed;
             TakeOff(TakeoffReason.Aim);
             _velocity = AimDirection * lSpeed;
-            AudioManager.Play("sfx_launch", 0.7f);
+            HSJuice.Play(JuiceId.LiftOff, Jx(transform.position));
         }
 
         // Hold : a continuous push along the look direction, far stronger than a press, for as long as the energy lasts.
@@ -116,7 +111,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _dashHeldTime = _dashHeld ? _dashHeldTime + pDt : 0f;
             bool lWant = _dashHeld && _dashHeldTime > THRUST_DELAY && _dashEnergy > 0f && State != PlayerState.Crash;
-            if (lWant && !Thrusting) AudioManager.Play("sfx_boost_small", 0.6f);
+            if (lWant && !Thrusting) HSJuice.Play(JuiceId.ThrustStart, Jx(transform.position));
             Thrusting = lWant;
             if (!Thrusting) return;
             _dashEnergy = Mathf.Max(0f, _dashEnergy - THRUST_BURN * pDt);
@@ -135,7 +130,7 @@ namespace Com.IsartDigital.Hyperspeed
             _punchTimer = 0.3f;
             _punchCooldown = 0.34f;
             _punchHit = false;
-            AudioManager.Play("sfx_punch_whoosh", 0.7f);
+            HSJuice.Play(JuiceId.Punch, Jx(transform.position));
             OnPunched?.Invoke();
         }
 
@@ -151,14 +146,11 @@ namespace Com.IsartDigital.Hyperspeed
             SetState(PlayerState.Air);
             HasDoubleJump = true;
             _boostTimer = Mathf.Max(_boostTimer, 0.5f);
-            AudioManager.Play("sfx_launch", 0.9f);
-            Juice.FovKick(8f);
-            Juice.Rollback(7f);
-            Juice.Shake(0.25f);
+            HSJuice.Play(JuiceId.Launch, Jx(transform.position));
         }
 
         // One instant kick. It fades on its own : see the drag in SpeedStep. pRefill also gives dash energy back.
-        public void ApplyBoost(float pBoost, Vector3 pDirection, float pAlign, string pLabel, bool pRefill = false, bool pPad = false)
+        public void ApplyBoost(float pBoost, Vector3 pDirection, float pAlign, string pLabel, bool pRefill = false, bool pPad = false, JuiceId pJuice = JuiceId.BoostOther)
         {
             // Kicks are huge from a calm run and worth less and less up high : one pad throws you toward hyper, only a
             // chain of them and your dashes reaches light, and nothing stacks forever.
@@ -169,16 +161,11 @@ namespace Com.IsartDigital.Hyperspeed
 
             float lAmount = Mathf.Clamp01(pBoost / (_profile.cruise * 0.8f));
             _boostTimer = Mathf.Max(_boostTimer, 0.5f + lAmount * 0.6f);
-            AudioManager.Play("sfx_boost", 0.95f);
-            // A pad is felt (kick, aberration, a short shake) without stealing the view.
-            Juice.FovKick(pPad ? 9f : 5f + lAmount * 6f);
-            Juice.Rollback(pPad ? 9f : 6f + lAmount * 8f);
-            Juice.Pulse(pPad ? 0.8f : 0.35f + lAmount * 0.4f);
-            Juice.Shake(pPad ? 0.2f : 0.1f + lAmount * 0.16f);
-            Juice.Vignette(UIFactory.CYAN, 0.5f);
-            if (!string.IsNullOrEmpty(pLabel)) Juice.Popup(pLabel, UIFactory.CYAN, 1f);
-            FX.Sparks(transform.position + PhysUp * 0.5f, UIFactory.CYAN, 50, 50f, 0.9f, 0.5f);
-            FX.Burst(transform.position + PhysUp, _heading, UIFactory.CYAN, 22f);
+            // Everything you see, hear and feel : the event in the HS_Juice prefab (pads, rings, drift, others).
+            JuiceContext lJuice = Jx(transform.position + PhysUp * 0.5f, pPad ? 1f : lAmount);
+            lJuice.direction = pDirection.sqrMagnitude > 0.01f ? pDirection.normalized : _heading;
+            lJuice.label = pLabel;
+            HSJuice.Play(pPad ? JuiceId.BoostPad : pJuice, lJuice);
             AddCombo();
         }
 
@@ -206,11 +193,7 @@ namespace Com.IsartDigital.Hyperspeed
             Diving = false;
             SetState(PlayerState.Crash);
             Combo = 0;
-            AudioManager.Play("sfx_crash", 1f);
-            Juice.Shake(0.8f);
-            Juice.Flash(UIFactory.RED, 0.3f);
-            Juice.Hitstop(0.06f);
-            FX.Sparks(pPoint, Color.white, 30, 30f);
+            HSJuice.Play(JuiceId.Crash, Jx(pPoint));
             OnCrashed?.Invoke();
         }
 

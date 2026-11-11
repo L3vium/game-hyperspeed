@@ -112,6 +112,7 @@ namespace Com.IsartDigital.Hyperspeed
         private void Start()
         {
             CursorGuardBehaviour.OnFocusLost += FocusLost;
+            HSJuice.Warmup();
             AudioManager.PlayMusic("music_intro", 0.38f);
             StartCoroutine(Flow());
         }
@@ -139,7 +140,7 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 StartGate.Instance?.ShowCount(lSteps[i], Color.white);
                 _hud.ShowCount(lSteps[i], false);
-                AudioManager.Play("sfx_count", 1f);
+                HSJuice.Play(JuiceId.CountdownTick, _player.transform.position);
                 yield return new WaitForSeconds(COUNT_STEP);
             }
             BeginRace();
@@ -158,12 +159,10 @@ namespace Com.IsartDigital.Hyperspeed
             RaceContext.Running = true;
             StartGate.Instance?.Open();
             _hud.ShowCount("GO!", true);
-            AudioManager.Play("sfx_go", 1f);
             _rig.freeLook = false;
             _player.StartRunning();
             AudioManager.PlayMusic(_level.music, 0.42f);
-            Juice.Shake(0.3f);
-            Juice.FovKick(8f);
+            HSJuice.Play(JuiceId.Go, _player.transform.position);
         }
 
         private void Update()
@@ -195,9 +194,7 @@ namespace Com.IsartDigital.Hyperspeed
                 _beatenTime = _raceTime;
                 Juice.Popup("TOO SLOW", UIFactory.RED, 1f);
                 _hud.RivalFinished();
-                Juice.Vignette(UIFactory.RED, 1f);
-                Juice.Pulse(0.8f);
-                AudioManager.Play("sfx_lose", 0.6f, 1.15f);
+                HSJuice.Play(JuiceId.RivalFinished, _rival.transform.position);
             }
             if (_player.Progress >= _layout.finishS && _player.State != PlayerState.Dead && !_respawn.Busy)
                 StartCoroutine(EndRoutine(!_beaten, _beaten ? "TOO SLOW" : "FINISH!!"));
@@ -220,8 +217,7 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 _climax = true;
                 _hud.Notify("FINAL SPRINT", UIFactory.YELLOW);
-                Juice.Pulse(1f);
-                Juice.Shake(0.3f);
+                HSJuice.Play(JuiceId.FinalSprint, _player.transform.position);
             }
             float lNeck = Mathf.Clamp01(1f - Mathf.Abs(_rival.Gap) / (_layout.profile.cruise * 1.2f));
             PostFX.Instance.letterbox = lIn ? Mathf.Lerp(0.1f, 0.16f, lNeck) : 0f;
@@ -310,9 +306,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (pWin)
             {
                 _visual.SetVictory();
-                Impacts.Request(ImpactReason.Finish);
-                                AudioManager.Play("sfx_finish", 1f);
-                Juice.SlowMo(0.25f, 1f);
+                HSJuice.Play(JuiceId.FinishWin, _player.transform.position);
                 yield return new WaitForSecondsRealtime(1.1f);
                 _rig.SetFinishMode(true);
                 // Cinema : the runner keeps running, the camera goes round it, the bars close in, the colours burn.
@@ -328,10 +322,7 @@ namespace Com.IsartDigital.Hyperspeed
             else
             {
                 _visual.SetResult(false);
-                Juice.Flash(_level.rival == RivalKind.Supernova ? Color.white : UIFactory.RED, 0.6f);
-                Juice.Shake(0.6f);
-                AudioManager.Play("sfx_lose", 1f);
-                Juice.SlowMo(0.3f, 0.8f);
+                HSJuice.Play(JuiceId.FinishLose, _player.transform.position);
                 if (PostFX.Instance != null) { PostFX.Instance.letterbox = 0f; PostFX.Instance.intensity = 0f; }
                 yield return new WaitForSecondsRealtime(0.9f);
                 AudioManager.PlayMusic("music_lose", 0.5f);
@@ -384,7 +375,7 @@ namespace Com.IsartDigital.Hyperspeed
             _paused = true;
             Juice.Paused = true;
             Time.timeScale = 0f;
-            AudioManager.Play("ui_select", 0.7f);
+            HSJuice.Play(JuiceId.Pause, Vector3.zero);
             AudioManager.Duck(9999f);
             if (PostFX.Instance != null) PostFX.Instance.pause = 1f;
             SetCursorLocked(false);
@@ -402,6 +393,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (_cheatBar != null) _cheatBar.gameObject.SetActive(true);
             Juice.Paused = false;
             Time.timeScale = _slowCheat ? 0.35f : 1f;
+            HSJuice.Play(JuiceId.Resume, Vector3.zero);
             AudioManager.Unduck();
             if (PostFX.Instance != null) PostFX.Instance.pause = 0f;
             SetCursorLocked(_phase != Phase.Ended);

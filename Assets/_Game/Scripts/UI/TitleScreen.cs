@@ -31,6 +31,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             Time.timeScale = 1f;
             CursorGuard.Set(CursorMode.Menu);
+            HSJuice.Warmup();
             RaceContext.Clear();
             AudioManager.LoadVolumes();
             GameSession.ApplyDisplay();

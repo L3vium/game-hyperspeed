@@ -219,8 +219,7 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 if (lSide != 0 && WallSide == 0)
                 {
-                    AudioManager.Play("sfx_wall_attach", 0.7f);
-                    FX.Sparks(transform.position, Color.white, 16, 16f);
+                    HSJuice.Play(JuiceId.WallAttach, Jx(transform.position));
                 }
                 WallSide = lSide;
             }
@@ -262,7 +261,7 @@ namespace Com.IsartDigital.Hyperspeed
                 DriftDirection = lTurn > 0f ? 1 : -1;
                 DriftCharge = 0f;
                 _driftEntrySpeed = _speed;
-                AudioManager.Play("sfx_drift_start", 0.7f);
+                HSJuice.Play(JuiceId.DriftStart, Jx(transform.position));
             }
             if (!Drifting) return;
             if (!_slideHeld)
@@ -274,8 +273,7 @@ namespace Com.IsartDigital.Hyperspeed
             DriftCharge += pDt * (0.55f + Mathf.Max(Mathf.Abs(DriftSteer), Mathf.Clamp01(Mathf.Abs(MouseTurn) / 120f)) * 0.65f);
             if (DriftTier > lTierBefore)
             {
-                AudioManager.Play("sfx_drift_tier", 0.6f, 0.9f + DriftTier * 0.15f, 0f);
-                Juice.Pulse(0.25f);
+                HSJuice.Play(JuiceId.DriftTier, Jx(transform.position, DriftTier / 3f));
             }
             AudioManager.SetLoop("sfx_drift_loop", 0.45f, 0.9f + DriftTier * 0.12f);
         }
@@ -298,7 +296,7 @@ namespace Com.IsartDigital.Hyperspeed
             _speed = Mathf.Max(_speed, _driftEntrySpeed * Mathf.Lerp(0.85f, 1f, lAlign));
             if (lTier == 0) return;
             float[] lBoosts = { 0f, 0.6f, 1.1f, 1.6f };
-            ApplyBoost(lBoosts[lTier] * _profile.cruise * Mathf.Lerp(0.35f, 1f, lAlign), _heading, 0f, lAlign > 0.9f && lTier >= 2 ? "DRIFT BOOST" : null);
+            ApplyBoost(lBoosts[lTier] * _profile.cruise * Mathf.Lerp(0.35f, 1f, lAlign), _heading, 0f, lAlign > 0.9f && lTier >= 2 ? "DRIFT BOOST" : null, false, false, JuiceId.DriftBoost);
         }
 
         private void ReprojectProgress()

@@ -515,6 +515,14 @@ namespace Com.IsartDigital.Hyperspeed
 
         public void SetVictory() => SetResult(true);
 
+        // Juice : kicks the body springs (up stretches tall, negative squashes ; forward stretches along the run).
+        public void Punch(float pUp, float pForward, float pFlash)
+        {
+            _stretchVelocity += pUp;
+            _zStretchVelocity += pForward;
+            _flash = Mathf.Max(_flash, pFlash);
+        }
+
         public void SetResult(bool pWin)
         {
             if (!_animated) return;
