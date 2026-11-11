@@ -34,7 +34,7 @@ namespace Com.IsartDigital.Hyperspeed
         private const float COAST_DECEL = 0.9f;
         private const float BRAKE_DECEL = 2.6f;
         // Out of the stage : sideways past the walls, or this far under the floor around you.
-        private const float OUT_SIDE_MARGIN = 40f;
+        private const float OUT_SIDE_MARGIN = 75f;
         private const float OUT_UNDER = 90f;
         private const float FALL_TIME = 0.55f;
         private const float SCENERY_TIME = 0.35f;

@@ -47,11 +47,20 @@ namespace Com.IsartDigital.Hyperspeed
             // Solid : anything you can see beside the track can catch you, and you bounce back from it.
             lObject.layer = Layers.SCENERY;
             Mesh lMesh = pData.ToMesh(pName);
+            // Collider first (it would otherwise cook the render mesh too), from a copy whose huge triangles are split.
+            MeshCollider lCollider = lObject.AddComponent<MeshCollider>();
+            System.Collections.Generic.List<Vector3> lVertices = new System.Collections.Generic.List<Vector3>(lMesh.vertices);
+            System.Collections.Generic.List<int> lIndices = new System.Collections.Generic.List<int>(lMesh.triangles);
+            TrackBaker.SubdivideLong(lVertices, lIndices, 380f);
+            Mesh lCollision = new Mesh { name = pName + "Collision" };
+            lCollision.indexFormat = lVertices.Count > 65000 ? UnityEngine.Rendering.IndexFormat.UInt32 : UnityEngine.Rendering.IndexFormat.UInt16;
+            lCollision.SetVertices(lVertices);
+            lCollision.triangles = lIndices.ToArray();
+            lCollider.sharedMesh = lCollision;
             lObject.AddComponent<MeshFilter>().sharedMesh = lMesh;
             MeshRenderer lRenderer = lObject.AddComponent<MeshRenderer>();
             lRenderer.sharedMaterial = pMaterial;
             lRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            lObject.AddComponent<MeshCollider>().sharedMesh = lMesh;
         }
 
         private static float Rand(System.Random pRandom, float pMin, float pMax) => pMin + (float)pRandom.NextDouble() * (pMax - pMin);

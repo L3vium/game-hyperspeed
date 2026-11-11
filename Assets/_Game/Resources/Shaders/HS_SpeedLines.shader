@@ -94,7 +94,7 @@ Shader "Hyperspeed/SpeedLines"
                 lColor.rgb = lerp(lThick.rgb, lThin.rgb, saturate(lThin.a));
                 // A clear window in the middle : you always see where you are going. The burst bites into it briefly.
                 float lClear = lerp(0.5, 0.3, _Burst);
-                lColor.a = saturate(lThick.a * 0.8 + lThin.a * 0.75) * smoothstep(lClear * 0.55, lClear, lRadius);
+                lColor.a = saturate(lThick.a * 0.6 + lThin.a * 0.55) * smoothstep(lClear * 0.55, lClear, lRadius);
                 return half4(lColor.rgb, lColor.a * _LineColor.a * input.color.a);
             }
             ENDHLSL
