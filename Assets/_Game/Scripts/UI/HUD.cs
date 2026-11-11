@@ -211,7 +211,9 @@ namespace Com.IsartDigital.Hyperspeed
             float lDt = Time.unscaledDeltaTime;
             if (_player != null)
             {
-                float lTarget = 0.12f + Mathf.Pow(_player.Speed01, 0.8f) * 0.88f + (_player.LightForm ? 0.2f : 0f) + (_player.Dashing ? 0.16f : 0f) + _player.BoostAmount * 0.14f + _player.Dive01 * 0.25f;
+                // A calm base that grows with speed (the wide view must stay readable) ; the kicks snap them in hard.
+                float lTarget = 0.05f + Mathf.Pow(_player.Speed01, 1.3f) * 0.45f + (_player.LightForm ? 0.12f : 0f) + (_player.Dashing ? 0.1f : 0f) + _player.BoostAmount * 0.1f + _player.Dive01 * 0.2f
+                                + (_player.Hyper ? HSSpeedStateLook.Get(SpeedState.Hyper).speedLines : 0f) + (_player.LightForm ? HSSpeedStateLook.Get(SpeedState.Light).speedLines : 0f);
                 _lineIntensity = Mathf.Lerp(_lineIntensity, Mathf.Clamp01(lTarget), 1f - Mathf.Exp(-7f * lDt));
                 // Every new kick : the streaks snap toward the centre, then ease back out over 0.4 s.
                 float lBoost = _player.BoostAmount;
@@ -485,7 +487,9 @@ namespace Com.IsartDigital.Hyperspeed
 
             if (pWin)
             {
-                RectTransform lRank = UIFactory.CreateRect(lPanel, "Rank", new Vector2(1f, 0.5f), new Vector2(-430f, 60f), new Vector2(500f, 500f));
+                // Top right, leaving the bottom right to the runner still running past the line.
+                RectTransform lRank = UIFactory.CreateRect(lPanel, "Rank", new Vector2(1f, 1f), new Vector2(-330f, -300f), new Vector2(500f, 500f));
+                lRank.localScale = Vector3.one * 0.72f;
                 UIShape lCard = UIFactory.CreateShape(lRank, "Card", UIShape.ShapeKind.Chevron, UIKit.WHITE, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(520f, 380f));
                 lCard.skew = 0.4f;
                 UIKit.Icon(lRank, "trophy", UIKit.GOLD, new Vector2(0.5f, 0.5f), new Vector2(-150f, 30f), 160f);

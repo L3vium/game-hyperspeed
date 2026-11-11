@@ -135,8 +135,12 @@ namespace Com.IsartDigital.Hyperspeed
             float lCruise = _profile.cruise;
             if (State == PlayerState.Finished)
             {
-                // Past the line : a real stop.
-                _speed = Mathf.MoveTowards(_speed, 0f, Mathf.Max(lCruise * 1.6f, _speed * 1.4f) * pDt);
+                // Past the line : the runner eases down to a proud run and keeps going (the results show it running),
+                // and only stops before the end of the track.
+                float lEnd = _layout != null ? _layout.Length - Mathf.Max(150f, lCruise * 1.5f) : float.MaxValue;
+                float lWanted = Progress < lEnd ? lCruise * 0.45f : 0f;
+                float lRate = _speed > lWanted ? Mathf.Max(lCruise * 0.8f, (_speed - lWanted) * 2.2f) : RUN_ACCEL;
+                _speed = Mathf.MoveTowards(_speed, lWanted, lRate * pDt);
                 return;
             }
             float lSlope = Vector3.Dot(pForward, GravityDown());

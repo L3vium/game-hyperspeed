@@ -59,10 +59,10 @@ namespace Com.IsartDigital.Hyperspeed
                     pLook.height = new Vector2(22f, 0f);
                     pLook.blendTime = 0.45f;
                     pLook.aberration = 0.6f;
-                    pLook.radialBlur = 0.5f;
+                    pLook.radialBlur = 0.2f;
                     pLook.bloom = 0.4f;
                     pLook.saturation = 15f;
-                    pLook.speedLines = 0.2f;
+                    pLook.speedLines = 0.1f;
                     break;
                 case SpeedState.Light:
                     pLook.fov = new Vector2(55f, 0f);
@@ -73,10 +73,10 @@ namespace Com.IsartDigital.Hyperspeed
                     pLook.height = new Vector2(40f, 0f);
                     pLook.blendTime = 0.7f;
                     pLook.aberration = 0.8f;
-                    pLook.radialBlur = 0.6f;
+                    pLook.radialBlur = 0.25f;
                     pLook.bloom = 0.8f;
                     pLook.saturation = 10f;
-                    pLook.speedLines = 0.15f;
+                    pLook.speedLines = 0.08f;
                     break;
             }
         }

@@ -172,6 +172,9 @@ namespace Com.IsartDigital.Hyperspeed
                     lFx = Instantiate(lPrefab, lCam);
                     lFx.transform.localPosition = new Vector3(0f, 0f, 3f);
                     lFx.transform.localRotation = Quaternion.identity;
+                    // Wide angle : drawn by the main camera over the recomposed picture, never inside one face.
+                    if (PanoramaRig.Active != null && PanoramaRig.Active.On)
+                        foreach (Transform lPart in lFx.GetComponentsInChildren<Transform>(true)) lPart.gameObject.layer = PanoramaRig.LAYER;
                 }
                 // The plugin distorts what is on screen : give it the colours of the place too.
                 if (lTheme != null)

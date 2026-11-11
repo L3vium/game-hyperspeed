@@ -268,12 +268,17 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lLook = LookPoint(lSpeed);
             if (_finishMode)
             {
-                // Victory : a slow orbit around the runner, who keeps on running.
-                _finishOrbit += lDt * 22f;
-                Vector3 lBack = Quaternion.AngleAxis(_finishOrbit, _up) * -_look;
-                lDesired = _focus + lBack * 16f + _up * 5f;
-                lLook = target.FocusPosition + _up * 1f;
-                _base = Vector3.SmoothDamp(_base, lDesired, ref _velocity, 0.35f, Mathf.Infinity, lDt);
+                // Victory : a tracking shot from the runner's left, close, sliding slowly from behind to beside it. The
+                // runner keeps running and sits on the right of the frame (the results are on the left), running into it.
+                _finishOrbit += lDt;
+                Vector3 lRunForward = _player != null ? Vector3.ProjectOnPlane(_player.FacingDirection, _up).normalized : _look;
+                if (lRunForward.sqrMagnitude < 0.01f) lRunForward = _look;
+                Vector3 lRunRight = Vector3.Cross(_up, lRunForward).normalized;
+                float lSlide = HSMath.Smooth(Mathf.Clamp01(_finishOrbit / 5f));
+                lDesired = _focus - lRunRight * Mathf.Lerp(7f, 9f, lSlide) - lRunForward * Mathf.Lerp(8f, -1f, lSlide) + _up * Mathf.Lerp(3.5f, 2.4f, lSlide);
+                lLook = _focus + _up * 0.6f + lRunForward * Mathf.Lerp(3f, 6f, lSlide) - _up * 1.2f;
+                lDesired = AvoidWorld(lDesired, lDt);
+                _base = Vector3.SmoothDamp(_base, lDesired, ref _velocity, 0.25f, Mathf.Infinity, lDt);
                 _offset = _base - _focus;
             }
             else
@@ -296,7 +301,7 @@ namespace Com.IsartDigital.Hyperspeed
             Quaternion lWindRot = Quaternion.Euler((Mathf.PerlinNoise(_windTime, 11f) - 0.5f) * lWind * 5f, 0f, (Mathf.PerlinNoise(13f, _windTime) - 0.5f) * lWind * 9f);
             Vector3 lPosition = _base + lRotation * (lShakeOffset + lWindOffset);
             lRotation *= lShakeRot * lWindRot * Quaternion.Euler(_punch);
-            if (!_finishMode) lPosition = KeepAboveSurface(lPosition, lDt);
+            lPosition = KeepAboveSurface(lPosition, lDt);
 
             float lHyperB = HSMath.Smooth(_hyperBlend);
             float lLightB = HSMath.Smooth(_lightBlend);
@@ -324,8 +329,8 @@ namespace Com.IsartDigital.Hyperspeed
                 return;
             }
             transform.SetPositionAndRotation(lPosition, lRotation);
-            Cam.fieldOfView = Mathf.Clamp(_fov, 40f, FOV_CLAMP);
-            ApplyWide(_hfov);
+            Cam.fieldOfView = Mathf.Clamp(_finishMode ? 62f : _fov, 40f, FOV_CLAMP);
+            ApplyWide(_finishMode ? 125f : _hfov);
             if (lensShiftX != 0f)
             {
                 Cam.ResetProjectionMatrix();

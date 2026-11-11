@@ -918,7 +918,8 @@ namespace Com.IsartDigital.Hyperspeed
             Span(M(0.6f));
             _layout.finishS = _s;
             NoPads(_s - M(0.8f), _s + 99999f);
-            Span(M(3.5f));
+            // A long run-out : the runner keeps running past the line while the results show.
+            Span(M(10f));
             Close();
             return this;
         }

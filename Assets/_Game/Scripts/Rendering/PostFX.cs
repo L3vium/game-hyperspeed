@@ -216,7 +216,7 @@ namespace Com.IsartDigital.Hyperspeed
             _color.saturation.Override(Mathf.Clamp(30f - _pause * 40f + _kSaturation + lStateSaturation, -100f, 100f));
 
             Shader.SetGlobalFloat(ABERRATION, (0.3f + lSpeed * 2f + _pulse * 2.4f + hyper01 * 1.2f + _light * 1.2f + lStateAberration * 2f) * GameSession.AberrationAmount + _kAberration * 2.4f + _rewind * 2f);
-            Shader.SetGlobalFloat(RADIAL_BLUR, Mathf.Min(3f, Mathf.Clamp01(lSpeed - 0.06f) * 1.35f + _pulse * 0.8f + hyper01 * 0.35f + _light * 0.5f + _kRadial + lStateRadial));
+            Shader.SetGlobalFloat(RADIAL_BLUR, Mathf.Min(3f, Mathf.Clamp01(lSpeed - 0.1f) * 0.75f + _pulse * 0.8f + hyper01 * 0.2f + _light * 0.3f + _kRadial + lStateRadial));
             Shader.SetGlobalFloat(REWIND, _rewind);
             Shader.SetGlobalFloat(DESATURATE, _rewind * 0.75f);
             // Flat colour : no dither, no posterize.

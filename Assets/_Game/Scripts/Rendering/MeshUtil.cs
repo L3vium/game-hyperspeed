@@ -50,6 +50,47 @@ namespace Com.IsartDigital.Hyperspeed
             return lMesh;
         }
 
+        // Rounded shock shield : a paraboloid whose nose is at the origin and which opens backward along -Z, unit radius
+        // at unit depth. UV.x runs from the nose (0) to the rim (1) ; vertex alpha is strong at the nose and fades to the
+        // rim. Double sided.
+        public static Mesh Shield(int pRings, int pSegments)
+        {
+            System.Collections.Generic.List<Vector3> lVertices = new System.Collections.Generic.List<Vector3>();
+            System.Collections.Generic.List<Color> lColors = new System.Collections.Generic.List<Color>();
+            System.Collections.Generic.List<Vector2> lUvs = new System.Collections.Generic.List<Vector2>();
+            System.Collections.Generic.List<int> lTriangles = new System.Collections.Generic.List<int>();
+            for (int r = 0; r <= pRings; r++)
+            {
+                float lT = r / (float)pRings;
+                float lRadius = Mathf.Sqrt(lT);
+                float lAlpha = Mathf.Pow(1f - lT, 1.3f) * Mathf.Clamp01(0.35f + lT * 6f);
+                for (int s = 0; s <= pSegments; s++)
+                {
+                    float lA = s / (float)pSegments * Mathf.PI * 2f;
+                    lVertices.Add(new Vector3(Mathf.Cos(lA) * lRadius, Mathf.Sin(lA) * lRadius, -lT));
+                    lColors.Add(new Color(1f, 1f, 1f, lAlpha));
+                    lUvs.Add(new Vector2(lT, s / (float)pSegments));
+                }
+            }
+            int lRow = pSegments + 1;
+            for (int r = 0; r < pRings; r++)
+            {
+                for (int s = 0; s < pSegments; s++)
+                {
+                    int lA = r * lRow + s, lB = lA + 1, lC = lA + lRow, lD = lC + 1;
+                    lTriangles.AddRange(new[] { lA, lC, lB, lB, lC, lD, lA, lB, lC, lB, lD, lC });
+                }
+            }
+            Mesh lMesh = new Mesh { name = "Shield" };
+            lMesh.SetVertices(lVertices);
+            lMesh.SetColors(lColors);
+            lMesh.SetUVs(0, lUvs);
+            lMesh.SetTriangles(lTriangles, 0);
+            lMesh.RecalculateNormals();
+            lMesh.RecalculateBounds();
+            return lMesh;
+        }
+
         // Open cone along -Z : wide ring at the origin, narrow ring at -pLength. UV.y = 0 front, 1 back.
         public static Mesh Cone(float pFrontRadius, float pBackRadius, float pLength, int pSides)
         {
