@@ -2,7 +2,8 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    public enum RivalKind { Moto, Bus, SportsCar, RaceCar, Train, Birds, Plane, FighterJet, Bullet, Rockets, Spaceship, Light, Time, TRex, Death, Supernova }
+    // Appended only : the models in GameAssets.rivalModels are indexed by this enum.
+    public enum RivalKind { Moto, Bus, SportsCar, RaceCar, Train, Birds, Plane, FighterJet, Bullet, Rockets, Spaceship, Light, Time, TRex, Death, Supernova, Dogs }
 
     // Rival identities (names, sounds, models) and how they sit in the world. Models are real assets wired in GameAssets,
     // scaled up because everything here is enormous. Light, Time, Death and the Supernova are effects, built in code.
@@ -42,6 +43,7 @@ namespace Com.IsartDigital.Hyperspeed
                 case RivalKind.TRex: return new Placement { lateral = 0f };
                 case RivalKind.Death: return new Placement { flying = true, lateral = 0f, height = 12f, bob = 2f };
                 case RivalKind.Supernova: return new Placement { flying = true, lateral = 0f, height = 0f };
+                case RivalKind.Dogs: return new Placement { lateral = 18f };
             }
             return new Placement();
         }
@@ -61,6 +63,7 @@ namespace Com.IsartDigital.Hyperspeed
                 case RivalKind.FighterJet:
                 case RivalKind.Spaceship: return "sfx_engine_jet";
                 case RivalKind.Time: return "sfx_engine_tick";
+                case RivalKind.Dogs: return "sfx_dog_pack_loop";
                 case RivalKind.TRex:
                 case RivalKind.Death:
                 case RivalKind.Supernova: return "sfx_engine_dread";
@@ -88,6 +91,7 @@ namespace Com.IsartDigital.Hyperspeed
                 case RivalKind.TRex: return "THE T-REX";
                 case RivalKind.Death: return "DEATH";
                 case RivalKind.Supernova: return "A SUPERNOVA";
+                case RivalKind.Dogs: return "THE DOGS";
             }
             return "???";
         }
@@ -138,6 +142,7 @@ namespace Com.IsartDigital.Hyperspeed
                 case RivalKind.Time: BuildClock(lRoot); lRoot.localScale = Vector3.one * GROW; return lRoot;
                 case RivalKind.Death: BuildReaper(lRoot); lRoot.localScale = Vector3.one * GROW; return lRoot;
                 case RivalKind.Supernova: BuildStar(lRoot); return lRoot;
+                case RivalKind.Dogs: DogPack.Build(lRoot); return lRoot;
             }
             GameObject lPrefab = Model(pKind);
             if (pKind == RivalKind.Birds)

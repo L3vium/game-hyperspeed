@@ -35,6 +35,8 @@ namespace Com.IsartDigital.Hyperspeed
         private const float DRAG_OVER = 0.12f;
         private const float DRAG_LIGHT = 0.1f;
         private const float LIGHT_HOLD = 0.5f;
+        // A full light charge lasts this long in light form (light gates refill it).
+        private const float LIGHT_CHARGE_TIME = 15f;
         private const float AIM_PITCH_MIN = -80f;
         private const float AIM_PITCH_MAX = 70f;
         // No run asked : the runner slows down to a stop (fraction of cruise lost per second), harder with the brake.
@@ -514,8 +516,8 @@ namespace Com.IsartDigital.Hyperspeed
             AddCombo();
             _dashEnergy = Mathf.Min(DASH_ENERGY, _dashEnergy + 0.4f);
             // Every break is a small speed pad.
-            if (OnSurface) _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + _profile.cruise * BREAK_KICK * KickScale(0.3f));
-            else _velocity += _velocity.normalized * _profile.cruise * BREAK_KICK * KickScale(0.3f);
+            if (OnSurface) _speed = CapKick(_speed, _profile.cruise * BREAK_KICK * KickScale(0.3f));
+            else _velocity = CapVelocity(_velocity, _velocity.normalized * _profile.cruise * BREAK_KICK * KickScale(0.3f));
             _boostTimer = Mathf.Max(_boostTimer, 0.6f);
             JuiceContext lJuice = Jx(lAt);
             lJuice.size = pBreakable.radius / 16f;
@@ -674,12 +676,15 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void UpdateHyper(float pDt)
         {
+            UpdateChain(pDt);
             // Falling is not running : a long drop alone never turns you to light.
             float lSpeed = OnSurface ? _speed : Vector3.ProjectOnPlane(_velocity, _gravityUp).magnitude;
-            if (!Hyper && lSpeed >= _profile.hyperEnter && !_freeRoam)
+            // Hyper only exists from 2-4 on (2026-11-12).
+            if (!Hyper && _profile.hyperEnabled && lSpeed >= _profile.hyperEnter && !_freeRoam)
             {
                 Hyper = true;
                 HSJuice.Play(JuiceId.HyperEnter, Jx(transform.position + PhysUp));
+                Debug.Log("[HS-TIER] hyper entered s=" + Progress.ToString("F0") + " v=" + lSpeed.ToString("F0") + " chain=" + Chain);
                 OnHyper?.Invoke();
             }
             else if (Hyper && lSpeed < _profile.hyperExit)
@@ -688,8 +693,16 @@ namespace Com.IsartDigital.Hyperspeed
                 HSJuice.Play(JuiceId.HyperExit, Jx(transform.position));
             }
 
-            // Past this, there is no runner left : only light. Hard to reach : it takes holding it for a moment.
-            _overLight = lSpeed >= _profile.lightEnter && !_freeRoam && !InputLocked ? _overLight + pDt : 0f;
+            // Light : only where it exists (3-4 on), only once a long chain of pads has charged it, only in hyper.
+            bool lCharged = _profile.LightEnabled && LightCharge >= 1f && Hyper;
+            if (lCharged && !LightForm && !_freeRoam && !InputLocked)
+            {
+                // The charge is full : the light takes you, whatever the speed was.
+                if (OnSurface) _speed = Mathf.Max(_speed, _profile.lightEnter);
+                else _velocity = _velocity.normalized * Mathf.Max(_velocity.magnitude, _profile.lightEnter);
+                lSpeed = Mathf.Max(lSpeed, _profile.lightEnter);
+            }
+            _overLight = lCharged && lSpeed >= _profile.lightEnter && !_freeRoam && !InputLocked ? _overLight + pDt : 0f;
             if (!LightForm && _overLight >= LIGHT_HOLD)
             {
                 LightForm = true;
@@ -697,7 +710,7 @@ namespace Com.IsartDigital.Hyperspeed
                 OnLight?.Invoke();
                 Debug.Log("[HS-FEEL] light entered at v=" + lSpeed.ToString("F0") + " cruise=" + _profile.cruise.ToString("F0") + " s=" + Progress.ToString("F0"));
             }
-            else if (LightForm && lSpeed < _profile.lightExit)
+            else if (LightForm && (lSpeed < _profile.lightExit || LightCharge <= 0f))
             {
                 LightForm = false;
                 HSJuice.Play(JuiceId.LightExit, Jx(transform.position));

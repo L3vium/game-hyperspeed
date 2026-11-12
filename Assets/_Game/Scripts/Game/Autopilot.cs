@@ -92,7 +92,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (_feelTimer <= 0f)
             {
                 _feelTimer = 5f;
-                Debug.Log("[HS-FEEL] s=" + lS.ToString("F0") + " v=" + _player.Speed.ToString("F0") + " ratio=" + (_player.Speed / _player.Profile.cruise).ToString("F2") + " light=" + _player.LightForm + " state=" + _player.State);
+                Debug.Log("[HS-FEEL] s=" + lS.ToString("F0") + " v=" + _player.Speed.ToString("F0") + " ratio=" + (_player.Speed / _player.Profile.cruise).ToString("F2") + " hyper=" + _player.Hyper + " chain=" + _player.Chain + " charge=" + _player.LightCharge.ToString("F2") + " light=" + _player.LightForm + " state=" + _player.State);
             }
             int lNext = Time.frameCount + 1;
 

@@ -26,6 +26,12 @@ namespace Com.IsartDigital.Hyperspeed
         private TextMeshProUGUI _speedUnit;
         private UIShape[] _dashPips;
         private TextMeshProUGUI _tag;
+        // The chain (pads, rings, ropes in a row) that lifts the speed ceiling, and the light charge where light exists.
+        private TextMeshProUGUI _chainText;
+        private UIShape _lightBack;
+        private UIShape _lightFill;
+        private int _shownChain;
+        private float _chainPop;
         private float _tagTimer;
         private UI3DText _countWord;
         private float _countTimer;
@@ -150,6 +156,12 @@ namespace Com.IsartDigital.Hyperspeed
                 _dashPips[i] = UIKit.Tile(_speedo, "Pip" + i, UIKit.CYAN, new Vector2(0f, 0.5f), new Vector2(66f + i * 98f, -94f), new Vector2(90f, 14f), 0.6f);
             _tag = UIKit.Text(_speedo, "", 30f, UIKit.WHITE, new Vector2(0f, 0.5f), new Vector2(330f, -94f), new Vector2(300f, 36f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
             UIFactory.Outline(_tag, UIKit.INK, 0.25f);
+            _chainText = UIKit.Text(_speedo, "", 44f, UIKit.GOLD, new Vector2(0f, 0.5f), new Vector2(200f, 118f), new Vector2(420f, 56f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
+            UIFactory.Outline(_chainText, UIKit.INK, 0.25f);
+            _lightBack = UIKit.Tile(_speedo, "LightBack", new Color(0f, 0f, 0f, 0.42f), new Vector2(0f, 0.5f), new Vector2(290f, -128f), new Vector2(500f, 12f), 0.6f);
+            _lightFill = UIKit.Tile(_speedo, "LightFill", UIKit.WHITE, new Vector2(0f, 0.5f), new Vector2(45f, -128f), new Vector2(10f, 12f), 0.6f);
+            _lightBack.gameObject.SetActive(false);
+            _lightFill.gameObject.SetActive(false);
 
             _countWord = UI3DText.Create(lRoot3D, " ", 300f, new Vector2(0.5f, 0.5f), new Vector2(0f, 200f), new Vector2(900f, 320f), UIKit.WHITE, UIKit.RED_DARK, 22, 5f);
             _countWord.gameObject.SetActive(false);
@@ -271,6 +283,8 @@ namespace Com.IsartDigital.Hyperspeed
             _speedFill.rectTransform.anchoredPosition = new Vector2(40f + _speedFill.rectTransform.sizeDelta.x * 0.5f + 25f, -46f);
             _speedFill.color = _player.LightForm ? UIKit.WHITE : _player.Hyper ? UIKit.CYAN : UIKit.GOLD;
 
+            UpdateChain(pDt);
+
             for (int i = 0; i < _dashPips.Length; i++)
             {
                 float lCharge = Mathf.Clamp01(_player.DashEnergy - i);
@@ -283,6 +297,38 @@ namespace Com.IsartDigital.Hyperspeed
             Vector2 lTilt = UIMouse.Tilt;
             _speedo.localRotation = Quaternion.Euler(38f + lTilt.y * 3f, -26f - lTilt.x * 4f + lWave, 9f + _player.Steer * 3f);
             _speedo.anchoredPosition = new Vector2(390f, 160f) + (_player.Hyper ? Random.insideUnitCircle * 3f * lShake : Vector2.zero);
+        }
+
+        // "x5 HYPER" : the chain is what opens the speed tiers, so it is shown big. The light charge fills under it.
+        private void UpdateChain(float pDt)
+        {
+            int lChain = _player.Chain;
+            if (lChain != _shownChain)
+            {
+                if (lChain > _shownChain) _chainPop = 1f;
+                _shownChain = lChain;
+            }
+            _chainPop = Mathf.MoveTowards(_chainPop, 0f, pDt * 4f);
+            SpeedProfile lProfile = _player.Profile;
+            if (lChain >= 2)
+            {
+                bool lOpens = lProfile.hyperEnabled && _player.KickCeiling >= lProfile.hyperEnter;
+                _chainText.text = "x" + lChain + (_player.LightForm ? "  LIGHT" : lOpens ? "  HYPER" : "  CHAIN");
+                _chainText.color = _player.LightForm ? UIKit.WHITE : lOpens ? UIKit.CYAN : UIKit.GOLD;
+            }
+            else _chainText.text = "";
+            _chainText.rectTransform.localScale = Vector3.one * (1f + _chainPop * 0.35f);
+            bool lLight = lProfile.LightEnabled;
+            if (_lightBack.gameObject.activeSelf != lLight)
+            {
+                _lightBack.gameObject.SetActive(lLight);
+                _lightFill.gameObject.SetActive(lLight);
+            }
+            if (!lLight) return;
+            float lWidth = Mathf.Lerp(10f, 500f, _player.LightCharge);
+            _lightFill.rectTransform.sizeDelta = new Vector2(lWidth, 12f);
+            _lightFill.rectTransform.anchoredPosition = new Vector2(40f + lWidth * 0.5f, -128f);
+            _lightFill.color = _player.LightCharge >= 1f ? UIKit.WHITE : Color.Lerp(UIKit.CYAN, UIKit.WHITE, _player.LightCharge);
         }
 
         private void UpdateRail()

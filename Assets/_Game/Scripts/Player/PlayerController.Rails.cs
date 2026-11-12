@@ -41,7 +41,7 @@ namespace Com.IsartDigital.Hyperspeed
             _railDirection = 1;
             _railBlend = 0.1f;
             _railFrom = transform.position;
-            _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, Mathf.Max(Speed, _profile.cruise * 0.85f) + _profile.cruise * 0.12f);
+            _speed = CapKick(Mathf.Max(Speed, _profile.cruise * 0.85f), _profile.cruise * 0.12f);
             SetState(PlayerState.Grind);
             Diving = false;
             HasDoubleJump = true;
@@ -52,7 +52,7 @@ namespace Com.IsartDigital.Hyperspeed
         private void GrindStep(float pDt)
         {
             Vector3 lPos, lTangent, lUp;
-            _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + _profile.cruise * 0.14f * pDt);
+            _speed = CapKick(_speed, _profile.cruise * 0.14f * pDt);
             _railDistance += _railDirection * _speed * pDt;
             _rail.Evaluate(_railDistance, out lPos, out lTangent, out lUp);
             _up = lUp;
@@ -73,7 +73,8 @@ namespace Com.IsartDigital.Hyperspeed
 
             if (_railDistance >= _rail.Length - 1f)
             {
-                _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + _profile.cruise * 0.2f);
+                AddChain();
+                _speed = CapKick(_speed, _profile.cruise * 0.2f);
                 _velocity = _heading * _speed + _up * 14f;
                 LeaveRail();
                 _boostTimer = Mathf.Max(_boostTimer, 0.8f);

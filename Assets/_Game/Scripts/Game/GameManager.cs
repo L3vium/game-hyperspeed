@@ -335,7 +335,7 @@ namespace Com.IsartDigital.Hyperspeed
                 _autopilot.Toggle();
                 _cheatBar.SetActive(6, Autopilot.Enabled);
             }
-            if (lKeyboard.digit8Key.wasPressedThisFrame && lRacing) { _player.ApplyBoost(_layout.profile.lightEnter, _player.Heading, 0f, null); _cheatBar.Flash(7); }
+            if (lKeyboard.digit8Key.wasPressedThisFrame && lRacing) { _player.CheatMaxSpeed(); _cheatBar.Flash(7); }
             if (lKeyboard.digit9Key.wasPressedThisFrame && lRacing)
             {
                 MeteorDirector lDirector = FindAnyObjectByType<MeteorDirector>();

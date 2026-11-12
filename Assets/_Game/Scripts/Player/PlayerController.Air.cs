@@ -219,7 +219,7 @@ namespace Com.IsartDigital.Hyperspeed
                 else _diveChain = 0;
                 lBonus *= 1f + Mathf.Min(0.5f, _diveChain * 0.1f);
                 _lastDiveLanding = Time.time;
-                _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + lBonus * KickScale(0.3f));
+                _speed = CapKick(_speed, lBonus * KickScale(0.3f));
                 _boostTimer = Mathf.Max(_boostTimer, 1.5f);
             }
             JuiceContext lJuice = new JuiceContext { position = pPoint, direction = _heading, normal = pNormal, intensity = lPower, size = 1f };

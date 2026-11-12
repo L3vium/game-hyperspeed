@@ -150,7 +150,7 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 float lFloor = Mathf.Max(_driftEntrySpeed * 0.7f, lCruise * 0.6f);
                 if (_speed > lFloor) _speed = Mathf.MoveTowards(_speed, lFloor, Mathf.Max(lCruise * 0.45f, _driftEntrySpeed * 0.35f) * pDt);
-                _speed = Mathf.Clamp(_speed, lCruise * 0.55f, SpeedProfile.SAFETY_MAX);
+                _speed = Mathf.Clamp(_speed, lCruise * 0.55f, _profile.SafetyMax);
                 return;
             }
             // You run only while you ask for it. Let go and you coast down to a stop ; brake and you stop fast.
@@ -160,7 +160,7 @@ namespace Com.IsartDigital.Hyperspeed
                 float lDecel = Mathf.Max(lCruise * COAST_DECEL, _speed * 0.9f) * (1f + BrakeInput * (BRAKE_DECEL / COAST_DECEL - 1f));
                 if (Sliding || BellySliding) lDecel *= 0.35f;
                 _speed = Mathf.MoveTowards(_speed, 0f, lDecel * pDt);
-                _speed = Mathf.Clamp(_speed, 0f, SpeedProfile.SAFETY_MAX);
+                _speed = Mathf.Clamp(_speed, 0f, _profile.SafetyMax);
                 return;
             }
             float lTarget = lCruise * lRun;
@@ -172,7 +172,7 @@ namespace Com.IsartDigital.Hyperspeed
                 float lDrag = LightForm ? DRAG_LIGHT : DRAG + DRAG_OVER * lOver;
                 _speed -= (_speed - lTarget) * (1f - Mathf.Exp(-lDrag * pDt));
             }
-            _speed = Mathf.Clamp(_speed, 0f, SpeedProfile.SAFETY_MAX);
+            _speed = Mathf.Clamp(_speed, 0f, _profile.SafetyMax);
         }
 
         // Before GO (and on the title) : jog anywhere on the plaza, relative to the view.

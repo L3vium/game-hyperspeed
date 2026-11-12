@@ -81,13 +81,13 @@ namespace Com.IsartDigital.Hyperspeed
             float lScale = KickScale(0.25f);
             if (State == PlayerState.Ground || State == PlayerState.Grind)
             {
-                _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + lCruise * DASH_KICK * lScale);
+                _speed = CapKick(_speed, lCruise * DASH_KICK * lScale);
                 if (State == PlayerState.Ground && AimPitch > LIFT_PITCH) LiftOff();
             }
             else
             {
-                float lNew = _velocity.magnitude + lCruise * AIR_DASH_KICK * lScale;
-                _velocity = AimDirection * Mathf.Min(SpeedProfile.SAFETY_MAX, lNew);
+                float lNew = CapKick(_velocity.magnitude, lCruise * AIR_DASH_KICK * lScale);
+                _velocity = AimDirection * lNew;
             }
             JuiceContext lDashJuice = Jx(transform.position + PhysUp);
             lDashJuice.direction = OnSurface ? _heading : AimDirection;
@@ -118,10 +118,10 @@ namespace Com.IsartDigital.Hyperspeed
             float lPush = _profile.cruise * THRUST_POWER * KickScale(0.15f) * pDt;
             if (State == PlayerState.Ground || State == PlayerState.Grind)
             {
-                _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + lPush);
+                _speed = CapKick(_speed, lPush);
                 if (State == PlayerState.Ground && AimPitch > LIFT_PITCH) LiftOff();
             }
-            else _velocity += AimDirection * lPush * (Diving ? 2f : 1.3f);
+            else _velocity = CapVelocity(_velocity, AimDirection * lPush * (Diving ? 2f : 1.3f));
             _boostTimer = Mathf.Max(_boostTimer, 0.3f);
         }
 
@@ -155,8 +155,10 @@ namespace Com.IsartDigital.Hyperspeed
             // Kicks are huge from a calm run and worth less and less up high : one pad throws you toward hyper, only a
             // chain of them and your dashes reaches light, and nothing stacks forever.
             pBoost *= KickScale(pPad ? 0.35f : 0.2f);
-            if (OnSurface) _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + pBoost);
-            else _velocity += pDirection.normalized * pBoost;
+            // Pads and rings link the chain that lifts the ceiling (and charges light where it exists).
+            if (pPad || pJuice == JuiceId.Ring) AddChain();
+            if (OnSurface) _speed = CapKick(_speed, pBoost);
+            else _velocity = CapVelocity(_velocity, pDirection.normalized * pBoost);
             if (pRefill) _dashEnergy = Mathf.Min(DASH_ENERGY, _dashEnergy + 0.7f);
 
             float lAmount = Mathf.Clamp01(pBoost / (_profile.cruise * 0.8f));
@@ -201,6 +203,60 @@ namespace Com.IsartDigital.Hyperspeed
         {
             Combo++;
             _comboTimer = 3f;
+        }
+
+        // ---------------------------------------------------------------- chain and ceiling (2026-11-12)
+
+        // Pads, rings and rope exits within CHAIN_WINDOW of each other : the chain. Only a chain lifts the ceiling of
+        // the kicks, so one pad can never cross a speed tier.
+        public int Chain { get; private set; }
+        // 0..1 : light speed charged by a chain of pads in hyper (stages where light exists).
+        public float LightCharge { get; private set; }
+        private float _chainTimer;
+
+        public float KickCeiling => _profile.KickCeiling(Chain);
+
+        private void AddChain()
+        {
+            Chain = _chainTimer > 0f ? Chain + 1 : 1;
+            _chainTimer = SpeedProfile.CHAIN_WINDOW;
+            if (_profile.LightEnabled && Hyper && !LightForm) LightCharge = Mathf.Min(1f, LightCharge + 1f / _profile.lightPads);
+        }
+
+        private void UpdateChain(float pDt)
+        {
+            _chainTimer -= pDt;
+            if (_chainTimer <= 0f) Chain = 0;
+            // A broken chain lets the charge leak slowly ; in light form the charge is what keeps you there.
+            if (LightForm) LightCharge = Mathf.Max(0f, LightCharge - pDt / LIGHT_CHARGE_TIME);
+            else if (Chain == 0) LightCharge = Mathf.Max(0f, LightCharge - pDt * 0.25f);
+        }
+
+        // A kick adds speed up to the ceiling, never past it, and never takes away speed you already have.
+        private float CapKick(float pCurrent, float pAdd)
+        {
+            float lCeiling = Mathf.Min(KickCeiling, _profile.SafetyMax);
+            if (pCurrent >= lCeiling) return Mathf.Min(pCurrent, _profile.SafetyMax);
+            return Mathf.Min(pCurrent + pAdd, lCeiling);
+        }
+
+        private Vector3 CapVelocity(Vector3 pVelocity, Vector3 pAdd)
+        {
+            Vector3 lNew = pVelocity + pAdd;
+            float lMagnitude = lNew.magnitude;
+            float lAllowed = CapKick(pVelocity.magnitude, Mathf.Max(0f, lMagnitude - pVelocity.magnitude));
+            return lMagnitude > lAllowed && lMagnitude > 0.01f ? lNew * (lAllowed / lMagnitude) : lNew;
+        }
+
+        // Dev cheat : straight to the top of the stage (light where it exists, hyper otherwise).
+        public void CheatMaxSpeed()
+        {
+            Chain = 12;
+            _chainTimer = SpeedProfile.CHAIN_WINDOW;
+            if (_profile.LightEnabled) LightCharge = 1f;
+            float lTarget = _profile.LightEnabled ? _profile.lightEnter : _profile.hyperEnabled ? _profile.hyperEnter * 1.1f : KickCeiling;
+            if (OnSurface) _speed = Mathf.Max(_speed, lTarget);
+            else _velocity = _velocity.normalized * Mathf.Max(_velocity.magnitude, lTarget);
         }
     }
 }
