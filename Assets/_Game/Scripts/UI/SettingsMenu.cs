@@ -89,7 +89,7 @@ namespace Com.IsartDigital.Hyperspeed
             AddRow(_main, -1, lLeft++, "MUSIC", () => Percent(AudioManager.MusicMaster), d => { AudioManager.MusicMaster = Step01(AudioManager.MusicMaster, d); AudioManager.SaveVolumes(); });
             AddRow(_main, -1, lLeft++, "EFFECTS", () => Percent(AudioManager.MasterSfx), d => { AudioManager.MasterSfx = Step01(AudioManager.MasterSfx, d); AudioManager.SaveVolumes(); AudioManager.Play("sfx_jump", 0.8f); });
             AddRow(_main, -1, lLeft++, "RESOLUTION", ResolutionText, ChangeResolution);
-            AddRow(_main, -1, lLeft++, "SCREEN", ScreenModeText, ChangeScreenMode);
+            AddRow(_main, -1, lLeft++, "DISPLAY", ScreenModeText, ChangeScreenMode);
             AddRow(_main, -1, lLeft++, "VSYNC", () => OnOff(GameSession.VSync), d => GameSession.VSync = !GameSession.VSync);
             AddRow(_main, -1, lLeft++, "QUALITY", () => QualitySettings.names[GameSession.Quality].ToUpperInvariant(), d => GameSession.Quality = (GameSession.Quality + d + QualitySettings.names.Length) % QualitySettings.names.Length);
             AddRow(_main, -1, lLeft++, "FIELD OF VIEW", () => Mathf.RoundToInt(GameSession.FovScale * 100f) + "%", d => GameSession.FovScale += d * 0.05f);
@@ -335,7 +335,26 @@ namespace Com.IsartDigital.Hyperspeed
             int lIndex = System.Array.IndexOf(MODES, Screen.fullScreenMode);
             if (lIndex < 0) lIndex = 0;
             lIndex = (lIndex + pDirection + MODES.Length) % MODES.Length;
-            Screen.fullScreenMode = MODES[lIndex];
+            FullScreenMode lMode = MODES[lIndex];
+            if (lMode == FullScreenMode.Windowed)
+            {
+                // A window the size of the screen is a borderless window with a title bar : open a real window instead.
+                Resolution lNative = Screen.currentResolution;
+                int lWidth = Screen.width, lHeight = Screen.height;
+                if (lWidth >= lNative.width - 8 || lHeight >= lNative.height - 60)
+                {
+                    lWidth = Mathf.RoundToInt(lNative.width * 0.75f);
+                    lHeight = Mathf.RoundToInt(lWidth * 9f / 16f);
+                }
+                Screen.SetResolution(lWidth, lHeight, lMode);
+            }
+            else if (lMode == FullScreenMode.ExclusiveFullScreen || Screen.fullScreenMode == FullScreenMode.Windowed)
+            {
+                Resolution lNative = Screen.currentResolution;
+                Screen.SetResolution(lNative.width, lNative.height, lMode);
+            }
+            else Screen.fullScreenMode = lMode;
+            CursorGuard.Apply();
         }
 
         private void OnDestroy()

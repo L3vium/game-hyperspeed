@@ -58,6 +58,8 @@ namespace Com.IsartDigital.Hyperspeed
             Juice.Paused = false;
             RaceContext.Clear();
             _levelIndex = GameSession.SelectedLevel;
+            // The carousel comes back to the stage you were in (test runs on autopilot do not move it).
+            if (!Autopilot.Enabled) GameSession.RememberStage(_levelIndex);
             _level = LevelDatabase.Get(_levelIndex);
             BuildLevel();
         }
@@ -115,6 +117,9 @@ namespace Com.IsartDigital.Hyperspeed
         {
             CursorGuardBehaviour.OnFocusLost += FocusLost;
             HSJuice.Warmup();
+            // Everything heavy the race will need is prepared while the transition still covers the screen.
+            SceneTransition.Hold();
+            StartCoroutine(WarmupRoutine());
             AudioManager.PlayMusic("music_intro", 0.38f);
             StartCoroutine(Flow());
         }
@@ -146,6 +151,25 @@ namespace Com.IsartDigital.Hyperspeed
                 yield return new WaitForSeconds(COUNT_STEP);
             }
             BeginRace();
+        }
+
+        // Runs unseen under the transition : the world's stems decoded off the main thread, one of each burst drawn
+        // once in front of the camera so their shaders are compiled before the first real one.
+        private IEnumerator WarmupRoutine()
+        {
+            string lMusic = "music_w" + (_level.world + 1);
+            AudioManager.PrepareMusicLayers(lMusic);
+            float lStart = Time.realtimeSinceStartup;
+            Vector3 lAhead = _rig.Cam.transform.position + _rig.Cam.transform.forward * 60f;
+            FX.Shards(lAhead, Color.white, 4, 1f, 1f, Vector3.zero);
+            FX.Sparks(lAhead, Color.white, 4, 1f);
+            FX.Puff(lAhead, Color.white, 2, 2f);
+            FX.Shockwave(lAhead, Vector3.up, Color.white, 4f, 0.2f);
+            yield return null;
+            yield return null;
+            while (!AudioManager.MusicLayersReady(lMusic) && Time.realtimeSinceStartup - lStart < 4f) yield return null;
+            Debug.Log("[HS-LOAD] warm-up " + ((Time.realtimeSinceStartup - lStart) * 1000f).ToString("F0") + " ms");
+            SceneTransition.Release();
         }
 
         // Respawning sends you back : give the chaser the same handicap once the new progress is known.
@@ -258,15 +282,22 @@ namespace Com.IsartDigital.Hyperspeed
         // Dev build : the average frame time every 10 s in the player log (wide angle cost check).
         private float _perfTime;
         private int _perfFrames;
+        private float _perfWorst;
+        private int _perfWindow;
 
         private void PerfLog()
         {
+            // The transition's own frames are not the race's.
+            if (SceneTransition.IsBusy) return;
             _perfTime += Time.unscaledDeltaTime;
             _perfFrames++;
+            _perfWorst = Mathf.Max(_perfWorst, Time.unscaledDeltaTime);
             if (_perfTime < 10f) return;
-            Debug.Log("[HS-PERF] stage=" + (_levelIndex + 1) + " avg=" + (_perfTime / _perfFrames * 1000f).ToString("F1") + "ms fps=" + (_perfFrames / _perfTime).ToString("F0") + " wide=" + GameSession.WideAngle + " res=" + Screen.width + "x" + Screen.height);
+            Debug.Log("[HS-PERF] stage=" + (_levelIndex + 1) + " window=" + _perfWindow + " avg=" + (_perfTime / _perfFrames * 1000f).ToString("F1") + "ms worst=" + (_perfWorst * 1000f).ToString("F0") + "ms fps=" + (_perfFrames / _perfTime).ToString("F0") + " wide=" + GameSession.WideAngle + " res=" + Screen.width + "x" + Screen.height);
             _perfTime = 0f;
             _perfFrames = 0;
+            _perfWorst = 0f;
+            _perfWindow++;
         }
 
         // Digit keys, shown bottom-right in the Dev build only.

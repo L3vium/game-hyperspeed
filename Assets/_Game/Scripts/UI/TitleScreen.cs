@@ -156,12 +156,16 @@ namespace Com.IsartDigital.Hyperspeed
             Slash("Slash6", UIKit.GOLD, new Vector2(1160f, -385f), new Vector2(760f, 12f), -20f);
             UIKit.OutlineText(_main, "HYPER", 300f, new Color(1f, 1f, 1f, 0.75f), new Vector2(0.5f, 0.5f), new Vector2(640f, 430f), new Vector2(1200f, 340f), -20f, 0.05f).raycastTarget = false;
 
-            // Left side : the red slash carrying the name, chevrons running in it.
-            UIShape lRed = UIKit.Tile(_main, "RedPanel", UIKit.RED, new Vector2(0.5f, 0.5f), new Vector2(-640f, 40f), new Vector2(1260f, 1500f), 0.26f, 0f);
+            // Left side : the red slash carrying the name, chevrons running in it. Its right edge is the slanted line
+            // through (-10, 40) ; it reaches far past the left, top and bottom of the screen so no tilt of the panel
+            // (mouse in a corner : about 10° of yaw, 2° of pitch, a 14 px slide) ever opens a corner (2026-11-12).
+            const float PANEL_HEIGHT = 2900f;
+            const float PANEL_WIDTH = 2900f;
+            UIShape lRed = UIKit.Tile(_main, "RedPanel", UIKit.RED, new Vector2(0.5f, 0.5f), new Vector2(-10f - PANEL_WIDTH * 0.5f, 40f), new Vector2(PANEL_WIDTH, PANEL_HEIGHT), 0.26f, 0f);
             UIKit.Chevrons(lRed.transform, "Chevrons", UIKit.RED, UIKit.RED_DARK, 60f);
             lRed.gameObject.AddComponent<UnityEngine.UI.Mask>().showMaskGraphic = true;
-            UIKit.Tile(_main, "RedEdge", UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(0f, 40f), new Vector2(10f, 1500f), 0.26f, 0f);
-            UIKit.Tile(_main, "RedEdge2", UIKit.RED_DEEP, new Vector2(0.5f, 0.5f), new Vector2(28f, 40f), new Vector2(26f, 1500f), 0.26f, 0f);
+            UIKit.Tile(_main, "RedEdge", UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(0f, 40f), new Vector2(10f, PANEL_HEIGHT), 0.26f, 0f);
+            UIKit.Tile(_main, "RedEdge2", UIKit.RED_DEEP, new Vector2(0.5f, 0.5f), new Vector2(28f, 40f), new Vector2(26f, PANEL_HEIGHT), 0.26f, 0f);
 
             // The name of the game : extruded, but it only ever moves with the panel.
             UI3DText lHyper = UI3DText.Create(_main, "HYPER", 250f, new Vector2(0f, 1f), new Vector2(480f, -170f), new Vector2(820f, 220f), UIKit.WHITE, UIKit.RED_DEEP, 12, 3f, TextAlignmentOptions.Left, 2f);
@@ -241,7 +245,7 @@ namespace Com.IsartDigital.Hyperspeed
             _stages.gameObject.SetActive(pScreen == ScreenId.Stages);
             if (pScreen == ScreenId.Stages)
             {
-                _select.Show(Mathf.Clamp(GameSession.UnlockedCount - 1, 0, LevelDatabase.Count - 1));
+                _select.Show(GameSession.StageToShow);
                 AudioManager.Play("ui_whoosh", 0.8f);
             }
             else _select.Hide();
@@ -258,7 +262,7 @@ namespace Com.IsartDigital.Hyperspeed
             }
             if (SceneTransition.IsBusy) return;
             AudioManager.Play("ui_select", 1f);
-            GameSession.SelectedLevel = pIndex;
+            GameSession.RememberStage(pIndex);
             SceneTransition.LoadStage(pIndex);
         }
 

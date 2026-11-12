@@ -5,8 +5,9 @@ namespace Com.IsartDigital.Hyperspeed
     public enum CursorMode { Free, Menu, Game }
 
     // One owner for the mouse cursor. In a race it is captured (locked, hidden) and can never leave the window ; in menus
-    // it is visible but kept inside the window when the game is fullscreen. Losing the focus releases it ; getting the
-    // focus back captures it again and swallows the click that brought the window back, so it never reaches the game.
+    // (title, select, pause, results) it is visible and free to leave the window in every display mode (2026-11-12 :
+    // "dans l'UI on doit pouvoir sortir la souris"). Losing the focus releases it ; getting the focus back captures it
+    // again in a race and swallows the click that brought the window back, so it never reaches the game.
     public static class CursorGuard
     {
         public const float REFOCUS_BLOCK = 0.3f;
@@ -32,10 +33,6 @@ namespace Com.IsartDigital.Hyperspeed
                 case CursorMode.Game:
                     Cursor.lockState = CursorLockMode.Locked;
                     Cursor.visible = false;
-                    break;
-                case CursorMode.Menu:
-                    Cursor.lockState = Screen.fullScreenMode == FullScreenMode.Windowed ? CursorLockMode.None : CursorLockMode.Confined;
-                    Cursor.visible = true;
                     break;
                 default:
                     Cursor.lockState = CursorLockMode.None;
@@ -74,7 +71,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (!Application.isFocused) return;
             // Something released the capture while racing (Alt-Tab, Esc in the editor, a dialog) : take it back.
             if (CursorGuard.Mode == CursorMode.Game && Cursor.lockState != CursorLockMode.Locked) CursorGuard.Apply();
-            else if (CursorGuard.Mode == CursorMode.Menu && Screen.fullScreenMode != FullScreenMode.Windowed && Cursor.lockState != CursorLockMode.Confined) CursorGuard.Apply();
+            else if (CursorGuard.Mode != CursorMode.Game && Cursor.lockState != CursorLockMode.None) CursorGuard.Apply();
         }
     }
 }

@@ -173,6 +173,31 @@ namespace Com.IsartDigital.Hyperspeed
             lManager._layerTargets[2] = 0f;
         }
 
+        // Decodes a set of stems (prefix_base / _hyper / _light) ahead of time, off the main thread : call it while the
+        // screen is covered, then wait for MusicReady before GO (2026-11-12 : the stems used to decode at GO).
+        public static void PrepareMusicLayers(string pPrefix)
+        {
+            AudioManager lManager = Instance;
+            foreach (string lSuffix in LAYER_SUFFIXES)
+            {
+                AudioClip lClip;
+                if (lManager._clips.TryGetValue(pPrefix + lSuffix, out lClip) && lClip.loadState == AudioDataLoadState.Unloaded) lClip.LoadAudioData();
+            }
+        }
+
+        public static bool MusicLayersReady(string pPrefix)
+        {
+            AudioManager lManager = Instance;
+            foreach (string lSuffix in LAYER_SUFFIXES)
+            {
+                AudioClip lClip;
+                if (lManager._clips.TryGetValue(pPrefix + lSuffix, out lClip) && lClip.loadState == AudioDataLoadState.Loading) return false;
+            }
+            return true;
+        }
+
+        private static readonly string[] LAYER_SUFFIXES = { "_base", "_hyper", "_light" };
+
         // 0..1 each : how much of the hyper and light stems plays over the base.
         public static void SetMusicIntensity(float pHyper, float pLight)
         {

@@ -106,6 +106,27 @@ namespace Com.IsartDigital.Hyperspeed
 
         public static int UnlockedCount => Mathf.Max(1, PlayerPrefs.GetInt(UNLOCKED_KEY, 1));
 
+        // The stage the carousel opens on : the last one played ; on a fresh save, the last one unlocked (2026-11-12).
+        private const string LAST_STAGE_KEY = "hs_last_stage";
+
+        public static int StageToShow
+        {
+            get
+            {
+                int lLast = PlayerPrefs.GetInt(LAST_STAGE_KEY, -1);
+                int lIndex = lLast >= 0 ? lLast : UnlockedCount - 1;
+                return Mathf.Clamp(lIndex, 0, LevelDatabase.Count - 1);
+            }
+        }
+
+        public static void RememberStage(int pIndex)
+        {
+            SelectedLevel = pIndex;
+            if (PlayerPrefs.GetInt(LAST_STAGE_KEY, -1) == pIndex) return;
+            PlayerPrefs.SetInt(LAST_STAGE_KEY, pIndex);
+            PlayerPrefs.Save();
+        }
+
         public static bool IsUnlocked(int pIndex) => CheatsEnabled || pIndex < UnlockedCount;
 
         public static float GetBestTime(int pIndex) => PlayerPrefs.GetFloat(BEST_KEY + pIndex, -1f);
