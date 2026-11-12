@@ -14,6 +14,7 @@ namespace Com.IsartDigital.Hyperspeed
         private Vector3 _railFrom;
 
         public GrindRail CurrentRail => State == PlayerState.Grind ? _rail : null;
+        public bool OnLoopRope => State == PlayerState.Grind && _rail != null && _rail.loop;
 
         private bool TryGrind()
         {

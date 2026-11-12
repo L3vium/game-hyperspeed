@@ -175,7 +175,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             get
             {
-                if (_layout == null || _freeRoam) return PhysUp;
+                if (_layout == null || _freeRoam || OnLoopRope) return PhysUp;
                 SpineSample lSample = _layout.spine.samples[_layout.spine.IndexOf(Progress)];
                 if (lSample.localGravity) return PhysUp;
                 // A short hop keeps the view it had : the frame only goes back to world up on a real flight.
@@ -288,18 +288,45 @@ namespace Com.IsartDigital.Hyperspeed
         // Speed the highway asks for right now (0 off a highway).
         private float HighwaySpeed => !OnHighway || State == PlayerState.Finished ? 0f : LightForm ? _profile.lightSpeed : _profile.lightSpeed * HIGHWAY_STREAM;
 
+        private bool _wasOnHighway;
+
         private void UpdateHighwaySpeed(float pDt)
         {
+            bool lOn = OnHighway && State != PlayerState.Finished;
+            if (_wasOnHighway && !lOn && _layout != null) LeaveHighway();
+            _wasOnHighway = lOn;
             float lTarget = HighwaySpeed;
             if (lTarget <= 0f) return;
+            // The last 1.5 s of light brakes back down to hyper : nobody comes off a highway at 20 km/s onto a normal
+            // track (the runner was thrown off the stage there, 3-5 and 3-6).
+            float lBrake = _profile.lightSpeed * 1.5f;
+            float lLeft = _layout.HighwayEnd(Progress) - Progress;
+            bool lBraking = lLeft < lBrake;
+            if (lBraking) lTarget = Mathf.Lerp(_profile.hyperEnter * 1.2f, lTarget, HSMath.Smooth(Mathf.Clamp01(lLeft / lBrake)));
             // Eases up to it in about a second and a half, holds it without drag.
             float lRate = _profile.lightSpeed * 0.7f * pDt;
-            if (OnSurface) _speed = Mathf.Max(_speed, Mathf.MoveTowards(_speed, lTarget, lRate));
+            if (OnSurface) _speed = lBraking ? Mathf.MoveTowards(_speed, lTarget, lRate * 2f) : Mathf.Max(_speed, Mathf.MoveTowards(_speed, lTarget, lRate));
             else
             {
                 Vector3 lFlat = Vector3.ProjectOnPlane(_velocity, _gravityUp);
                 float lFlatSpeed = lFlat.magnitude;
-                if (lFlatSpeed > 1f && lFlatSpeed < lTarget) _velocity += lFlat / lFlatSpeed * (Mathf.MoveTowards(lFlatSpeed, lTarget, lRate) - lFlatSpeed);
+                if (lFlatSpeed > 1f && (lFlatSpeed < lTarget || lBraking))
+                    _velocity += lFlat / lFlatSpeed * (Mathf.MoveTowards(lFlatSpeed, lTarget, lBraking ? lRate * 2f : lRate) - lFlatSpeed);
+            }
+        }
+
+        // Off the end of a highway : the light ends with it, the speed is back to hyper.
+        private void LeaveHighway()
+        {
+            if (!_profile.LightEnabled) return;
+            LightCharge = 0f;
+            float lMax = _profile.hyperEnter * 1.2f;
+            if (OnSurface) _speed = Mathf.Min(_speed, lMax);
+            else
+            {
+                Vector3 lFlat = Vector3.ProjectOnPlane(_velocity, _gravityUp);
+                float lFlatSpeed = lFlat.magnitude;
+                if (lFlatSpeed > lMax) _velocity -= lFlat / lFlatSpeed * (lFlatSpeed - lMax);
             }
         }
 
@@ -411,6 +438,8 @@ namespace Com.IsartDigital.Hyperspeed
                     AimAt(_layout.Flow(Progress + Speed * 0.3f), AimPitch, lAssist);
                 }
             }
+            // Around a loop rope the view looks along the rope : the classic loop shot, whatever the mouse did.
+            if (OnLoopRope) AimAt(_heading, 0f, 20f * pDt);
             Vector3 lFlat = Vector3.ProjectOnPlane(_aimForward, _aimUp);
             _aimForward = lFlat.sqrMagnitude > 0.0001f ? lFlat.normalized : Vector3.Cross(_aimUp, Vector3.right).normalized;
         }
@@ -603,7 +632,9 @@ namespace Com.IsartDigital.Hyperspeed
                 Vector3 lBottom = transform.position + lUp * (lLift + RADIUS);
                 Vector3 lTop = transform.position + lUp * (HEIGHT - RADIUS);
                 RaycastHit lHit;
-                if (!Physics.CapsuleCast(lBottom, lTop, RADIUS, lDir, out lHit, lDistance + SKIN, GroundMask, QueryTriggerInteraction.Ignore))
+                // Inside a hole punched through the track there is nothing to stand on : the move goes through.
+                if (!Physics.CapsuleCast(lBottom, lTop, RADIUS, lDir, out lHit, lDistance + SKIN, GroundMask, QueryTriggerInteraction.Ignore)
+                    || (TrackHoles.Count > 0 && TrackHoles.Inside(lHit.point)))
                 {
                     transform.position += pDisplacement;
                     return;
@@ -752,7 +783,9 @@ namespace Com.IsartDigital.Hyperspeed
             AudioManager.SetLoop("sfx_wind_low", Mathf.Clamp01(lWind * 0.7f) * 0.9f, 0.8f + Speed01 * 0.4f);
             AudioManager.SetLoop("sfx_wind_mid", Mathf.Clamp01(Speed01 * 1.2f) * 0.85f, 0.85f + Speed01 * 0.5f);
             AudioManager.SetLoop("sfx_wind_high", Mathf.Clamp01((Speed01 - 0.45f) * 1.8f) * 0.8f, 0.9f + Speed01 * 0.4f);
-            AudioManager.SetLoop("sfx_light_loop", LightForm ? 0.7f : 0f, 1f + Speed01 * 0.2f);
+            AudioManager.SetLoop("sfx_light_loop", LightForm ? 0.7f : 0f);
+            // On a light highway at 12 to 20 km/s : the warp roar over it.
+            AudioManager.SetLoop("sfx_lightspeed_loop", LightForm && OnHighway ? 0.6f * Light01 : 0f);
             AudioManager.SetLoop("sfx_dive_loop", Diving ? 0.3f + Dive01 * 0.6f : 0f, 0.85f + Dive01 * 0.4f);
             if (Diving && !_wasDiving) HSJuice.Play(JuiceId.DiveStart, Jx(transform.position));
             _wasDiving = Diving;
@@ -816,7 +849,8 @@ namespace Com.IsartDigital.Hyperspeed
             string lWhy = null;
 
             float lSide = Mathf.Abs(Lateral - _layout.field.CenterLateral(Progress)) - _layout.field.TotalHalfWidth(Progress);
-            if (lSide > OUT_SIDE_MARGIN) lWhy = "side";
+            // Sky decks may reach out past the ground track's sides : over one of them you are still on the stage.
+            if (lSide > OUT_SIDE_MARGIN && !SkyRoute.Near(Progress, Lateral)) lWhy = "side";
             else if (UnderFloor() > OUT_UNDER) lWhy = "under";
             else if (_layout.IsLost(transform.position, Progress)) lWhy = "lost";
 

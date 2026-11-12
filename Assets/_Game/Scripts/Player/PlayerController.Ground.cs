@@ -192,7 +192,8 @@ namespace Com.IsartDigital.Hyperspeed
             RaycastHit lHit;
             Vector3 lOrigin = transform.position + _up * 1.1f;
             float lReach = Mathf.Max(SNAP_REACH, _speed * pDt * 1.4f);
-            if (Physics.Raycast(lOrigin, -_up, out lHit, 1.1f + lReach, GroundMask, QueryTriggerInteraction.Ignore) && Vector3.Dot(lHit.normal, _up) >= GROUND_MIN_DOT)
+            if (Physics.Raycast(lOrigin, -_up, out lHit, 1.1f + lReach, GroundMask, QueryTriggerInteraction.Ignore) && Vector3.Dot(lHit.normal, _up) >= GROUND_MIN_DOT
+                && (TrackHoles.Count == 0 || !TrackHoles.Inside(lHit.point)))
             {
                 Stick(lHit, pDt);
                 _groundLayer = lHit.collider.gameObject.layer;

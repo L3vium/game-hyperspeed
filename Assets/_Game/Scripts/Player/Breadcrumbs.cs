@@ -63,7 +63,7 @@ namespace Com.IsartDigital.Hyperspeed
             for (int i = 0; i < _count; i++)
             {
                 Breadcrumb lCrumb = Get(i);
-                if (lCrumb.safe && lCrumb.s <= pDeathS - lBack) return lCrumb;
+                if (lCrumb.safe && lCrumb.s <= pDeathS - lBack && (TrackHoles.Count == 0 || !TrackHoles.Inside(lCrumb.position, 40f))) return lCrumb;
             }
             float lS = Mathf.Max(pDeathS - lBack, pLayout.startLineS + 5f);
             for (int i = 0; i < 60 && !pLayout.IsSafe(lS, pLayout.field.CenterLateral(lS)) && lS > pLayout.startLineS + 5f; i++) lS -= lBack * 0.25f;

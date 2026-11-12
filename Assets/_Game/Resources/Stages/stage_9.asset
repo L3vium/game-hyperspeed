@@ -19,8 +19,8 @@ MonoBehaviour:
     dives: 0
     startLineS: 0
     spawnS: -130
-    finishS: 40434
-    climaxS: 37980
+    finishS: 42274
+    climaxS: 39820
     highways: []
     segments:
     - steps: 552
@@ -107,7 +107,7 @@ MonoBehaviour:
       yaw: 0
       pitch: 0
       roll: 0
-      shift: {x: 0, y: -139.31548, z: 0}
+      shift: {x: 0, y: -112.53319, z: 0}
       linear: 0
       localGravity: 0
       label: Slabs
@@ -251,7 +251,7 @@ MonoBehaviour:
       yaw: 0
       pitch: 0
       roll: 0
-      shift: {x: -0, y: -243.22293, z: 0}
+      shift: {x: -0, y: -201.04153, z: 0}
       linear: 0
       localGravity: 0
       label: Slabs
@@ -263,6 +263,14 @@ MonoBehaviour:
       linear: 0
       localGravity: 0
       label: Road
+    - steps: 460
+      yaw: 0
+      pitch: 0
+      roll: 0
+      shift: {x: 0, y: 0, z: 0}
+      linear: 0
+      localGravity: 0
+      label: SideLoop
     - steps: 368
       yaw: -10.5
       pitch: 0
@@ -331,7 +339,7 @@ MonoBehaviour:
       yaw: 0
       pitch: 0
       roll: 0
-      shift: {x: 0, y: -363.7782, z: 0}
+      shift: {x: 0, y: -286.5534, z: 0}
       linear: 0
       localGravity: 0
       label: Platforms
@@ -419,7 +427,7 @@ MonoBehaviour:
       yaw: 0
       pitch: 0
       roll: 0
-      shift: {x: 0, y: -149.43887, z: 0}
+      shift: {x: 0, y: -134.27261, z: 0}
       linear: 0
       localGravity: 0
       label: Slabs
@@ -555,7 +563,7 @@ MonoBehaviour:
       yaw: 0
       pitch: 0
       roll: 0
-      shift: {x: 0, y: -132.36237, z: 0}
+      shift: {x: 0, y: -77.178375, z: 0}
       linear: 0
       localGravity: 0
       label: Slabs
@@ -567,6 +575,14 @@ MonoBehaviour:
       linear: 0
       localGravity: 0
       label: Road
+    - steps: 460
+      yaw: 0
+      pitch: 0
+      roll: 0
+      shift: {x: 0, y: 0, z: 0}
+      linear: 0
+      localGravity: 0
+      label: SideLoop
     - steps: 472
       yaw: 0
       pitch: -10
@@ -683,8 +699,8 @@ MonoBehaviour:
       look: 2
       halfWidth: 202.56024
       offset: -11.330333
-      drop: 112.593025
-      tilt: -5.3033633
+      drop: 93.87058
+      tilt: 0
       thickness: 77.36253
       wallLeft: 0
       wallRight: 0
@@ -787,8 +803,8 @@ MonoBehaviour:
       look: 2
       halfWidth: 240.83896
       offset: -6.3819504
-      drop: 210.39893
-      tilt: 5.916157
+      drop: 185.57492
+      tilt: 0
       thickness: 122.85754
       wallLeft: 0
       wallRight: 0
@@ -809,7 +825,7 @@ MonoBehaviour:
       mountain: 1
       seed: 15
     - s0: 13014
-      s1: 14854
+      s1: 15774
       look: 1
       halfWidth: 361.96872
       offset: 0
@@ -821,8 +837,8 @@ MonoBehaviour:
       wallLean: 52
       mountain: 1
       seed: 16
-    - s0: 14854
-      s1: 17798
+    - s0: 15774
+      s1: 18718
       look: 0
       halfWidth: 361.96872
       offset: 0
@@ -834,8 +850,8 @@ MonoBehaviour:
       wallLean: 52
       mountain: 1
       seed: 17
-    - s0: 17798
-      s1: 18396
+    - s0: 18718
+      s1: 19316
       look: 2
       halfWidth: 261.71533
       offset: 0
@@ -847,8 +863,8 @@ MonoBehaviour:
       wallLean: 28
       mountain: 0
       seed: 18
-    - s0: 18396
-      s1: 19004
+    - s0: 19316
+      s1: 19924
       look: 2
       halfWidth: 208.73007
       offset: 138.22908
@@ -860,8 +876,8 @@ MonoBehaviour:
       wallLean: 28
       mountain: 0
       seed: 19
-    - s0: 19004
-      s1: 19428
+    - s0: 19924
+      s1: 20348
       look: 2
       halfWidth: 274.565
       offset: 162.88593
@@ -873,21 +889,21 @@ MonoBehaviour:
       wallLean: 28
       mountain: 0
       seed: 20
-    - s0: 19474
-      s1: 19830
+    - s0: 20394
+      s1: 20750
       look: 2
       halfWidth: 238.68652
       offset: 69.27906
-      drop: 308.05945
-      tilt: -11.532412
+      drop: 260.34073
+      tilt: 0
       thickness: 121.9998
       wallLeft: 0
       wallRight: 0
       wallLean: 28
       mountain: 0
       seed: 21
-    - s0: 19894
-      s1: 19894
+    - s0: 20814
+      s1: 20814
       look: 0
       halfWidth: 361.96872
       offset: 0
@@ -899,8 +915,8 @@ MonoBehaviour:
       wallLean: 52
       mountain: 1
       seed: 22
-    - s0: 19894
-      s1: 21366
+    - s0: 20814
+      s1: 22286
       look: 0
       halfWidth: 361.96872
       offset: 0
@@ -912,8 +928,8 @@ MonoBehaviour:
       wallLean: 52
       mountain: 1
       seed: 23
-    - s0: 21366
-      s1: 22966
+    - s0: 22286
+      s1: 23886
       look: 0
       halfWidth: 361.96872
       offset: 0
@@ -925,8 +941,8 @@ MonoBehaviour:
       wallLean: 52
       mountain: 1
       seed: 24
-    - s0: 22966
-      s1: 23372
+    - s0: 23886
+      s1: 24292
       look: 2
       halfWidth: 337.47226
       offset: 0
@@ -938,8 +954,8 @@ MonoBehaviour:
       wallLean: 28
       mountain: 0
       seed: 25
-    - s0: 23372
-      s1: 23792
+    - s0: 24292
+      s1: 24712
       look: 2
       halfWidth: 329.81793
       offset: 125.04777
@@ -951,21 +967,21 @@ MonoBehaviour:
       wallLean: 28
       mountain: 0
       seed: 26
-    - s0: 23792
-      s1: 24126
+    - s0: 24712
+      s1: 25046
       look: 2
       halfWidth: 293.549
       offset: 70.22903
-      drop: 104.11034
-      tilt: 7.351234
+      drop: 125.45999
+      tilt: 0
       thickness: 64.7671
       wallLeft: 0
       wallRight: 0
       wallLean: 28
       mountain: 0
       seed: 27
-    - s0: 24190
-      s1: 24190
+    - s0: 25110
+      s1: 25110
       look: 0
       halfWidth: 361.96872
       offset: 0
@@ -977,8 +993,8 @@ MonoBehaviour:
       wallLean: 52
       mountain: 1
       seed: 28
-    - s0: 24190
-      s1: 25450
+    - s0: 25110
+      s1: 26370
       look: 1
       halfWidth: 361.96872
       offset: 0
@@ -990,8 +1006,8 @@ MonoBehaviour:
       wallLean: 52
       mountain: 1
       seed: 29
-    - s0: 25450
-      s1: 26922
+    - s0: 26370
+      s1: 27842
       look: 0
       halfWidth: 361.96872
       offset: 0
@@ -1003,8 +1019,8 @@ MonoBehaviour:
       wallLean: 52
       mountain: 1
       seed: 30
-    - s0: 26922
-      s1: 34184
+    - s0: 27842
+      s1: 35104
       look: 3
       halfWidth: 361.96872
       offset: 0
@@ -1016,8 +1032,8 @@ MonoBehaviour:
       wallLean: 28
       mountain: 0
       seed: 31
-    - s0: 34184
-      s1: 35588
+    - s0: 35104
+      s1: 36508
       look: 0
       halfWidth: 361.96872
       offset: 0
@@ -1029,8 +1045,8 @@ MonoBehaviour:
       wallLean: 52
       mountain: 1
       seed: 32
-    - s0: 35588
-      s1: 35930
+    - s0: 36508
+      s1: 36850
       look: 2
       halfWidth: 343.75775
       offset: 0
@@ -1042,8 +1058,8 @@ MonoBehaviour:
       wallLean: 28
       mountain: 0
       seed: 33
-    - s0: 35930
-      s1: 36372
+    - s0: 36850
+      s1: 37292
       look: 2
       halfWidth: 307.87997
       offset: 0.19728196
@@ -1055,21 +1071,21 @@ MonoBehaviour:
       wallLean: 28
       mountain: 0
       seed: 34
-    - s0: 36372
-      s1: 36820
+    - s0: 37292
+      s1: 37740
       look: 2
       halfWidth: 337.26004
       offset: 20.562891
-      drop: 95.11416
-      tilt: 4.9751115
+      drop: 66.64772
+      tilt: 0
       thickness: 97.596016
       wallLeft: 0
       wallRight: 0
       wallLean: 28
       mountain: 0
       seed: 35
-    - s0: 36884
-      s1: 36884
+    - s0: 37804
+      s1: 37804
       look: 0
       halfWidth: 361.96872
       offset: 0
@@ -1081,8 +1097,8 @@ MonoBehaviour:
       wallLean: 52
       mountain: 1
       seed: 36
-    - s0: 36884
-      s1: 38356
+    - s0: 37804
+      s1: 40196
       look: 1
       halfWidth: 361.96872
       offset: 0
@@ -1094,8 +1110,8 @@ MonoBehaviour:
       wallLean: 52
       mountain: 1
       seed: 37
-    - s0: 38356
-      s1: 40244
+    - s0: 40196
+      s1: 42084
       look: 1
       halfWidth: 361.96872
       offset: 0
@@ -1107,8 +1123,8 @@ MonoBehaviour:
       wallLean: 52
       mountain: 1
       seed: 38
-    - s0: 40244
-      s1: 43582
+    - s0: 42084
+      s1: 45422
       look: 1
       halfWidth: 361.96872
       offset: 0
@@ -1346,7 +1362,7 @@ MonoBehaviour:
       jitter: -5.3889375
       rough: 0.16069953
     - kind: 11
-      s: 21565.06
+      s: 22485.06
       s1: 0
       lateral: 269.50256
       height: 39.06246
@@ -1360,7 +1376,7 @@ MonoBehaviour:
       jitter: 6.3749104
       rough: 0.22331202
     - kind: 11
-      s: 22085.037
+      s: 23005.037
       s1: 0
       lateral: 295.784
       height: 25.613894
@@ -1374,7 +1390,7 @@ MonoBehaviour:
       jitter: -10.068238
       rough: 0.12739871
     - kind: 11
-      s: 22849.398
+      s: 23769.398
       s1: 0
       lateral: -306.83438
       height: 20.588364
@@ -1388,7 +1404,7 @@ MonoBehaviour:
       jitter: 6.7370367
       rough: 0.26886424
     - kind: 11
-      s: 35458.523
+      s: 36378.523
       s1: 0
       lateral: 321.46957
       height: 39.22595
@@ -1402,11 +1418,11 @@ MonoBehaviour:
       jitter: 11.021694
       rough: 0.2484452
     - kind: 7
-      s: 12213.701
-      s1: 12975.269
+      s: 12213.702
+      s1: 12975.27
       lateral: -74.73938
-      height: 4091.4944
-      height1: 4090.4944
+      height: 4118.2793
+      height1: 4117.2793
       width: 0
       length: 0
       size: 0
@@ -1416,11 +1432,11 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 7
-      s: 13426.53
-      s1: 14183.487
+      s: 13426.531
+      s1: 14183.488
       lateral: -74.73938
-      height: 4091.4944
-      height1: 4090.4944
+      height: 4118.2793
+      height1: 4117.2793
       width: 0
       length: 0
       size: 0
@@ -1430,11 +1446,11 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 7
-      s: 14695.915
-      s1: 15366.94
+      s: 14695.916
+      s1: 15366.941
       lateral: -74.73938
-      height: 4091.4944
-      height1: 4090.4944
+      height: 4118.2793
+      height1: 4117.2793
       width: 0
       length: 0
       size: 0
@@ -1444,11 +1460,11 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 7
-      s: 15805.739
-      s1: 16601.94
+      s: 15805.74
+      s1: 16601.941
       lateral: -74.73938
-      height: 4091.4944
-      height1: 4090.4944
+      height: 4118.2793
+      height1: 4117.2793
       width: 0
       length: 0
       size: 0
@@ -1458,11 +1474,11 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 7
-      s: 16928.139
-      s1: 17587.205
+      s: 16928.14
+      s1: 17587.207
       lateral: -74.73938
-      height: 4091.4944
-      height1: 4090.4944
+      height: 4118.2793
+      height1: 4117.2793
       width: 0
       length: 0
       size: 0
@@ -1472,11 +1488,11 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 7
-      s: 17986.785
-      s1: 18565.533
+      s: 17986.787
+      s1: 18565.535
       lateral: -74.73938
-      height: 4091.4944
-      height1: 4090.4944
+      height: 4118.2793
+      height1: 4117.2793
       width: 0
       length: 0
       size: 0
@@ -1486,17 +1502,59 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 7
-      s: 37895.17
-      s1: 38647.684
+      s: 38815.17
+      s1: 39567.684
       lateral: -65.20639
-      height: 3384.461
-      height1: 3383.461
+      height: 3545.8154
+      height1: 3544.8154
       width: 0
       length: 0
       size: 0
       value: 0
       variant: 0
       flag: 1
+      jitter: 0
+      rough: 0.2
+    - kind: 7
+      s: 39983.477
+      s1: 40705.316
+      lateral: -65.20639
+      height: 3545.8154
+      height1: 3544.8154
+      width: 0
+      length: 0
+      size: 0
+      value: 0
+      variant: 0
+      flag: 1
+      jitter: 0
+      rough: 0.2
+    - kind: 17
+      s: 15234
+      s1: 15681.941
+      lateral: 180.98436
+      height: 0
+      height1: 0
+      width: 126
+      length: 31.185001
+      size: 69.3
+      value: -27.720001
+      variant: 0
+      flag: 0
+      jitter: 0
+      rough: 0.2
+    - kind: 17
+      s: 39656
+      s1: 40103.94
+      lateral: 180.98436
+      height: 0
+      height1: 0
+      width: 126
+      length: 31.185001
+      size: 69.3
+      value: -27.720001
+      variant: 0
+      flag: 0
       jitter: 0
       rough: 0.2
     - kind: 14
@@ -1508,14 +1566,14 @@ MonoBehaviour:
       width: 55.22983
       length: 0
       size: 0
-      value: 247.81885
+      value: 247.81897
       variant: 0
       flag: 0
       jitter: 0
       rough: 0.2
     - kind: 14
-      s: 21368
-      s1: 21509.75
+      s: 22288
+      s1: 22429.75
       lateral: 95.07821
       height: 37.9818
       height1: 0
@@ -1528,8 +1586,8 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 14
-      s: 34343.5
-      s1: 34485.25
+      s: 35263.5
+      s1: 35405.25
       lateral: -118.05524
       height: 37.9818
       height1: 0
@@ -1542,10 +1600,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 22156.404
+      s: 23076.404
       s1: 0
       lateral: 95.07821
-      height: 3302.1208
+      height: 3448.3093
       height1: 0
       width: 63.995537
       length: 37.8
@@ -1556,10 +1614,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 22276.104
+      s: 23196.104
       s1: 0
       lateral: 95.07821
-      height: 3302.1208
+      height: 3448.3093
       height1: 0
       width: 63.995537
       length: 37.8
@@ -1570,10 +1628,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 22395.803
+      s: 23315.803
       s1: 0
       lateral: 95.07821
-      height: 3302.1208
+      height: 3448.3093
       height1: 0
       width: 63.995537
       length: 37.8
@@ -1584,10 +1642,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 22515.502
+      s: 23435.502
       s1: 0
       lateral: 95.07821
-      height: 3302.1208
+      height: 3448.3093
       height1: 0
       width: 63.995537
       length: 37.8
@@ -1598,10 +1656,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 22635.201
+      s: 23555.201
       s1: 0
       lateral: 95.07821
-      height: 3302.1208
+      height: 3448.3093
       height1: 0
       width: 63.995537
       length: 37.8
@@ -1612,10 +1670,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 22754.9
+      s: 23674.9
       s1: 0
       lateral: 95.07821
-      height: 3302.1208
+      height: 3448.3093
       height1: 0
       width: 63.995537
       length: 37.8
@@ -1626,10 +1684,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 22874.6
+      s: 23794.6
       s1: 0
       lateral: 95.07821
-      height: 3302.1208
+      height: 3448.3093
       height1: 0
       width: 63.995537
       length: 37.8
@@ -1640,10 +1698,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 22994.299
+      s: 23914.299
       s1: 0
       lateral: 95.07821
-      height: 3302.1208
+      height: 3448.3093
       height1: 0
       width: 63.995537
       length: 37.8
@@ -1654,10 +1712,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 23113.998
+      s: 24033.998
       s1: 0
       lateral: 95.07821
-      height: 3302.1208
+      height: 3448.3093
       height1: 0
       width: 63.995537
       length: 37.8
@@ -1668,10 +1726,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 23403.496
+      s: 24323.496
       s1: 0
       lateral: 81.005135
-      height: 3294.1208
+      height: 3440.3093
       height1: 0
       width: 86.54644
       length: 37.8
@@ -1682,10 +1740,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 23523.195
+      s: 24443.195
       s1: 0
       lateral: 81.005135
-      height: 3294.1208
+      height: 3440.3093
       height1: 0
       width: 86.54644
       length: 37.8
@@ -1696,10 +1754,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 23642.895
+      s: 24562.895
       s1: 0
       lateral: 81.005135
-      height: 3294.1208
+      height: 3440.3093
       height1: 0
       width: 86.54644
       length: 37.8
@@ -1710,10 +1768,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 23762.594
+      s: 24682.594
       s1: 0
       lateral: 81.005135
-      height: 3294.1208
+      height: 3440.3093
       height1: 0
       width: 86.54644
       length: 37.8
@@ -1724,10 +1782,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 23882.293
+      s: 24802.293
       s1: 0
       lateral: 81.005135
-      height: 3294.1208
+      height: 3440.3093
       height1: 0
       width: 86.54644
       length: 37.8
@@ -1738,10 +1796,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 24001.992
+      s: 24921.992
       s1: 0
       lateral: 81.005135
-      height: 3294.1208
+      height: 3440.3093
       height1: 0
       width: 86.54644
       length: 37.8
@@ -1752,10 +1810,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 24323.984
+      s: 25243.984
       s1: 0
       lateral: 124.80732
-      height: 3286.1208
+      height: 3432.3093
       height1: 0
       width: 71.602844
       length: 37.8
@@ -1766,10 +1824,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 24443.684
+      s: 25363.684
       s1: 0
       lateral: 124.80732
-      height: 3286.1208
+      height: 3432.3093
       height1: 0
       width: 71.602844
       length: 37.8
@@ -1780,10 +1838,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 24563.383
+      s: 25483.383
       s1: 0
       lateral: 124.80732
-      height: 3286.1208
+      height: 3432.3093
       height1: 0
       width: 71.602844
       length: 37.8
@@ -1794,10 +1852,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 24683.082
+      s: 25603.082
       s1: 0
       lateral: 124.80732
-      height: 3286.1208
+      height: 3432.3093
       height1: 0
       width: 71.602844
       length: 37.8
@@ -1808,10 +1866,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 24802.781
+      s: 25722.781
       s1: 0
       lateral: 124.80732
-      height: 3286.1208
+      height: 3432.3093
       height1: 0
       width: 71.602844
       length: 37.8
@@ -1822,10 +1880,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 24922.48
+      s: 25842.48
       s1: 0
       lateral: 124.80732
-      height: 3286.1208
+      height: 3432.3093
       height1: 0
       width: 71.602844
       length: 37.8
@@ -1836,10 +1894,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 25264.266
+      s: 26184.266
       s1: 0
       lateral: 106.213295
-      height: 3278.1208
+      height: 3424.3093
       height1: 0
       width: 58.61386
       length: 37.8
@@ -1850,10 +1908,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 25383.965
+      s: 26303.965
       s1: 0
       lateral: 106.213295
-      height: 3278.1208
+      height: 3424.3093
       height1: 0
       width: 58.61386
       length: 37.8
@@ -1864,10 +1922,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 25503.664
+      s: 26423.664
       s1: 0
       lateral: 106.213295
-      height: 3278.1208
+      height: 3424.3093
       height1: 0
       width: 58.61386
       length: 37.8
@@ -1878,10 +1936,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 25623.363
+      s: 26543.363
       s1: 0
       lateral: 106.213295
-      height: 3278.1208
+      height: 3424.3093
       height1: 0
       width: 58.61386
       length: 37.8
@@ -1892,10 +1950,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 25743.062
+      s: 26663.062
       s1: 0
       lateral: 106.213295
-      height: 3278.1208
+      height: 3424.3093
       height1: 0
       width: 58.61386
       length: 37.8
@@ -1906,10 +1964,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 37233.37
+      s: 38153.37
       s1: 0
       lateral: -65.20639
-      height: 3377.461
+      height: 3538.8154
       height1: 0
       width: 83.82358
       length: 37.8
@@ -1920,10 +1978,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 37353.07
+      s: 38273.07
       s1: 0
       lateral: -65.20639
-      height: 3377.461
+      height: 3538.8154
       height1: 0
       width: 83.82358
       length: 37.8
@@ -1934,10 +1992,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 37472.77
+      s: 38392.77
       s1: 0
       lateral: -65.20639
-      height: 3377.461
+      height: 3538.8154
       height1: 0
       width: 83.82358
       length: 37.8
@@ -1948,10 +2006,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 37592.47
+      s: 38512.47
       s1: 0
       lateral: -65.20639
-      height: 3377.461
+      height: 3538.8154
       height1: 0
       width: 83.82358
       length: 37.8
@@ -1962,10 +2020,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 37712.168
+      s: 38632.168
       s1: 0
       lateral: -65.20639
-      height: 3377.461
+      height: 3538.8154
       height1: 0
       width: 83.82358
       length: 37.8
@@ -1976,10 +2034,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 15
-      s: 37831.867
+      s: 38751.867
       s1: 0
       lateral: -65.20639
-      height: 3377.461
+      height: 3538.8154
       height1: 0
       width: 83.82358
       length: 37.8
@@ -1990,7 +2048,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 8
-      s: 18009.6
+      s: 18929.6
       s1: 0
       lateral: 204.27629
       height: 8
@@ -2004,7 +2062,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 8
-      s: 18708.268
+      s: 19628.268
       s1: 0
       lateral: -243.097
       height: 8
@@ -2018,7 +2076,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 8
-      s: 19406.934
+      s: 20326.934
       s1: 0
       lateral: 249.05792
       height: 8
@@ -2032,10 +2090,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 9
-      s: 10745.322
-      s1: 12251.501
+      s: 10745.323
+      s1: 12251.502
       lateral: -74.73938
-      height: 4084.4944
+      height: 4111.2793
       height1: 0
       width: 55.22983
       length: 0
@@ -2046,10 +2104,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 9
-      s: 12928.019
-      s1: 13464.33
+      s: 12928.02
+      s1: 13464.331
       lateral: -74.73938
-      height: 4084.4944
+      height: 4111.2793
       height1: 0
       width: 48.921383
       length: 0
@@ -2060,10 +2118,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 9
-      s: 14136.237
-      s1: 14733.715
+      s: 14136.238
+      s1: 14733.716
       lateral: -74.73938
-      height: 4084.4944
+      height: 4111.2793
       height1: 0
       width: 68.07533
       length: 0
@@ -2074,10 +2132,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 9
-      s: 15319.69
-      s1: 15843.539
+      s: 15319.691
+      s1: 15843.54
       lateral: -74.73938
-      height: 4084.4944
+      height: 4111.2793
       height1: 0
       width: 62.702484
       length: 0
@@ -2088,10 +2146,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 9
-      s: 16554.69
-      s1: 16965.94
+      s: 16554.691
+      s1: 16965.941
       lateral: -74.73938
-      height: 4084.4944
+      height: 4111.2793
       height1: 0
       width: 50.92562
       length: 0
@@ -2102,10 +2160,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 9
-      s: 17539.955
-      s1: 18024.586
+      s: 17539.957
+      s1: 18024.588
       lateral: -74.73938
-      height: 4084.4944
+      height: 4111.2793
       height1: 0
       width: 57.151615
       length: 0
@@ -2116,10 +2174,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 9
-      s: 18518.283
-      s1: 18926.592
+      s: 18518.285
+      s1: 18926.594
       lateral: -74.73938
-      height: 4084.4944
+      height: 4111.2793
       height1: 0
       width: 63.06087
       length: 0
@@ -2130,10 +2188,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 9
-      s: 22077.654
-      s1: 23246.867
+      s: 22997.654
+      s1: 24166.867
       lateral: 95.07821
-      height: 3302.1208
+      height: 3448.3093
       height1: 0
       width: 53.329613
       length: 0
@@ -2144,10 +2202,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 9
-      s: 23324.746
-      s1: 24145.527
+      s: 24244.746
+      s1: 25065.527
       lateral: 81.005135
-      height: 3294.1208
+      height: 3440.3093
       height1: 0
       width: 72.12203
       length: 0
@@ -2158,10 +2216,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 9
-      s: 24245.234
-      s1: 25085.762
+      s: 25165.234
+      s1: 26005.762
       lateral: 124.80732
-      height: 3286.1208
+      height: 3432.3093
       height1: 0
       width: 59.669037
       length: 0
@@ -2172,10 +2230,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 9
-      s: 25185.516
-      s1: 25849.076
+      s: 26105.516
+      s1: 26769.076
       lateral: 106.213295
-      height: 3278.1208
+      height: 3424.3093
       height1: 0
       width: 48.844883
       length: 0
@@ -2186,10 +2244,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 9
-      s: 35334.477
-      s1: 37082.887
+      s: 36254.477
+      s1: 38002.887
       lateral: -118.05524
-      height: 3385.461
+      height: 3546.8154
       height1: 0
       width: 66.487946
       length: 0
@@ -2200,10 +2258,10 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 9
-      s: 37154.62
-      s1: 37932.973
+      s: 38074.62
+      s1: 38852.973
       lateral: -65.20639
-      height: 3377.461
+      height: 3538.8154
       height1: 0
       width: 69.85298
       length: 0
@@ -2214,12 +2272,26 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 9
-      s: 38600.434
-      s1: 39101.277
+      s: 39520.434
+      s1: 40021.277
       lateral: -65.20639
-      height: 3377.461
+      height: 3538.8154
       height1: 0
       width: 49.588856
+      length: 0
+      size: 0
+      value: 0
+      variant: 0
+      flag: 1
+      jitter: 0
+      rough: 0.2
+    - kind: 9
+      s: 40658.066
+      s1: 41084.69
+      lateral: -65.20639
+      height: 3538.8154
+      height1: 0
+      width: 63.12375
       length: 0
       size: 0
       value: 0
@@ -2230,7 +2302,7 @@ MonoBehaviour:
     - kind: 1
       s: 1260
       s1: 0
-      lateral: -11.292709
+      lateral: -0.19843622
       height: 0
       height1: 0
       width: 72.393745
@@ -2242,9 +2314,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 1
-      s: 6287.466
+      s: 5755.445
       s1: 0
-      lateral: -148.64157
+      lateral: -26.817347
       height: 0
       height1: 0
       width: 72.393745
@@ -2256,9 +2328,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 1
-      s: 11157.208
+      s: 10481.426
       s1: 0
-      lateral: -66.92941
+      lateral: 171.58015
       height: 0
       height1: 0
       width: 72.393745
@@ -2270,9 +2342,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 1
-      s: 14366.746
+      s: 13224.156
       s1: 0
-      lateral: 41.332382
+      lateral: 176.01233
       height: 0
       height1: 0
       width: 72.393745
@@ -2284,21 +2356,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 1
-      s: 17592.17
-      s1: 0
-      lateral: -72.29997
-      height: 0
-      height1: 0
-      width: 72.393745
-      length: 0
-      size: 0
-      value: 60
-      variant: 0
-      flag: 0
-      jitter: 0
-      rough: 0.2
-    - kind: 1
-      s: 20552.963
+      s: 18520.42
       s1: 0
       lateral: -140.87196
       height: 0
@@ -2312,7 +2370,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 1
-      s: 22950.65
+      s: 20918.107
       s1: 0
       lateral: 20.577581
       height: 0
@@ -2326,21 +2384,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 1
-      s: 26112.04
-      s1: 0
-      lateral: -98.56869
-      height: 0
-      height1: 0
-      width: 72.393745
-      length: 0
-      size: 0
-      value: 60
-      variant: 0
-      flag: 0
-      jitter: 0
-      rough: 0.2
-    - kind: 1
-      s: 35526.008
+      s: 35734.79
       s1: 0
       lateral: 120.16344
       height: 0
@@ -2353,6 +2397,20 @@ MonoBehaviour:
       flag: 0
       jitter: 0
       rough: 0.2
+    - kind: 1
+      s: 38665.887
+      s1: 0
+      lateral: -92.11244
+      height: 0
+      height1: 0
+      width: 72.393745
+      length: 0
+      size: 0
+      value: 60
+      variant: 0
+      flag: 0
+      jitter: 0
+      rough: 0.2
     - kind: 6
       s: 1575
       s1: 0
@@ -3334,7 +3392,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 6
-      s: 22281.64
+      s: 38979.74
       s1: 0
       lateral: -336.1138
       height: 40
@@ -3348,7 +3406,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 6
-      s: 22281.64
+      s: 38979.74
       s1: 0
       lateral: -284.404
       height: 40
@@ -3362,7 +3420,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 6
-      s: 22281.64
+      s: 38979.74
       s1: 0
       lateral: -232.69418
       height: 40
@@ -3376,7 +3434,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 6
-      s: 22281.64
+      s: 38979.74
       s1: 0
       lateral: -180.98436
       height: 40
@@ -3390,7 +3448,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 6
-      s: 22281.64
+      s: 38979.74
       s1: 0
       lateral: -129.27455
       height: 40
@@ -3404,7 +3462,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 6
-      s: 22281.64
+      s: 38979.74
       s1: 0
       lateral: -77.56473
       height: 40
@@ -3418,7 +3476,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 6
-      s: 22281.64
+      s: 38979.74
       s1: 0
       lateral: -25.854916
       height: 40
@@ -3432,7 +3490,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 6
-      s: 22281.64
+      s: 38979.74
       s1: 0
       lateral: 25.8549
       height: 40
@@ -3446,7 +3504,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 6
-      s: 22281.64
+      s: 38979.74
       s1: 0
       lateral: 77.56471
       height: 40
@@ -3460,7 +3518,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 6
-      s: 22281.64
+      s: 38979.74
       s1: 0
       lateral: 129.27454
       height: 40
@@ -3474,7 +3532,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 6
-      s: 22281.64
+      s: 38979.74
       s1: 0
       lateral: 180.98434
       height: 40
@@ -3488,7 +3546,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 6
-      s: 22281.64
+      s: 38979.74
       s1: 0
       lateral: 232.69417
       height: 40
@@ -3502,7 +3560,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 6
-      s: 22281.64
+      s: 38979.74
       s1: 0
       lateral: 284.404
       height: 40
@@ -3516,7 +3574,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 6
-      s: 22281.64
+      s: 38979.74
       s1: 0
       lateral: 336.1138
       height: 40
@@ -3712,7 +3770,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 24286.5
+      s: 25206.5
       s1: 0
       lateral: -117.97668
       height: 0
@@ -3726,7 +3784,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 24396.75
+      s: 25316.75
       s1: 0
       lateral: -117.97668
       height: 0
@@ -3740,7 +3798,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 24507
+      s: 25427
       s1: 0
       lateral: -117.97668
       height: 0
@@ -3754,7 +3812,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 24617.25
+      s: 25537.25
       s1: 0
       lateral: -117.97668
       height: 0
@@ -3768,7 +3826,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 24727.5
+      s: 25647.5
       s1: 0
       lateral: -117.97668
       height: 0
@@ -3782,7 +3840,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 24837.75
+      s: 25757.75
       s1: 0
       lateral: -117.97668
       height: 0
@@ -3796,7 +3854,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 24948
+      s: 25868
       s1: 0
       lateral: -117.97668
       height: 0
@@ -3810,7 +3868,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 25058.25
+      s: 25978.25
       s1: 0
       lateral: -117.97668
       height: 0
@@ -3824,7 +3882,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 25168.5
+      s: 26088.5
       s1: 0
       lateral: -117.97668
       height: 0
@@ -3838,7 +3896,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 25278.75
+      s: 26198.75
       s1: 0
       lateral: -117.97668
       height: 0
@@ -3852,7 +3910,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 25389
+      s: 26309
       s1: 0
       lateral: -117.97668
       height: 0
@@ -3866,7 +3924,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 38421
+      s: 40261
       s1: 0
       lateral: 73.79826
       height: 0
@@ -3880,7 +3938,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 38515.5
+      s: 40355.5
       s1: 0
       lateral: 156.99002
       height: 0
@@ -3894,7 +3952,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 38610
+      s: 40450
       s1: 0
       lateral: 179.90628
       height: 0
@@ -3908,7 +3966,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 38704.5
+      s: 40544.5
       s1: 0
       lateral: 133.74841
       height: 0
@@ -3922,7 +3980,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 38799
+      s: 40639
       s1: 0
       lateral: 36.238483
       height: 0
@@ -3936,7 +3994,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 38893.5
+      s: 40733.5
       s1: 0
       lateral: -75.18498
       height: 0
@@ -3950,7 +4008,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 38988
+      s: 40828
       s1: 0
       lateral: -157.74156
       height: 0
@@ -3964,7 +4022,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 39082.5
+      s: 40922.5
       s1: 0
       lateral: -179.7341
       height: 0
@@ -3978,7 +4036,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 39177
+      s: 41017
       s1: 0
       lateral: -132.71864
       height: 0
@@ -3992,7 +4050,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 39271.5
+      s: 41111.5
       s1: 0
       lateral: -34.746593
       height: 0
@@ -4006,7 +4064,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 39366
+      s: 41206
       s1: 0
       lateral: 76.5663
       height: 0
@@ -4020,7 +4078,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 39460.5
+      s: 41300.5
       s1: 0
       lateral: 158.48189
       height: 0
@@ -4034,7 +4092,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 39555
+      s: 41395
       s1: 0
       lateral: 179.54921
       height: 0
@@ -4048,7 +4106,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 39649.5
+      s: 41489.5
       s1: 0
       lateral: 131.67943
       height: 0
@@ -4062,7 +4120,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 39744
+      s: 41584
       s1: 0
       lateral: 33.251984
       height: 0
@@ -4076,7 +4134,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 39838.5
+      s: 41678.5
       s1: 0
       lateral: -77.9424
       height: 0
@@ -4090,7 +4148,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 39933
+      s: 41773
       s1: 0
       lateral: -159.21126
       height: 0
@@ -4104,7 +4162,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 40027.5
+      s: 41867.5
       s1: 0
       lateral: -179.35158
       height: 0
@@ -4118,7 +4176,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 40122
+      s: 41962
       s1: 0
       lateral: -130.63074
       height: 0
@@ -4132,7 +4190,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 40216.5
+      s: 42056.5
       s1: 0
       lateral: -31.75486
       height: 0
@@ -4148,7 +4206,7 @@ MonoBehaviour:
     - kind: 0
       s: 630
       s1: 0
-      lateral: 80.14237
+      lateral: 71.197334
       height: 0
       height1: 0
       width: 152.02686
@@ -4160,9 +4218,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 1456.8022
+      s: 1271.8124
       s1: 0
-      lateral: -168.66254
+      lateral: -80.952446
       height: 0
       height1: 0
       width: 152.02686
@@ -4174,9 +4232,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 2166.2603
+      s: 1935.5197
       s1: 0
-      lateral: -140.27339
+      lateral: -105.74371
       height: 0
       height1: 0
       width: 152.02686
@@ -4188,9 +4246,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 2856.5981
+      s: 2722.4492
       s1: 0
-      lateral: 11.53087
+      lateral: -37.136932
       height: 0
       height1: 0
       width: 89.906235
@@ -4202,9 +4260,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 3580.0586
+      s: 3563.2605
       s1: 0
-      lateral: 38.677055
+      lateral: 94.373665
       height: 0
       height1: 0
       width: 85.0753
@@ -4216,9 +4274,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 4497.63
+      s: 4256.352
       s1: 0
-      lateral: -102.17313
+      lateral: -145.97566
       height: 0
       height1: 0
       width: 152.02686
@@ -4230,9 +4288,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 5156.9395
+      s: 5014.6055
       s1: 0
-      lateral: -17.68364
+      lateral: -4.390328
       height: 0
       height1: 0
       width: 152.02686
@@ -4244,9 +4302,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 5925.4453
+      s: 5639.9985
       s1: 0
-      lateral: -189.95166
+      lateral: 35.694187
       height: 0
       height1: 0
       width: 152.02686
@@ -4258,9 +4316,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 6724.866
+      s: 6513.4385
       s1: 0
-      lateral: 131.6685
+      lateral: 31.215082
       height: 0
       height1: 0
       width: 152.02686
@@ -4272,9 +4330,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 10532.072
+      s: 10302.398
       s1: 0
-      lateral: 7.5573
+      lateral: 119.77751
       height: 0
       height1: 0
       width: 152.02686
@@ -4286,9 +4344,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 11396.342
+      s: 11189.468
       s1: 0
-      lateral: 149.3406
+      lateral: -5.0283136
       height: 0
       height1: 0
       width: 152.02686
@@ -4300,9 +4358,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 12164.355
+      s: 12015.969
       s1: 0
-      lateral: 62.760464
+      lateral: -152.25972
       height: 0
       height1: 0
       width: 134.74973
@@ -4314,9 +4372,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 12803.762
+      s: 12854.192
       s1: 0
-      lateral: 50.843006
+      lateral: -118.98862
       height: 0
       height1: 0
       width: 101.15236
@@ -4328,9 +4386,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 13445.127
+      s: 13717.441
       s1: 0
-      lateral: 118.45428
+      lateral: 54.778206
       height: 0
       height1: 0
       width: 152.02686
@@ -4342,9 +4400,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 14259.266
+      s: 14563.454
       s1: 0
-      lateral: 96.10611
+      lateral: -147.97969
       height: 0
       height1: 0
       width: 152.02686
@@ -4356,21 +4414,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 14917.029
-      s1: 0
-      lateral: -44.371258
-      height: 0
-      height1: 0
-      width: 152.02686
-      length: 50.399998
-      size: 0
-      value: 0.5
-      variant: 0
-      flag: 0
-      jitter: 0
-      rough: 0.2
-    - kind: 0
-      s: 15765.515
+      s: 16149.61
       s1: 0
       lateral: -100.4254
       height: 0
@@ -4384,7 +4428,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 16388.371
+      s: 16772.467
       s1: 0
       lateral: 129.87234
       height: 0
@@ -4398,7 +4442,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 17122.695
+      s: 17506.791
       s1: 0
       lateral: -24.997179
       height: 0
@@ -4412,9 +4456,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 19981.352
+      s: 18419.82
       s1: 0
-      lateral: -31.43423
+      lateral: -176.52374
       height: 0
       height1: 0
       width: 152.02686
@@ -4426,7 +4470,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 20747.4
+      s: 21243.395
       s1: 0
       lateral: 95.54205
       height: 0
@@ -4440,9 +4484,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 22133.545
+      s: 21983.166
       s1: 0
-      lateral: -121.03697
+      lateral: -162.74786
       height: 0
       height1: 0
       width: 152.02686
@@ -4454,9 +4498,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 22920.24
+      s: 22661.709
       s1: 0
-      lateral: 74.53436
+      lateral: 19.195234
       height: 0
       height1: 0
       width: 152.02686
@@ -4468,23 +4512,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 23554.455
+      s: 23491.084
       s1: 0
-      lateral: -21.161783
-      height: 0
-      height1: 0
-      width: 138.52353
-      length: 50.399998
-      size: 0
-      value: 0.5
-      variant: 0
-      flag: 0
-      jitter: 0
-      rough: 0.2
-    - kind: 0
-      s: 25834.098
-      s1: 0
-      lateral: -30.124363
+      lateral: -178.5124
       height: 0
       height1: 0
       width: 152.02686
@@ -4496,7 +4526,35 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 26656.06
+      s: 24139.22
+      s1: 0
+      lateral: 166.02823
+      height: 0
+      height1: 0
+      width: 141.73834
+      length: 50.399998
+      size: 0
+      value: 0.5
+      variant: 0
+      flag: 0
+      jitter: 0
+      rough: 0.2
+    - kind: 0
+      s: 24805.816
+      s1: 0
+      lateral: -1.3571823
+      height: 0
+      height1: 0
+      width: 123.29058
+      length: 50.399998
+      size: 0
+      value: 0.5
+      variant: 0
+      flag: 0
+      jitter: 0
+      rough: 0.2
+    - kind: 0
+      s: 26376.438
       s1: 0
       lateral: 23.6176
       height: 0
@@ -4510,9 +4568,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 34058.215
+      s: 27141.475
       s1: 0
-      lateral: 124.74
+      lateral: 51.365845
       height: 0
       height1: 0
       width: 152.02686
@@ -4524,9 +4582,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 34908.4
+      s: 35539.84
       s1: 0
-      lateral: 107.07779
+      lateral: -92.984665
       height: 0
       height1: 0
       width: 152.02686
@@ -4538,12 +4596,12 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 35608.58
+      s: 36215.777
       s1: 0
-      lateral: -118.156334
+      lateral: 78.58624
       height: 0
       height1: 0
-      width: 144.37825
+      width: 152.02686
       length: 50.399998
       size: 0
       value: 0.5
@@ -4552,9 +4610,23 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 36441.08
+      s: 36950.582
       s1: 0
-      lateral: -24.24068
+      lateral: 66.855156
+      height: 0
+      height1: 0
+      width: 129.30959
+      length: 50.399998
+      size: 0
+      value: 0.5
+      variant: 0
+      flag: 0
+      jitter: 0
+      rough: 0.2
+    - kind: 0
+      s: 37707.516
+      s1: 0
+      lateral: -163.568
       height: 0
       height1: 0
       width: 141.64922
@@ -4566,23 +4638,9 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 0
-      s: 37273.41
+      s: 38614.71
       s1: 0
-      lateral: -19.393852
-      height: 0
-      height1: 0
-      width: 152.02686
-      length: 50.399998
-      size: 0
-      value: 0.5
-      variant: 0
-      flag: 0
-      jitter: 0
-      rough: 0.2
-    - kind: 0
-      s: 37892.887
-      s1: 0
-      lateral: 175.43404
+      lateral: 70.0333
       height: 0
       height1: 0
       width: 152.02686
@@ -4594,7 +4652,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 10
-      s: 20148
+      s: 21068
       s1: 0
       lateral: 0
       height: 0
@@ -4608,7 +4666,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 10
-      s: 20652
+      s: 21572
       s1: 0
       lateral: 0
       height: 0
@@ -4622,7 +4680,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 10
-      s: 21156
+      s: 22076
       s1: 0
       lateral: 0
       height: 0
@@ -4636,7 +4694,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 12
-      s: 38358
+      s: 40198
       s1: 0
       lateral: 0
       height: 0
@@ -4650,7 +4708,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 12
-      s: 38515.5
+      s: 40355.5
       s1: 0
       lateral: 0
       height: 0
@@ -4664,7 +4722,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 12
-      s: 38673
+      s: 40513
       s1: 0
       lateral: 0
       height: 0
@@ -4678,7 +4736,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 12
-      s: 38830.5
+      s: 40670.5
       s1: 0
       lateral: 0
       height: 0
@@ -4692,7 +4750,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 12
-      s: 38988
+      s: 40828
       s1: 0
       lateral: 0
       height: 0
@@ -4706,7 +4764,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 12
-      s: 39145.5
+      s: 40985.5
       s1: 0
       lateral: 0
       height: 0
@@ -4720,7 +4778,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 12
-      s: 39303
+      s: 41143
       s1: 0
       lateral: 0
       height: 0
@@ -4734,7 +4792,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 12
-      s: 39460.5
+      s: 41300.5
       s1: 0
       lateral: 0
       height: 0
@@ -4748,7 +4806,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 12
-      s: 39618
+      s: 41458
       s1: 0
       lateral: 0
       height: 0
@@ -4762,7 +4820,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 12
-      s: 39775.5
+      s: 41615.5
       s1: 0
       lateral: 0
       height: 0
@@ -4776,7 +4834,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 12
-      s: 39933
+      s: 41773
       s1: 0
       lateral: 0
       height: 0
@@ -4790,7 +4848,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 12
-      s: 40090.5
+      s: 41930.5
       s1: 0
       lateral: 0
       height: 0
@@ -4804,7 +4862,7 @@ MonoBehaviour:
       jitter: 0
       rough: 0.2
     - kind: 13
-      s: 27300.88
+      s: 28220.88
       s1: 0
       lateral: 0
       height: 0
@@ -4860,42 +4918,54 @@ MonoBehaviour:
     - s0: 12706
       s1: 12952
       lateral: -6.3819504
-    - s0: 17800
-      s1: 18398
+    - s0: 14856
+      s1: 15360
+      lateral: 180.98436
+    - s0: 15361
+      s1: 15776
+      lateral: 153.26436
+    - s0: 18720
+      s1: 19318
       lateral: -52.343067
-    - s0: 18398
-      s1: 19006
+    - s0: 19318
+      s1: 19926
       lateral: 179.9751
-    - s0: 19006
-      s1: 19430
+    - s0: 19926
+      s1: 20350
       lateral: 107.97292
-    - s0: 19476
-      s1: 19832
-      lateral: 117.016365
-    - s0: 22968
-      s1: 23374
+    - s0: 20396
+      s1: 20752
+      lateral: 21.541756
+    - s0: 23888
+      s1: 24294
       lateral: 0
-    - s0: 23374
-      s1: 23794
+    - s0: 24294
+      s1: 24714
       lateral: 125.04777
-    - s0: 23794
-      s1: 24128
+    - s0: 24714
+      s1: 25048
       lateral: 70.22903
-    - s0: 24192
-      s1: 25452
+    - s0: 25112
+      s1: 26372
       lateral: -117.97668
-    - s0: 27269.38
-      s1: 34186
+    - s0: 28189.38
+      s1: 35106
       lateral: 0
-    - s0: 35590
-      s1: 35932
+    - s0: 36510
+      s1: 36852
       lateral: 0
-    - s0: 35932
-      s1: 36374
+    - s0: 36852
+      s1: 37294
       lateral: 0.19728196
-    - s0: 36374
-      s1: 36822
+    - s0: 37294
+      s1: 37742
       lateral: 20.562891
+    - s0: 39278
+      s1: 39782
+      lateral: 180.98436
+    - s0: 39783
+      s1: 40198
+      lateral: 153.26436
     acts:
     - s: 1474.2
       action: 3
@@ -4909,8 +4979,8 @@ MonoBehaviour:
       action: 3
     - s: 16791.688
       action: 3
-    - s: 19392.2
+    - s: 20312.2
       action: 1
-    - s: 22180.84
+    - s: 38878.938
       action: 3
     hints: []

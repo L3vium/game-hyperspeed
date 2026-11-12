@@ -29,7 +29,10 @@ namespace Com.IsartDigital.Hyperspeed
                 lCrater.AddComponent<MeshRenderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 _pool[_next] = lCrater;
             }
-            lCrater.GetComponent<MeshRenderer>().sharedMaterial = Mats.Flat(Color.Lerp(pRim, Color.black, 0.75f), false, Color.Lerp(pRim, Color.black, 0.35f));
+            Material lMaterial = Mats.Flat(Color.Lerp(pRim, Color.black, 0.75f), false, Color.Lerp(pRim, Color.black, 0.35f));
+            // Over a hole only the rim stays : its middle is cut with the floor.
+            lMaterial.SetFloat("_Holes", 1f);
+            lCrater.GetComponent<MeshRenderer>().sharedMaterial = lMaterial;
             lCrater.transform.SetPositionAndRotation(pPoint + pNormal * 0.4f, Quaternion.FromToRotation(Vector3.up, pNormal) * Quaternion.Euler(0f, Random.Range(0f, 360f), 0f));
             lCrater.transform.localScale = Vector3.one * pRadius;
             lCrater.SetActive(true);
@@ -122,9 +125,21 @@ namespace Com.IsartDigital.Hyperspeed
             Tick();
         }
 
+        // Warning ticks, closer and closer together as the impact nears, heard when it is near the runner.
+        private static readonly float[] TICKS = { 0f, 0.35f, 0.6f, 0.78f, 0.9f, 0.97f };
+        private int _tick;
+
         private void Tick()
         {
             float lT = Mathf.Clamp01(_time / _life);
+            while (_tick < TICKS.Length && lT >= TICKS[_tick])
+            {
+                _tick++;
+                PlayerController lPlayer = RaceContext.Player;
+                if (lPlayer == null) break;
+                float lNear = Mathf.Clamp01(1f - Vector3.Distance(lPlayer.transform.position, transform.position) / 1500f);
+                if (lNear > 0.05f) AudioManager.Play("sfx_telegraph_tick", 0.65f * lNear, 1f, 0.02f);
+            }
             // Closes from wide to the impact size, pulsing faster and faster.
             float lPulse = 0.5f + 0.5f * Mathf.Sin(_time * Mathf.Lerp(8f, 30f, lT));
             transform.localScale = Vector3.one * _radius * Mathf.Lerp(1.8f, 1f, lT * lT);

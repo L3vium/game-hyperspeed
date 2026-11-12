@@ -9,6 +9,7 @@ Shader "Hyperspeed/Flat"
         _ShadeStep ("Shade Step", Range(0,1)) = 0.42
         _Flash ("Flash", Range(0,1)) = 0
         _RoadStreaks ("Ground Speed Lines", Range(0,1)) = 0
+        _Holes ("Cut By Track Holes", Range(0,1)) = 0
     }
 
     SubShader
@@ -24,10 +25,26 @@ Shader "Hyperspeed/Flat"
             half _ShadeStep;
             half _Flash;
             half _RoadStreaks;
+            half _Holes;
         CBUFFER_END
 
         float _HS_RoadScroll;
         float _HS_RoadSpeed;
+
+        // Holes punched through the track (TrackHoles.cs) : xyz centre, w radius.
+        float4 _HS_Holes[24];
+        float _HS_HoleCount;
+
+        void ClipHoles(float3 pPositionWS)
+        {
+            if (_Holes < 0.5) return;
+            int lCount = (int)_HS_HoleCount;
+            for (int i = 0; i < lCount; i++)
+            {
+                float3 lD = pPositionWS - _HS_Holes[i].xyz;
+                if (dot(lD, lD) < _HS_Holes[i].w * _HS_Holes[i].w) discard;
+            }
+        }
 
         float HashF(float2 pP) { return frac(sin(dot(pP, float2(127.1, 311.7))) * 43758.5453); }
 
@@ -97,6 +114,7 @@ Shader "Hyperspeed/Flat"
             half4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
+                ClipHoles(input.positionWS);
                 float3 lNormal = normalize(input.normalWS);
                 Light lLight = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 half lNdl = dot(lNormal, lLight.direction) * 0.5 + 0.5;
@@ -181,9 +199,16 @@ Shader "Hyperspeed/Flat"
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
-            float4 Vert(Attributes input) : SV_POSITION
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float3 positionWS : TEXCOORD0;
+            };
+
+            Varyings Vert(Attributes input)
             {
                 UNITY_SETUP_INSTANCE_ID(input);
+                Varyings output;
                 float3 lWorld = TransformObjectToWorld(input.positionOS.xyz);
                 float3 lNormal = TransformObjectToWorldNormal(input.normalOS);
                 float4 lClip = TransformWorldToHClip(ApplyShadowBias(lWorld, lNormal, _LightDirection));
@@ -192,10 +217,16 @@ Shader "Hyperspeed/Flat"
                 #else
                     lClip.z = max(lClip.z, lClip.w * UNITY_NEAR_CLIP_VALUE);
                 #endif
-                return lClip;
+                output.positionCS = lClip;
+                output.positionWS = lWorld;
+                return output;
             }
 
-            half4 Frag() : SV_Target { return 0; }
+            half4 Frag(Varyings input) : SV_Target
+            {
+                ClipHoles(input.positionWS);
+                return 0;
+            }
             ENDHLSL
         }
 
@@ -218,13 +249,26 @@ Shader "Hyperspeed/Flat"
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
-            float4 Vert(Attributes input) : SV_POSITION
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float3 positionWS : TEXCOORD0;
+            };
+
+            Varyings Vert(Attributes input)
             {
                 UNITY_SETUP_INSTANCE_ID(input);
-                return TransformObjectToHClip(input.positionOS.xyz);
+                Varyings output;
+                output.positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                output.positionCS = TransformWorldToHClip(output.positionWS);
+                return output;
             }
 
-            half4 Frag() : SV_Target { return 0; }
+            half4 Frag(Varyings input) : SV_Target
+            {
+                ClipHoles(input.positionWS);
+                return 0;
+            }
             ENDHLSL
         }
     }

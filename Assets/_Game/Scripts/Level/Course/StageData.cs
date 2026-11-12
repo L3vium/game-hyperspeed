@@ -10,7 +10,10 @@ namespace Com.IsartDigital.Hyperspeed
     {
         Pad, Strip, Ring, Crate, Laser, Hammer, Pane, Rope, Mover, Bridge, Meteor, Prop, Arch, GravityGate,
         // 2026-11-12, sky lanes : a ramp out of the ground lane that throws you up, pads and launch strips on the decks.
-        Kicker, DeckPad, DeckStrip
+        Kicker, DeckPad, DeckStrip,
+        // 2026-11-12, side loops : an electric rope that winds into a vertical loop beside the line (size = radius,
+        // length = advance per radian, width = lead on the ground at each end, value = sideways drift over the loop).
+        LoopRope
     }
 
     // One piece of the racing line : it advances by `steps` samples of Spine.STEP metres while yaw, pitch and roll ease by

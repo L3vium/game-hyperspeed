@@ -510,6 +510,7 @@ namespace Com.IsartDigital.Hyperspeed
         private float CurlTarget()
         {
             if (_player == null || _layout == null || freeLook) return 0f;
+            if (_player.OnLoopRope) return 1f;
             Spine lSpine = _layout.spine;
             float lAhead = Mathf.Max(30f, _player.Speed * 0.35f);
             if (lSpine.samples[lSpine.IndexOf(_player.Progress)].localGravity) return 1f;

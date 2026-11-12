@@ -40,6 +40,13 @@ namespace Com.IsartDigital.Hyperspeed
             for (int i = 0; i < highways.Count; i++) if (pS >= highways[i].x && pS <= highways[i].y) return true;
             return false;
         }
+
+        // Where the highway under s ends (-1 off any highway).
+        public float HighwayEnd(float pS)
+        {
+            for (int i = 0; i < highways.Count; i++) if (pS >= highways[i].x && pS <= highways[i].y) return highways[i].y;
+            return -1f;
+        }
         // Where the last straight begins : the neck and neck climax.
         public float climaxS = -1f;
         public float startLineS;
@@ -77,6 +84,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (lSample.localGravity || lSample.up.y < 0.7f) return false;
             float lHalf = field.HalfWidth(pS);
             if (Mathf.Abs(pLateral - field.CenterLateral(pS)) > lHalf * 0.75f) return false;
+            if (TrackHoles.Count > 0 && TrackHoles.Inside(field.Point(pS, pLateral), 40f)) return false;
             float lLook = 1.4f * (profile != null ? profile.cruise : 120f);
             for (float lD = lLook * 0.25f; lD <= lLook; lD += lLook * 0.25f)
                 if (!field.Solid(pS + lD)) return false;

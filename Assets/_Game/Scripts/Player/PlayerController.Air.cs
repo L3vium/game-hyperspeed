@@ -77,6 +77,7 @@ namespace Com.IsartDigital.Hyperspeed
                 RaycastHit lHit;
                 float lReach = 0.25f + Mathf.Max(0f, -Vector3.Dot(_velocity, _gravityUp)) * pDt;
                 if (Physics.Raycast(transform.position + _gravityUp * 0.6f, -_gravityUp, out lHit, 0.6f + lReach, GroundMask, QueryTriggerInteraction.Ignore)
+                    && (TrackHoles.Count == 0 || !TrackHoles.Inside(lHit.point))
                     && Vector3.Dot(lHit.normal, _gravityUp) > 0.12f)
                 {
                     Land(lHit.normal, lHit.point, lHit.collider);
@@ -158,7 +159,8 @@ namespace Com.IsartDigital.Hyperspeed
                 Vector3 lNext = lVelocity + -lUpHere * Ballistics.G_FALL * STEP;
                 Vector3 lDelta = (lVelocity + lNext) * 0.5f * STEP;
                 RaycastHit lHit;
-                if (Physics.Raycast(lPosition, lDelta.normalized, out lHit, lDelta.magnitude + 1f, TRACK_MASK, QueryTriggerInteraction.Ignore))
+                bool lFound = Physics.Raycast(lPosition, lDelta.normalized, out lHit, lDelta.magnitude + 1f, TRACK_MASK, QueryTriggerInteraction.Ignore);
+                if (lFound && (TrackHoles.Count == 0 || !TrackHoles.Inside(lHit.point)))
                 {
                     HasLandingPrediction = true;
                     LandingPoint = lHit.point;

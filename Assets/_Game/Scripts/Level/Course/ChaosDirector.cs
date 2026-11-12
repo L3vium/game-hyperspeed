@@ -466,6 +466,8 @@ namespace Com.IsartDigital.Hyperspeed
             if (R(0f, 1f) < 0.5f) Fracture.Explode(lTarget, R(20f, 50f), _theme.wall, Vector3.up + lOut, 140f, 0.4f);
             float lDistance = Vector3.Distance(lTarget, pPlayer.transform.position);
             HSJuice.Play(JuiceId.LightningNear, lTarget, Mathf.Clamp01(1f - lDistance / 4000f));
+            // Far away, only the rolling thunder of the storm reaches you.
+            if (lDistance > 2500f) AudioManager.Play("sfx_bg_thunder", Mathf.Lerp(0.5f, 0.2f, Mathf.Clamp01((lDistance - 2500f) / 6000f)), 1f, 0.03f);
             SkyFlash = Mathf.Max(SkyFlash, Mathf.Clamp01(1f - lDistance / 6000f) * 0.8f + 0.2f);
         }
 
@@ -787,6 +789,8 @@ namespace Com.IsartDigital.Hyperspeed
             FX.Sparks(pPoint + pNormal * 3f, new Color(1f, 0.6f, 0.15f), 90, 80f, 1.2f, 0.7f);
             Fracture.Explode(transform.position, radius, color, pNormal, 120f, 0.5f);
             Craters.Add(pPoint, pNormal, radius * 1.6f, lGround);
+            // On the hardest stages it goes right through the track (world 3 : TrackHoles.Enabled).
+            if (!_offTrack) TrackHoles.Punch(pPoint, pNormal, Mathf.Clamp(radius * 1.1f, 12f, 34f));
             if (pPlayer != null)
             {
                 float lDistance = Vector3.Distance(pPlayer.transform.position, pPoint);

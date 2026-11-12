@@ -105,12 +105,20 @@ namespace Com.IsartDigital.Hyperspeed
             float lLateral = _layout.RouteLateral(lTargetS);
             Vector3 lPoint = _layout.GroundPoint(lTargetS, lLateral);
             bool lInSky = false;
-            if (Sky)
+            // Before a light highway the sky route waits : the pad line that charges the light is on the ground.
+            bool lLightAhead = false;
+            if (_player.Profile.LightEnabled)
+                foreach (Vector2 lHighway in _layout.highways)
+                    if (lHighway.x > lS && lHighway.x - lS < Mathf.Max(9000f, lSpeed * 14f)) lLightAhead = true;
+            if (Sky && !lLightAhead)
             {
                 float lGroundY = _layout.GroundPoint(lS, _player.Lateral).y;
                 SkyRoute.Piece lPiece;
                 bool lAbove = _player.transform.position.y > lGroundY + 25f;
-                if (lAbove && SkyRoute.Find(lS, lSpeed * 3f, out lPiece))
+                // Up there means near the piece's own altitude : over a gap between low platforms the runner is above
+                // the ground too, but the lane is hundreds of metres higher and steering to it only drops it off an edge.
+                if (lAbove && SkyRoute.Find(lS, lSpeed * 3f, out lPiece)
+                    && Mathf.Abs(_player.transform.position.y - lPiece.HeightAt(Mathf.Clamp(lTargetS, lPiece.s0, lPiece.s1))) < 90f)
                 {
                     // Up there : follow the decks, ropes and rings.
                     float lAt = Mathf.Clamp(lTargetS, lPiece.s0, lPiece.s1);
@@ -119,9 +127,32 @@ namespace Com.IsartDigital.Hyperspeed
                 }
                 else if (SkyRoute.NextKicker(lS - 5f, lSpeed * 4f, out lPiece))
                 {
-                    // A kicker ahead : line up with it.
-                    lPoint = _layout.GroundPoint(Mathf.Max(lTargetS, lPiece.s0), lPiece.lateral0);
+                    // A kicker ahead : line up with it, without leaving the floor under the look point while it is
+                    // still further than that.
+                    if (lPiece.s0 <= lTargetS) lPoint = _layout.GroundPoint(lTargetS, lPiece.lateral0);
+                    else
+                    {
+                        float lCenter = _layout.field.CenterLateral(lTargetS);
+                        float lRoom = _layout.field.HalfWidth(lTargetS) * 0.8f;
+                        lPoint = _layout.GroundPoint(lTargetS, Mathf.Clamp(lPiece.lateral0, lCenter - lRoom, lCenter + lRoom));
+                    }
                     lInSky = lS > lPiece.s0 - lSpeed * 2f;
+                }
+            }
+            // A hole on the way : round it on the side with more room, or jump it when it is too close to turn.
+            if (!lInSky && TrackHoles.Count > 0)
+            {
+                for (float lAhead = lS + 15f; lAhead < lS + lSpeed * 1.4f; lAhead += 12f)
+                {
+                    Vector4 lHole;
+                    if (!TrackHoles.Find(_layout.GroundPoint(lAhead, lLateral), 14f, out lHole)) continue;
+                    float lHoleLateral;
+                    _layout.spine.Project(lHole, lAhead, out lHoleLateral);
+                    float lAway = lHoleLateral > _layout.field.CenterLateral(lAhead) ? -1f : 1f;
+                    lLateral = lHoleLateral + lAway * (lHole.w + 28f);
+                    lPoint = _layout.GroundPoint(lTargetS, lLateral);
+                    if (lAhead - lS < lSpeed * 0.3f && _player.State == PlayerState.Ground) HSInput.BotJump();
+                    break;
                 }
             }
             HSInput.BotAimActive = true;

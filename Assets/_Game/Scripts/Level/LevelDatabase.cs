@@ -76,7 +76,7 @@ namespace Com.IsartDigital.Hyperspeed
                 rival = RivalKind.Bus, rivalPace = 1.35f, cruise = 185f, theme = Theme.Forest, seed = 22,
                 build = b => b.Start(66f, 2600f)
                     .Road(2f).Meadow(6f).BigTurn(Side.Left, 70f)
-                    .Sky(20f, 0, Side.Right, 2).Meadow(6f).Convoy(4f, 4).Hills(4f, 10f)
+                    .Sky(20f, 0, Side.Right, 2).Meadow(6f).Hint("CATCH THE ROPE : RIDE THE LOOP").SideLoop(Side.Left).Convoy(4f, 4).Hills(4f, 10f)
                     .PadLine(3f).Platforms(5f, 2)
                     .Sky(18f, 1, Side.Left, 0).Meadow(6f).BigTurn(Side.Right, 60f).Slabs(4f)
                     .Crates(3f, 2).Dive(260f).Meadow(3f)
@@ -92,7 +92,7 @@ namespace Com.IsartDigital.Hyperspeed
                     .Road(3f).Meadow(5f).BigTurn(Side.Right, 60f).Tunnel(3f)
                     .Sky(20f, 1, Side.Left, 0).Road(4f).Lasers(3f, 1.4f).Meadow(5f).BigTurn(Side.Left, 50f)
                     .PadLine(3.5f).Platforms(4f, 2)
-                    .Sky(16f, 0, Side.Right, 1).Slabs(4f).Convoy(4f, 5).Hills(4f, 10f)
+                    .Sky(16f, 0, Side.Right, 1).Slabs(4f).Convoy(4f, 5).SideLoop(Side.Left).Hills(4f, 10f)
                     .Dive(260f).Meadow(3f).Crates(3f, 3, true)
                     .Sky(14f, 1, Side.Left, 3).Meadow(5f).BigTurn(Side.Right, 50f).Road(3f)
                     .RingArc(5).FinalRush(6f).Finish()
@@ -104,7 +104,7 @@ namespace Com.IsartDigital.Hyperspeed
                 rival = RivalKind.RaceCar, rivalPace = 1.42f, cruise = 215f, theme = Theme.NeonNight, seed = 44,
                 build = b => b.Start(70f, 3000f)
                     .Road(3f).Meadow(6f).BigTurn(Side.Left, 60f)
-                    .Sky(20f, 1, Side.Right, 2).Road(4f).Hills(4f, 10f).BigTurn(Side.Right, 60f)
+                    .Sky(20f, 1, Side.Right, 2).Road(4f).SideLoop(Side.Left).Hills(4f, 10f).BigTurn(Side.Right, 60f)
                     .PadLine(4f).Tunnel(3f)
                     .Loop()
                     .Sky(18f, 0, Side.Left, 0).Meadow(6f).Slabs(5f, 1.1f).Lasers(3f, 1.2f)
@@ -118,12 +118,12 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 title = "THE BULLET TRAIN", tagline = "Runs on time. You run ahead of it.", world = 1,
                 description = "Golden dunes and giant drops.\nThe train never brakes : you will have to fly.",
-                rival = RivalKind.Train, rivalPace = 1.45f, cruise = 235f, theme = Theme.GoldDunes, seed = 55,
+                rival = RivalKind.Train, rivalPace = 1.4f, cruise = 235f, theme = Theme.GoldDunes, seed = 55,
                 build = b => b.Start(76f, 3200f)
                     .Road(3f).Meadow(6f).BigTurn(Side.Left, 60f)
                     .Sky(22f, 0, Side.Right, 3).Meadow(7f).Hills(4f, 12f).Road(4f)
                     .Dive(300f).Platforms(5f, 3)
-                    .Sky(20f, 1, Side.Left, 0).Meadow(6f).BigTurn(Side.Right, 70f).Lasers(3f, 1f)
+                    .Sky(20f, 1, Side.Left, 0).Meadow(6f).SideLoop(Side.Right).BigTurn(Side.Right, 70f).Lasers(3f, 1f)
                     .PadLine(4f).Slabs(5f, 1.1f).Hammers(3f, 1.4f)
                     .Sky(18f, 0, Side.Right, 1).Meadow(6f).Convoy(4f, 6).Hills(4f, 12f)
                     .Dive(320f).RingArc(6).FinalRush(6f).Finish()
@@ -137,7 +137,7 @@ namespace Com.IsartDigital.Hyperspeed
                     .Road(3f).Descent(4f, 14f).Meadow(4f)
                     .Sky(26f, 1, Side.Right, 0).Meadow(8f).BigTurn(Side.Right, 70f).Hills(4f, 12f).Road(4f)
                     .Dive(340f).Platforms(5f, 3)
-                    .Sky(24f, 2, Side.Left, 0).Meadow(7f).BigTurn(Side.Left, 60f).Road(4f).Hammers(3f, 1.2f)
+                    .Sky(24f, 2, Side.Left, 0).Meadow(7f).SideLoop(Side.Right).BigTurn(Side.Left, 60f).Road(4f).Hammers(3f, 1.2f)
                     .RingArc(7).PadLine(4f)
                     .Sky(18f, 1, Side.Right, 1).Meadow(6f).Hills(4f, 12f).Road(4f)
                     .FinalRush(6f).Finish()
@@ -152,7 +152,7 @@ namespace Com.IsartDigital.Hyperspeed
                     .Sky(22f, 0, Side.Left, 2).Hammers(3f, 1.3f).Meadow(6f).BigTurn(Side.Left, 70f).Road(4f)
                     .Platforms(5f, 3).Crates(3f, 3, true)
                     .Loop()
-                    .Sky(22f, 1, Side.Right, 0).Meadow(7f).BigTurn(Side.Right, 60f).Slabs(4f)
+                    .Sky(22f, 1, Side.Right, 0).Meadow(7f).SideLoop(Side.Left).BigTurn(Side.Right, 60f).Slabs(4f)
                     .Dive(320f).PadLine(4f)
                     .Sky(16f, 2, Side.Left, 3).Meadow(6f).Road(4f)
                     .RingArc(6).FinalRush(6f).Finish()
@@ -168,7 +168,7 @@ namespace Com.IsartDigital.Hyperspeed
                     .Sky(24f, 0, Side.Left, 2).Meadow(7f).Lasers(3f, 1f).BigTurn(Side.Left, 70f).Road(4f)
                     .Meteors(5f, 1.6f).Platforms(5f, 3)
                     .Loop(Side.Left)
-                    .Sky(22f, 1, Side.Right, 0).Meadow(7f).Convoy(4f, 6).Hills(4f, 12f)
+                    .Sky(22f, 1, Side.Right, 0).Meadow(7f).SideLoop(Side.Left).Convoy(4f, 6).Hills(4f, 12f)
                     .PadLine(4.5f, 0.35f)
                     .Sky(16f, 2, Side.Left, 1).Meadow(6f).BigTurn(Side.Right, 60f)
                     .FinalRush(6f).Finish()
@@ -181,24 +181,24 @@ namespace Com.IsartDigital.Hyperspeed
                 build = b => b.Start(90f, 4000f)
                     .Road(3f).Meadow(6f).BigTurn(Side.Right, 70f)
                     .PadLine(5f, 0.35f).Pillars(4f, 0.9f)
-                    .Sky(26f, 1, Side.Left, 0).Meadow(8f).Road(5f).BigTurn(Side.Left, 70f)
+                    .Sky(26f, 1, Side.Left, 0).Meadow(8f).Road(5f).SideLoop(Side.Right).BigTurn(Side.Left, 70f)
                     .Platforms(5f, 3).Meteors(4f, 1.6f)
                     .Sky(24f, 0, Side.Right, 2).Meadow(7f).PadLine(4f, 0.35f).Hills(4f, 12f)
                     .Loop()
-                    .Sky(18f, 2, Side.Left, 3).Meadow(6f).Road(4f)
+                    .Sky(18f, 2, Side.Left, 3).Meadow(6f).Road(4f).SideLoop(Side.Right)
                     .FinalRush(6f).Finish()
             },
             new LevelDefinition
             {
                 title = "THE ROCKETS", tagline = "Three of them. Pick a side.", world = 1,
                 description = "Castles in the sky, platforms and ropes. Your dash now breaks blocks.\nThe rockets fly high to the side : stay under them.",
-                rival = RivalKind.Rockets, rivalPace = 1.65f, cruise = 340f, hyper = true, worldBreaker = true, theme = Theme.SkyCastle, seed = 110, music = "music_race2",
+                rival = RivalKind.Rockets, rivalPace = 1.58f, cruise = 340f, hyper = true, worldBreaker = true, theme = Theme.SkyCastle, seed = 110, music = "music_race2",
                 build = b => b.Start(94f, 4200f)
                     .Hint("DASHING BREAKS BLOCKS NOW").Pillars(2f, 0.7f).Meadow(6f).BigTurn(Side.Left, 70f)
-                    .Sky(30f, 0, Side.Right, 3).PadLine(5f, 0.35f).Meadow(8f).Road(5f).Platforms(5f, 3)
+                    .Sky(30f, 0, Side.Right, 3).PadLine(5f, 0.35f).Meadow(8f).Road(5f).SideLoop(Side.Left).Platforms(5f, 3)
                     .Sky(28f, 1, Side.Left, 0).Meadow(8f).BigTurn(Side.Right, 70f).Slabs(4f)
                     .Corkscrew()
-                    .Sky(24f, 2, Side.Right, 2).Meadow(7f).PadLine(5f, 0.35f).Road(4f)
+                    .Sky(24f, 2, Side.Right, 2).Meadow(7f).PadLine(5f, 0.35f).Road(4f).SideLoop(Side.Left)
                     .Dive(340f).Platforms(4f, 2)
                     .Sky(18f, 3, Side.Left, 1).Meadow(6f).BigTurn(Side.Left, 60f)
                     .FinalRush(6f).Finish()
@@ -209,14 +209,14 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 title = "THE STARFIGHTER", tagline = "Lightspeed is a suggestion.", world = 2,
                 description = "Open space, huge platforms adrift.\nHyper all the way : never let the chain drop.",
-                rival = RivalKind.Spaceship, rivalPace = 1.7f, cruise = 370f, hyper = true, worldBreaker = true, theme = Theme.Space, seed = 121, music = "music_race2",
+                rival = RivalKind.Spaceship, rivalPace = 1.6f, cruise = 370f, hyper = true, worldBreaker = true, theme = Theme.Space, seed = 121, music = "music_race2",
                 build = b => b.Start(98f, 4400f)
                     .Road(3f).Meadow(7f).BigTurn(Side.Right, 70f)
                     .Sky(26f, 0, Side.Left, 2).PadLine(5f, 0.35f).Platforms(6f, 3).Meadow(6f)
                     .Twist(2.4f, 1)
                     .Sky(28f, 1, Side.Right, 0).Meadow(8f).BigTurn(Side.Left, 70f).Slabs(5f)
                     .Loop()
-                    .Sky(26f, 2, Side.Left, 1).Meadow(8f).Road(5f).PadLine(5f, 0.35f)
+                    .Sky(26f, 2, Side.Left, 1).Meadow(8f).Road(5f).SideLoop(Side.Right).PadLine(5f, 0.35f)
                     .Sky(20f, 3, Side.Right, 3).Meadow(6f).BigTurn(Side.Right, 60f)
                     .Loop(Side.Left)
                     .RingArc(7).FinalRush(6f).Finish()
@@ -225,13 +225,13 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 title = "TIME", tagline = "It never stops. Neither do you.", world = 2,
                 description = "The ground gives way behind you.\nDon't stop. Not even once.",
-                rival = RivalKind.Time, rivalPace = 1.75f, cruise = 395f, hyper = true, worldBreaker = true, collapse = true, theme = Theme.Void, seed = 143, music = "music_race2",
+                rival = RivalKind.Time, rivalPace = 1.66f, cruise = 395f, hyper = true, worldBreaker = true, collapse = true, theme = Theme.Void, seed = 143, music = "music_race2",
                 build = b => b.Start(102f, 4800f)
                     .Hint("THE GROUND CANNOT KEEP UP").Road(3f).Meadow(7f)
                     .Sky(28f, 1, Side.Right, 0).Platforms(6f, 3).BigTurn(Side.Left, 70f).Meadow(6f)
                     .PadLine(5f, 0.35f)
                     .Corkscrew(Side.Right)
-                    .Sky(28f, 2, Side.Left, 2).Meadow(8f).Road(5f).BigTurn(Side.Right, 70f)
+                    .Sky(28f, 2, Side.Left, 2).Meadow(8f).Road(5f).SideLoop(Side.Right).BigTurn(Side.Right, 70f)
                     .Twist(2.4f, 1)
                     .Sky(24f, 0, Side.Right, 3).Meadow(7f).Slabs(5f).PadLine(4f, 0.35f)
                     .FinalRush(7f).Finish()
@@ -244,10 +244,10 @@ namespace Com.IsartDigital.Hyperspeed
                 build = b => b.Start(106f, 5000f)
                     .Hint("DON'T LET IT CATCH YOU").Road(3f).Meadow(7f).BigTurn(Side.Right, 70f)
                     .Meteors(6f, 1.2f).Dive(380f).Platforms(6f, 3)
-                    .Sky(30f, 0, Side.Left, 3).Meadow(8f).PadLine(5f, 0.35f).Road(5f)
+                    .Sky(30f, 0, Side.Left, 3).Meadow(8f).PadLine(5f, 0.35f).Road(5f).SideLoop(Side.Right)
                     .Sky(30f, 2, Side.Right, 0).Meadow(8f).BigTurn(Side.Left, 70f).Meteors(5f, 1.1f)
                     .Loop()
-                    .Sky(24f, 1, Side.Left, 2).Meadow(7f).Road(5f)
+                    .Sky(24f, 1, Side.Left, 2).Meadow(7f).Road(5f).SideLoop(Side.Right)
                     .FinalRush(7f).Finish()
             },
             new LevelDefinition
@@ -258,10 +258,10 @@ namespace Com.IsartDigital.Hyperspeed
                 build = b => b.Start(104f, 5200f)
                     .Hint("DON'T LET DEATH CATCH YOU").Road(3f).Meadow(7f).BigTurn(Side.Left, 70f)
                     .Sky(28f, 1, Side.Right, 0).Meadow(8f).Inverted(3f).Platforms(6f, 3)
-                    .Sky(28f, 2, Side.Left, 3).Meadow(8f).Road(5f).BigTurn(Side.Right, 70f)
+                    .Sky(28f, 2, Side.Left, 3).Meadow(8f).Road(5f).SideLoop(Side.Right).BigTurn(Side.Right, 70f)
                     .Corkscrew()
                     .Sky(24f, 0, Side.Right, 2).Meadow(7f).Slabs(5f)
-                    .Hint("CHAIN THE PADS : CHARGE THE LIGHT").PadLine(10f, 0.3f)
+                    .Hint("CHAIN THE PADS : CHARGE THE LIGHT").PadLine(12f, 0.3f)
                     .LightHighway(10f).Meadow(4f)
                     .FinalRush(7f).Finish()
             },
@@ -269,14 +269,14 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 title = "LIGHT ITSELF", tagline = "Physics called. You declined.", world = 2,
                 description = "The void : almost nothing in the way, everything wide open.\nYou have to become light to keep up.",
-                rival = RivalKind.Light, rivalPace = 2f, cruise = 470f, hyper = true, lightSpeed = 16000f, lightPads = 32, worldBreaker = true, theme = Theme.Void, seed = 132, music = "music_race2",
+                rival = RivalKind.Light, rivalPace = 1.55f, cruise = 470f, hyper = true, lightSpeed = 16000f, lightPads = 32, worldBreaker = true, theme = Theme.Void, seed = 132, music = "music_race2",
                 build = b => b.Start(102f, 4600f)
                     .Road(3f).Meadow(7f).BigTurn(Side.Right, 70f)
                     .Sky(28f, 1, Side.Left, 2).Meadow(8f).Platforms(6f, 3).Road(5f)
-                    .Hint("CHAIN THE PADS : CHARGE THE LIGHT").PadLine(13f, 0.3f)
+                    .Hint("CHAIN THE PADS : CHARGE THE LIGHT").PadLine(15f, 0.3f)
                     .LightHighway(14f)
                     .Sky(30f, 2, Side.Right, 0).Meadow(8f).BigTurn(Side.Left, 70f).Corkscrew()
-                    .Sky(24f, 3, Side.Left, 3).Meadow(7f).Road(5f)
+                    .Sky(24f, 3, Side.Left, 3).Meadow(7f).Road(5f).SideLoop(Side.Right)
                     .Loop()
                     .FinalRush(7f).Finish()
             },
@@ -288,12 +288,12 @@ namespace Com.IsartDigital.Hyperspeed
                 build = b => b.Start(110f, 5400f)
                     .Hint("THE STAR IS COLLAPSING. RUN.").Road(3f).Meadow(8f).BigTurn(Side.Right, 70f)
                     .Sky(32f, 0, Side.Left, 3).Meteors(6f, 1f).Platforms(6f, 3).Meadow(8f).Road(5f)
-                    .Hint("CHAIN THE PADS : CHARGE THE LIGHT").PadLine(15f, 0.3f)
+                    .Hint("CHAIN THE PADS : CHARGE THE LIGHT").PadLine(17f, 0.3f)
                     .LightHighway(16f)
-                    .Sky(32f, 2, Side.Right, 0).Meadow(8f).BigTurn(Side.Left, 70f).Loop().Road(4f)
+                    .Sky(32f, 2, Side.Right, 0).Meadow(8f).BigTurn(Side.Left, 70f).Loop().Road(4f).SideLoop(Side.Left)
                     .Sky(30f, 1, Side.Left, 2).Meteors(5f, 0.9f).Meadow(8f).Slabs(5f)
                     .Inverted(4f, Side.Right)
-                    .Sky(24f, 3, Side.Right, 1).Meadow(7f).BigTurn(Side.Right, 60f)
+                    .Sky(24f, 3, Side.Right, 1).Meadow(7f).SideLoop(Side.Left).BigTurn(Side.Right, 60f)
                     .PadLine(8f, 0.3f).FinalRush(8f).Finish()
             }
         };

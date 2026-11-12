@@ -220,7 +220,8 @@ namespace Com.IsartDigital.Hyperspeed
         {
             Chain = _chainTimer > 0f ? Chain + 1 : 1;
             _chainTimer = SpeedProfile.CHAIN_WINDOW;
-            if (_profile.LightEnabled && Hyper && !LightForm) LightCharge = Mathf.Min(1f, LightCharge + 1f / _profile.lightPads);
+            // Every link of a hyper chain (from the fifth on) charges the light : the pads that open hyper count too.
+            if (_profile.LightEnabled && (Hyper || Chain >= 5) && !LightForm) LightCharge = Mathf.Min(1f, LightCharge + 1f / _profile.lightPads);
         }
 
         private void UpdateChain(float pDt)

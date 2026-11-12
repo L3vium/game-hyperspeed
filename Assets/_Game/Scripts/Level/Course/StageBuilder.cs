@@ -196,6 +196,8 @@ namespace Com.IsartDigital.Hyperspeed
                     return Pane.Create(pParent, pLayout, pItem.s, pItem.lateral, pItem.width, pItem.height, (PaneKind)Mathf.Clamp(pItem.variant, 0, 2), pTheme);
                 case ItemKind.Rope:
                     return PlaceRope(pItem, pLayout, pTheme, pParent);
+                case ItemKind.LoopRope:
+                    return PlaceLoopRope(pItem, pLayout, pTheme, pParent);
                 case ItemKind.Mover:
                     return MovingPlatform.Create(pParent, pLayout, pItem.s, pItem.lateral, pItem.width, pItem.length, pItem.height, pItem.value, pTheme);
                 case ItemKind.Bridge:
@@ -251,6 +253,45 @@ namespace Com.IsartDigital.Hyperspeed
                 SkyKit.Anchor(lObject.transform, SkyKit.Point(pLayout, pItem.s, pItem.lateral, pItem.height), Vector3.up, pTheme.accent);
                 SkyKit.Anchor(lObject.transform, SkyKit.Point(pLayout, pItem.s1, pItem.lateral, pItem.height1), Vector3.up, pTheme.accent);
             }
+            return lObject;
+        }
+
+        // Side loop rope (2026-11-12) : along the ground, up into a vertical loop (its up points to the loop's centre : you
+        // ride the inside, upside down at the top), back down along the ground further on and a little to the side.
+        private static Object PlaceLoopRope(ItemData pItem, LevelLayout pLayout, Theme pTheme, Transform pParent)
+        {
+            const float RIDE = 1.8f;
+            const float STEP = 8f;
+            GameObject lObject = new GameObject("LoopRope");
+            lObject.transform.SetParent(pParent, false);
+            GrindRail lRail = lObject.AddComponent<GrindRail>();
+            lRail.catchRadius = 24f;
+            lRail.loop = true;
+            float lRadius = pItem.size, lAdvance = pItem.length, lLead = pItem.width, lDrift = pItem.value;
+            float lLoopS = pItem.s + lLead;
+            for (float lS = pItem.s; lS < lLoopS - 0.5f; lS += STEP)
+                lRail.AddPoint(pLayout.GroundPoint(lS, pItem.lateral) + pLayout.field.Normal(lS) * RIDE, pLayout.field.Normal(lS), lS);
+            SpineSample lFrame = pLayout.spine.Evaluate(lLoopS);
+            Vector3 lUp = pLayout.field.Normal(lLoopS);
+            Vector3 lForward = Vector3.ProjectOnPlane(lFrame.forward, lUp).normalized;
+            Vector3 lRight = Vector3.Cross(lUp, lForward);
+            Vector3 lBase = pLayout.GroundPoint(lLoopS, pItem.lateral) + lUp * RIDE;
+            const int COUNT = 72;
+            for (int i = 0; i <= COUNT; i++)
+            {
+                float lA = i * Mathf.PI * 2f / COUNT;
+                Vector3 lPoint = lBase + lForward * (lRadius * Mathf.Sin(lA) + lAdvance * lA) + lUp * (lRadius * (1f - Mathf.Cos(lA)))
+                                 + lRight * (lDrift * lA / (Mathf.PI * 2f));
+                Vector3 lInside = (-lForward * Mathf.Sin(lA) + lUp * Mathf.Cos(lA)).normalized;
+                lRail.AddPoint(lPoint, lInside, lLoopS + Vector3.Dot(lPoint - lBase, lForward));
+            }
+            float lOutS = lLoopS + lAdvance * Mathf.PI * 2f;
+            for (float lS = lOutS + STEP; lS <= pItem.s1; lS += STEP)
+                lRail.AddPoint(pLayout.GroundPoint(lS, pItem.lateral + lDrift) + pLayout.field.Normal(lS) * RIDE, pLayout.field.Normal(lS), lS);
+            lRail.Finish(pTheme.accent, 3.2f);
+            pLayout.rails.Add(lRail);
+            SkyKit.Anchor(lObject.transform, pLayout.GroundPoint(pItem.s, pItem.lateral), pLayout.field.Normal(pItem.s), pTheme.accent);
+            SkyKit.Anchor(lObject.transform, pLayout.GroundPoint(pItem.s1, pItem.lateral + lDrift), pLayout.field.Normal(pItem.s1), pTheme.accent);
             return lObject;
         }
 

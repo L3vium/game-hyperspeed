@@ -64,6 +64,18 @@ namespace Com.IsartDigital.Hyperspeed
             return lBest < float.MaxValue;
         }
 
+        // A sky piece (deck, rope, ring chain) around (s, lateral) : the runner up there is on the stage, even where the
+        // decks reach out beyond the ground track's sides.
+        public static bool Near(float pS, float pLateral, float pReach = 150f)
+        {
+            foreach (Piece lPiece in Pieces)
+            {
+                if (pS < lPiece.s0 - pReach || pS > lPiece.s1 + pReach) continue;
+                if (Mathf.Abs(pLateral - lPiece.LateralAt(Mathf.Clamp(pS, lPiece.s0, lPiece.s1))) < pReach) return true;
+            }
+            return false;
+        }
+
         public static bool NextKicker(float pS, float pAhead, out Piece pPiece)
         {
             pPiece = default(Piece);

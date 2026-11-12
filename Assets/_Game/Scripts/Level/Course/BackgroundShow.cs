@@ -118,6 +118,8 @@ namespace Com.IsartDigital.Hyperspeed
             float lSpeed = Mathf.Max(lPlayer.Speed, _layout.profile.cruise);
 
             foreach (Machine lMachine in _machines) UpdateMachine(lMachine, lPlayer, lForward, lRight, lSpeed, lDt);
+            // The colossal machines' rumble, far off, under everything.
+            AudioManager.SetLoop("sfx_bg_machine_loop", RaceContext.Running ? 0.22f : 0f);
 
             // Explosions somewhere out there, all the time : more of them when the storm is heavier.
             _blastTimer -= lDt;
@@ -139,7 +141,8 @@ namespace Com.IsartDigital.Hyperspeed
                     lFree.fire.gameObject.SetActive(true);
                     lFree.smoke.gameObject.SetActive(true);
                     ChaosDirector.SkyFlash = Mathf.Max(ChaosDirector.SkyFlash, 0.25f * (1f - lFar / 9000f) + 0.1f);
-                    if (lFar < 5000f) AudioManager.Play(AudioManager.HasClip("sfx_bg_explosion_1") ? "sfx_bg_explosion_" + Random.Range(1, 5) : "sfx_explosion", 0.25f, 0.6f);
+                    // v6 : the distant blasts are their own sounds (no pitched-down explosion any more).
+                    if (lFar < 6000f) AudioManager.Play("sfx_bg_explosion", Mathf.Lerp(0.55f, 0.2f, lFar / 6000f), 1f, 0.03f);
                 }
             }
             foreach (Blast lBlast in _blasts)

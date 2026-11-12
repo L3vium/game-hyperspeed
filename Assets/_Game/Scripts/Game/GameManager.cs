@@ -78,6 +78,8 @@ namespace Com.IsartDigital.Hyperspeed
             Transform lTrackRoot = new GameObject("Course").transform;
             lTrackRoot.SetParent(lRoot, false);
             // A stage shaped in the Level Design window wins over its recipe.
+            TrackHoles.Clear();
+            TrackHoles.Enabled = _level.world >= 2;
             StageAsset lAsset = StageAsset.Load(_levelIndex);
             if (lAsset != null) _layout = StageBuilder.Build(lAsset.data, lTheme, lProfile, lTrackRoot);
             else _layout = LevelDatabase.Recipe(_levelIndex, lTrackRoot).Build();
@@ -120,7 +122,10 @@ namespace Com.IsartDigital.Hyperspeed
             // Everything heavy the race will need is prepared while the transition still covers the screen.
             SceneTransition.Hold();
             StartCoroutine(WarmupRoutine());
-            AudioManager.PlayMusic("music_intro", 0.38f);
+            // World-keyed sounds and footsteps for this stage ; the music waits for the count (its intro comes with it).
+            AudioManager.World = _level.world + 1;
+            AudioManager.StepSurface = StepSurface(RaceContext.Theme != null ? RaceContext.Theme.decor : DecorKind.Islands);
+            AudioManager.FadeOutMusic();
             StartCoroutine(Flow());
         }
 
@@ -142,15 +147,53 @@ namespace Com.IsartDigital.Hyperspeed
             while (SceneTransition.IsBusy) yield return null;
 
             string[] lSteps = { "3", "2", "1" };
-            _player.ArmStart(Time.time + COUNT_STEP * lSteps.Length);
-            for (int i = 0; i < lSteps.Length; i++)
+            // The world's intro plays under the count, one bar per number, and GO lands on the drop of the stems.
+            double lDrop = AudioManager.PlayRaceIntro("music_w" + (_level.world + 1), 0.5f);
+            if (lDrop > 0.0)
             {
-                StartGate.Instance?.ShowCount(lSteps[i], Color.white);
-                _hud.ShowCount(lSteps[i], false);
-                HSJuice.Play(JuiceId.CountdownTick, _player.transform.position);
-                yield return new WaitForSeconds(COUNT_STEP);
+                _player.ArmStart(Time.time + (float)(lDrop - AudioSettings.dspTime));
+                for (int i = 0; i < lSteps.Length; i++)
+                {
+                    double lAt = lDrop - (lSteps.Length - i) * AudioManager.BAR;
+                    while (AudioSettings.dspTime < lAt) yield return null;
+                    StartGate.Instance?.ShowCount(lSteps[i], Color.white);
+                    _hud.ShowCount(lSteps[i], false);
+                    HSJuice.Play(JuiceId.CountdownTick, _player.transform.position);
+                }
+                while (AudioSettings.dspTime < lDrop) yield return null;
+            }
+            else
+            {
+                _player.ArmStart(Time.time + COUNT_STEP * lSteps.Length);
+                for (int i = 0; i < lSteps.Length; i++)
+                {
+                    StartGate.Instance?.ShowCount(lSteps[i], Color.white);
+                    _hud.ShowCount(lSteps[i], false);
+                    HSJuice.Play(JuiceId.CountdownTick, _player.transform.position);
+                    yield return new WaitForSeconds(COUNT_STEP);
+                }
             }
             BeginRace();
+        }
+
+        // The footsteps' surface for a decor.
+        private static string StepSurface(DecorKind pDecor)
+        {
+            switch (pDecor)
+            {
+                case DecorKind.Desert: return "sand";
+                case DecorKind.Ice: return "snow";
+                case DecorKind.Canyon:
+                case DecorKind.Volcano: return "rock";
+                case DecorKind.City:
+                case DecorKind.Industrial:
+                case DecorKind.Castle: return "stone";
+                case DecorKind.Space:
+                case DecorKind.Void:
+                case DecorKind.Night:
+                case DecorKind.Neon: return "energy";
+                default: return "grass";
+            }
         }
 
         // Runs unseen under the transition : the world's stems decoded off the main thread, one of each burst drawn

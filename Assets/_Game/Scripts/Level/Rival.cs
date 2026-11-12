@@ -113,8 +113,17 @@ namespace Com.IsartDigital.Hyperspeed
             // Its own pace, only gently bent by the race : a little quicker when you are far ahead (it stays in the
             // fight), a little slower when it leads. It never copies your speed and never waits for you : beating it
             // by a lot really means you were much faster, and that is what the rank reads.
-            // On a light highway the rival runs at the highway's pace (Light itself at light speed, the chasers a little under).
-            float lBase = pLayout.profile.LightEnabled && pLayout.InHighway(distance) ? pLayout.profile.lightSpeed * (chaser ? 0.55f : 0.92f) : speed;
+            // On a light highway the rival runs at the highway's pace : Light itself at 85 % of light speed ; the chasers just under
+            // the highway's stream (40 %), so whoever missed the light is not caught for it, only left without a lead.
+            float lBase = speed;
+            float lHighwayEnd = pLayout.profile.LightEnabled ? pLayout.HighwayEnd(distance) : -1f;
+            if (lHighwayEnd > 0f)
+            {
+                // Brakes over the highway's last 1.5 s of light, like the runner.
+                float lBrake = pLayout.profile.lightSpeed * 1.5f;
+                float lHigh = pLayout.profile.lightSpeed * (chaser ? 0.36f : 0.85f);
+                lBase = Mathf.Lerp(Mathf.Max(speed, pLayout.profile.hyperEnter * 1.2f), lHigh, HSMath.Smooth(Mathf.Clamp01((lHighwayEnd - distance) / lBrake)));
+            }
             float lWanted = lBase * Mathf.Clamp(1f + (lGap - lTarget) / (lCruise * 2.4f), chaser ? 0.85f : 0.88f, chaser ? 1.3f : 1.08f);
             float lBefore = _rate;
             _rate = Mathf.MoveTowards(_rate, lWanted, Mathf.Max(lCruise * 2.2f, Mathf.Abs(lWanted - _rate) * 1.5f) * pDt);

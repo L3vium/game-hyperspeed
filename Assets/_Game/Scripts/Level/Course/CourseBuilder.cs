@@ -32,6 +32,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         private struct StripDef { public float s, lateral, halfWidth, up; }
         private struct RopeDef { public float s0, s1, lateral, height0, height1; public bool sky; }
+        private struct LoopDef { public float s0, s1, lateral, drift, radius, advance, lead; }
         private struct MeteorDef { public float s; public bool fromSky; public float radius; public float lateral; }
         private struct PadDef { public float s, lateral, width, length, boost; }
         private struct RingDef { public float s, lateral, height, radius; public bool line; }
@@ -58,6 +59,7 @@ namespace Com.IsartDigital.Hyperspeed
         private readonly List<TrackBlock> _blocks = new List<TrackBlock>();
         private readonly List<StripDef> _strips = new List<StripDef>();
         private readonly List<RopeDef> _ropes = new List<RopeDef>();
+        private readonly List<LoopDef> _loops = new List<LoopDef>();
         private readonly List<MeteorDef> _meteors = new List<MeteorDef>();
         private readonly List<PadDef> _pads = new List<PadDef>();
         private readonly List<RingDef> _rings = new List<RingDef>();
@@ -492,6 +494,7 @@ namespace Com.IsartDigital.Hyperspeed
                 float lLength = M(Rand(0.8f, 1.9f) / pDensity);
                 float lNarrow = lHalf * Rand(0.55f, 0.95f);
                 float lTilt = Rand(-1f, 1f) * Cap(6f, 10f, 14f);
+                if (_s + lLength >= lEnd) lTilt = 0f;
                 lDrop = Mathf.Max(lDrop, StepDown(lPrevDrop, lPrevOffset, lPrevHalf, lPrevTilt, lOffset, lNarrow, lTilt));
                 TrackBlock lBlock = Open(BlockLook.Slab, 0f, lNarrow, lOffset, lDrop, lTilt, Rand(60f, 140f));
                 lPrevDrop = lDrop;
@@ -846,6 +849,7 @@ namespace Com.IsartDigital.Hyperspeed
                 float lLength = M(Rand(1f, 2f));
                 float lNarrow = lHalf * Rand(0.45f, 0.8f);
                 float lTilt = Rand(Cap(4f, 8f, 10f), Cap(8f, 12f, 14f)) * (Chance(0.5f) ? 1f : -1f);
+                if (_s + lLength >= lEnd) lTilt = 0f;
                 lDrop = Mathf.Max(lDrop, StepDown(lPrevDrop, lPrevOffset, lPrevHalf, lPrevTilt, lOffset, lNarrow, lTilt));
                 Open(BlockLook.Slab, 0f, lNarrow, lOffset, lDrop, lTilt, Rand(70f, 150f));
                 lPrevDrop = lDrop;
@@ -924,6 +928,34 @@ namespace Com.IsartDigital.Hyperspeed
         public CourseBuilder Sky(float pSeconds, int pLevel = 0, Side pSide = Side.Right, int pStyle = -1)
         {
             _lanes.Add(new LaneDef { s0 = _s, s1 = _s + M(pSeconds), lateral = (int)pSide * _halfWidth * Rand(0.2f, 0.4f), level = pLevel, style = pStyle });
+            return this;
+        }
+
+        // Side loop (2026-11-12) : beside the line an electric rope runs along the ground, winds up into a vertical loop
+        // and comes back down further on. Catch it as you pass, ride the loop upside down, get thrown out ahead with a
+        // boost (a step of the chain). Built on a straight flat stretch, with no random draw : the rest of the stage keeps
+        // the choices it had.
+        public CourseBuilder SideLoop(Side pSide = Side.Right)
+        {
+            _module = "SideLoop";
+            float lRadius = Mathf.Clamp(_p.cruise * 0.22f, 30f, 110f);
+            float lAdvance = lRadius * 0.45f;
+            float lLead = Mathf.Max(90f, _p.cruise * 0.4f);
+            float lLoop = lAdvance * Mathf.PI * 2f;
+            if (_open == null || _open.look == BlockLook.Slab || _open.look == BlockLook.Pipe || _open.look == BlockLook.Plaza
+                || Mathf.Abs(_open.drop) > 0.01f || Mathf.Abs(_open.tilt) > 0.01f)
+                Open(BlockLook.Road, 0f, -1f, 0f, 0f, 0f, 30f);
+            float lLateral = _open.offset + (int)pSide * _open.halfWidth * 0.5f;
+            float lDrift = -(int)pSide * Mathf.Min(lRadius * 0.4f, _open.halfWidth * 0.3f);
+            // A straight run-up to line up with the rope, the rope, a short run-out.
+            float lApproach = _s;
+            float lS0 = _s + M(1.2f);
+            float lS1 = lS0 + lLead * 2f + lLoop;
+            Span(lS1 + M(0.3f) - _s);
+            _loops.Add(new LoopDef { s0 = lS0, s1 = lS1, lateral = lLateral, drift = lDrift, radius = lRadius, advance = lAdvance, lead = lLead });
+            Route(lApproach, lS0 + lLead, lLateral);
+            Route(lS0 + lLead + 1f, _s, lLateral + lDrift);
+            NoPads(lApproach, _s);
             return this;
         }
 
@@ -1276,6 +1308,7 @@ namespace Com.IsartDigital.Hyperspeed
                     lItems.Add(new ItemData { kind = ItemKind.Prop, s = lProp.s, lateral = lProp.lateral, width = lProp.width, length = lProp.length, height = lProp.height, value = lProp.lean, variant = lProp.palette, jitter = Rand(-14f, 14f), rough = Rand(0.12f, 0.3f) });
                 foreach (StripDef lStrip in _strips) lItems.Add(new ItemData { kind = ItemKind.Strip, s = lStrip.s, lateral = lStrip.lateral, width = lStrip.halfWidth, value = lStrip.up });
                 foreach (RopeDef lRope in _ropes) lItems.Add(new ItemData { kind = ItemKind.Rope, s = lRope.s0, s1 = lRope.s1, lateral = lRope.lateral, height = lRope.height0, height1 = lRope.height1, flag = lRope.sky });
+                foreach (LoopDef lLoop in _loops) lItems.Add(new ItemData { kind = ItemKind.LoopRope, s = lLoop.s0, s1 = lLoop.s1, lateral = lLoop.lateral, value = lLoop.drift, size = lLoop.radius, length = lLoop.advance, width = lLoop.lead });
                 foreach (RingDef lRing in _rings) lItems.Add(new ItemData { kind = ItemKind.Ring, s = lRing.s, lateral = lRing.lateral, height = lRing.height, size = lRing.radius, flag = lRing.line });
                 foreach (KickerDef lKicker in _kickers) lItems.Add(new ItemData { kind = ItemKind.Kicker, s = lKicker.s0, s1 = lKicker.s1, lateral = lKicker.lateral, width = lKicker.halfWidth, height = lKicker.height, value = lKicker.up });
                 foreach (DeckPadDef lPad in _deckPads) lItems.Add(new ItemData { kind = ItemKind.DeckPad, s = lPad.s, lateral = lPad.lateral, height = lPad.height, width = lPad.width, length = lPad.length, value = lPad.boost });

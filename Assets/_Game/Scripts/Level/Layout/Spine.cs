@@ -104,7 +104,10 @@ namespace Com.IsartDigital.Hyperspeed
             float lBestSqr = float.MaxValue;
             for (int i = lStart; i <= lEnd; i++)
             {
-                float lSqr = (pPosition - samples[i].position).sqrMagnitude;
+                // Out of the loops, height counts for little : a runner on a deck 500 m above the line, or on a slab
+                // far below it, is where it is along the line, not stuck at the top of the next drop (2026-11-12).
+                Vector3 lDelta = pPosition - samples[i].position;
+                float lSqr = samples[i].localGravity ? lDelta.sqrMagnitude : lDelta.x * lDelta.x + lDelta.z * lDelta.z + lDelta.y * lDelta.y * 0.04f;
                 if (lSqr < lBestSqr)
                 {
                     lBestSqr = lSqr;
@@ -112,8 +115,8 @@ namespace Com.IsartDigital.Hyperspeed
                 }
             }
             SpineSample lSample = samples[lBest];
-            Vector3 lDelta = pPosition - lSample.position;
-            float lAlong = Mathf.Clamp(Vector3.Dot(lDelta, lSample.forward), -STEP, STEP);
+            Vector3 lOffset = pPosition - lSample.position;
+            float lAlong = Mathf.Clamp(Vector3.Dot(lOffset, lSample.forward), -STEP, STEP);
             float lS = lSample.s + lAlong;
             SpineSample lAt = Evaluate(lS);
             pLateral = Vector3.Dot(pPosition - lAt.position, lAt.Right);
