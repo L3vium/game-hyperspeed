@@ -96,7 +96,7 @@ namespace Com.IsartDigital.Hyperspeed
             AddRow(_main, -1, lLeft++, "WIDE ANGLE", () => OnOff(GameSession.WideAngle), d =>
             {
                 GameSession.WideAngle = !GameSession.WideAngle;
-                if (PanoramaRig.Active != null) PanoramaRig.Active.SetEnabled(GameSession.WideAngle);
+                // The rig opens the wide view by itself at light speed when the setting allows it.
             });
             AddRow(_main, -1, lLeft++, "CAMERA DISTANCE", () => Mathf.RoundToInt(GameSession.CameraDistance * 100f) + "%", d => GameSession.CameraDistance += d * 0.1f);
             if (pCredits) AddRow(_main, -1, lLeft++, "CREDITS", () => ">>", d => ShowPage(_credits), true);

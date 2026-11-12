@@ -15,10 +15,11 @@ namespace Com.IsartDigital.Hyperspeed
         private const float BOLT_TIME = 0.55f;
         private const int HISTORY = 64;
 
-        // Core diameter, halo diameter, streak width per mode (None, Rope, Hyper, Light).
-        private static readonly float[] CORE = { 0f, 5f, 12f, 22f };
-        private static readonly float[] HALO = { 0f, 14f, 36f, 64f };
-        private static readonly float[] STREAK = { 0f, 6f, 16f, 30f };
+        // Core diameter, halo diameter, streak width per mode (None, Rope, Hyper, Light). 2026-11-12 : smaller, it sat in the
+        // middle of the screen and hid the track ahead.
+        private static readonly float[] CORE = { 0f, 4f, 7f, 13f };
+        private static readonly float[] HALO = { 0f, 10f, 20f, 38f };
+        private static readonly float[] STREAK = { 0f, 5f, 11f, 22f };
         private static readonly float[] SPARKS = { 0f, 90f, 160f, 320f };
         private static readonly Color[] TINT = { Color.white, new Color(0.7f, 1.6f, 3.2f), new Color(0.9f, 1.8f, 3.4f), new Color(2.4f, 2.6f, 3.4f) };
 

@@ -8,7 +8,8 @@ namespace Com.IsartDigital.Hyperspeed
     // gap so two never stack in the same instant. Nothing on the title or the menus : no race, no frame.
     public static class Impacts
     {
-        private const float GAP = 0.1f;
+        // At most one impact frame every half second (2026-11-12 : far too many of them).
+        private const float GAP = 0.5f;
 
         private static readonly float[] COOLDOWN = { 0f, 1.5f, 0f, 0.12f, 0.35f, 0.3f, 0.5f };
         private static readonly float[] _last = new float[COOLDOWN.Length];
@@ -33,6 +34,9 @@ namespace Com.IsartDigital.Hyperspeed
         public static void Request(ImpactReason pReason, Vector3? pWorldPoint, float pStrength, int pInkFrames)
         {
             if (!RaceContext.Running && pReason != ImpactReason.Finish) return;
+            // Never in the final sprint, never while already at light speed (only the entry into light gets one).
+            if (RaceContext.Climax) return;
+            if (pReason != ImpactReason.LightSpeed && RaceContext.Player != null && RaceContext.Player.LightForm) return;
             float lNow = Time.unscaledTime;
             int lIndex = (int)pReason;
             if (lNow - _last[lIndex] < COOLDOWN[lIndex]) return;

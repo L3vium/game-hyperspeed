@@ -27,9 +27,11 @@ namespace Com.IsartDigital.Hyperspeed
         // How far the focus may trail behind the runner along the view's up (bumps are filtered, long falls are not).
         private const float FOCUS_VERTICAL_LAG = 5f;
         private const float FOV_RATE = 140f;
-        // Room for the juice : a pad or a dash may kick the FOV and throw the camera back a long way.
-        private const float KICK_MAX = 45f;
-        private const float LAG_MAX = 70f;
+        // Room for the juice (back to 600da29's : a kick is felt, the runner never leaves the frame).
+        private const float KICK_MAX = 16f;
+        private const float LAG_MAX = 26f;
+        // Never closer than this to the track surface on the runner's side (analytic guard, no raycast).
+        private const float FLOOR_CLEARANCE = 2.5f;
 
         public static CameraRig Instance { get; private set; }
 
@@ -200,15 +202,75 @@ namespace Com.IsartDigital.Hyperspeed
         {
             float lDistance = (freeLook ? 14f : BackDistance(pSpeed) + _lag) * distanceScale * UserScale;
             float lHeight = (freeLook ? 4f : UpHeight(pSpeed)) * distanceScale * UserScale;
-            // In a loop the view keeps its distance and rises a little : it stays inside the curve without coming close.
-            lHeight *= Mathf.Lerp(1f, 1.25f, _curl);
+            // In a loop the view tucks in close and rises toward the centre : it always stays inside the curve.
+            lDistance *= Mathf.Lerp(1f, 0.42f, _curl);
+            lHeight *= Mathf.Lerp(1f, 1.6f, _curl);
             return _focus + _up * lHeight - _look * lDistance;
         }
 
         private Vector3 LookPoint(float pSpeed)
         {
             float lAhead = (freeLook ? 14f : BackDistance(pSpeed)) * 0.25f * distanceScale;
-            return _focus + _up * Mathf.Lerp(1.2f, 2.5f, pSpeed) * distanceScale + _look * lAhead;
+            Vector3 lPoint = _focus + _up * Mathf.Lerp(1.2f, 2.5f, pSpeed) * distanceScale + _look * lAhead;
+            return lPoint + _up * _aheadDrop;
+        }
+
+        // What is ahead must be seen (2026-11-12) : when the track drops away in front (a crest, a dive, a step down) the
+        // view tilts down onto it, a little up on a climb. Smoothed, never during free look or inside loops.
+        private float _aheadDrop;
+
+        private void UpdateAhead(float pDt)
+        {
+            float lWanted = 0f;
+            if (_player != null && _layout != null && !freeLook && _curl < 0.05f && _layout.field != null)
+            {
+                float lAhead = Mathf.Max(60f, _player.Speed * 0.9f);
+                Vector3 lGround = _layout.GroundPoint(_player.Progress + lAhead, _player.Lateral);
+                float lDelta = Vector3.Dot(lGround - _focus, _up);
+                lWanted = lDelta < 0f ? Mathf.Max(lDelta * 0.4f, -lAhead * 0.35f) : Mathf.Min(lDelta * 0.15f, 20f);
+            }
+            _aheadDrop = Mathf.Lerp(_aheadDrop, lWanted, 1f - Mathf.Exp(-3f * pDt));
+        }
+
+        // Analytic guard (2026-11-12 : the view went through the floor in loops) : wherever the camera is above the
+        // track's footprint, it stays at least FLOOR_CLEARANCE on the runner's side of the surface there, at once. Inside a
+        // loop "the runner's side" is the inside of the loop.
+        private Vector3 KeepOnRunnerSide(Vector3 pPosition)
+        {
+            if (_player == null || _layout == null || _layout.field == null || freeLook) return pPosition;
+            float lS = NearestS(pPosition, _player.Progress);
+            TrackBlock lBlock = _layout.field.BlockAt(lS);
+            if (lBlock == null) return pPosition;
+            Vector3 lNormal = _layout.field.Normal(lS);
+            SpineSample lSample = _layout.spine.Evaluate(lS);
+            float lLateral = Vector3.Dot(pPosition - lSample.position, lSample.Right);
+            if (Mathf.Abs(lLateral - lBlock.offset) > lBlock.halfWidth + 4f) return pPosition;
+            Vector3 lFloor = _layout.GroundPoint(lS, lLateral);
+            float lHeight = Vector3.Dot(pPosition - lFloor, lNormal);
+            // Only a camera that crossed the surface (or skims it) is pushed : a camera far below a deck it never
+            // crossed (the runner is under it too) is left alone.
+            float lRunnerHeight = Vector3.Dot(_focus - _layout.GroundPoint(_player.Progress, _player.Lateral), _layout.field.Normal(_player.Progress));
+            if (lRunnerHeight < -1f) return pPosition;
+            if (lHeight < FLOOR_CLEARANCE && lHeight > -60f) pPosition += lNormal * (FLOOR_CLEARANCE - lHeight);
+            return pPosition;
+        }
+
+        // Spine distance closest to a point, searched from the runner backward and a little forward.
+        private float NearestS(Vector3 pPosition, float pHintS)
+        {
+            float lBest = pHintS;
+            float lBestDistance = float.MaxValue;
+            for (float lS = pHintS - 400f; lS <= pHintS + 60f; lS += 8f)
+            {
+                float lDistance = (_layout.spine.Evaluate(lS).position - pPosition).sqrMagnitude;
+                if (lDistance < lBestDistance) { lBestDistance = lDistance; lBest = lS; }
+            }
+            for (float lS = lBest - 8f; lS <= lBest + 8f; lS += 1f)
+            {
+                float lDistance = (_layout.spine.Evaluate(lS).position - pPosition).sqrMagnitude;
+                if (lDistance < lBestDistance) { lBestDistance = lDistance; lBest = lS; }
+            }
+            return lBest;
         }
 
         // Follows the runner exactly along the ground, but filters its height : bumps and steps are smoothed out.
@@ -263,6 +325,8 @@ namespace Com.IsartDigital.Hyperspeed
             _punch += _punchVelocity * lUnscaled;
             _roll = Mathf.Lerp(_roll, target.CameraRoll, 1f - Mathf.Exp(-6f * lDt));
             _dive = Mathf.Lerp(_dive, target.Dive01, 1f - Mathf.Exp(-5f * lDt));
+            UpdateAhead(lDt);
+            UpdateWideMode();
 
             Vector3 lDesired = DesiredPosition(lSpeed);
             Vector3 lLook = LookPoint(lSpeed);
@@ -302,6 +366,7 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lPosition = _base + lRotation * (lShakeOffset + lWindOffset);
             lRotation *= lShakeRot * lWindRot * Quaternion.Euler(_punch);
             lPosition = KeepAboveSurface(lPosition, lDt);
+            if (!_finishMode) lPosition = KeepOnRunnerSide(lPosition);
 
             float lHyperB = HSMath.Smooth(_hyperBlend);
             float lLightB = HSMath.Smooth(_lightBlend);
@@ -338,6 +403,23 @@ namespace Com.IsartDigital.Hyperspeed
                 lProjection[0, 2] = lensShiftX;
                 Cam.projectionMatrix = lProjection;
             }
+        }
+
+        // The wide view (past 180 degrees) only at light speed (2026-11-12) : normal and hyper use the classic perspective
+        // camera, exactly like build 600da29. The switch happens under the light-entry flash, starting at the horizontal FOV
+        // equivalent to the classic one so nothing jumps, then it opens up.
+        private void UpdateWideMode()
+        {
+            PanoramaRig lRig = PanoramaRig.Active;
+            if (lRig == null || lRig.Main != Cam) return;
+            bool lWanted = GameSession.WideAngle && _lightBlend > 0.001f && !_finishMode && _overrideBlend < 0.5f && !freeLook;
+            if (lWanted == lRig.On) return;
+            if (lWanted)
+            {
+                _hfov = ProjectionMath.EquivalentHFov(_fov, Cam.aspect, _shape);
+                _hfovVelocity = 0f;
+            }
+            lRig.SetEnabled(lWanted);
         }
 
         private void ApplyWide(float pHFov)

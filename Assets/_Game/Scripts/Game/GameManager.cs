@@ -167,6 +167,8 @@ namespace Com.IsartDigital.Hyperspeed
             FX.Shockwave(lAhead, Vector3.up, Color.white, 4f, 0.2f);
             yield return null;
             yield return null;
+            // The wide view only opens at light speed : render it once now so that first opening costs nothing.
+            if (PanoramaRig.Active != null && GameSession.WideAngle) yield return StartCoroutine(PanoramaRig.Active.WarmUp());
             while (!AudioManager.MusicLayersReady(lMusic) && Time.realtimeSinceStartup - lStart < 4f) yield return null;
             Debug.Log("[HS-LOAD] warm-up " + ((Time.realtimeSinceStartup - lStart) * 1000f).ToString("F0") + " ms");
             SceneTransition.Release();
@@ -247,9 +249,11 @@ namespace Com.IsartDigital.Hyperspeed
                 _hud.Notify("FINAL SPRINT", UIFactory.YELLOW);
                 HSJuice.Play(JuiceId.FinalSprint, _player.transform.position);
             }
+            RaceContext.Climax = lIn;
+            // 2026-11-12 : the bars are far more present in the last sprint (a cinema frame, 11-15 % per side).
             float lNeck = Mathf.Clamp01(1f - Mathf.Abs(_rival.Gap) / (_layout.profile.cruise * 1.2f));
-            PostFX.Instance.letterbox = lIn ? Mathf.Lerp(0.1f, 0.16f, lNeck) : 0f;
-            PostFX.Instance.intensity = lIn ? Mathf.Lerp(0.35f, 0.8f, lNeck) : 0f;
+            PostFX.Instance.letterbox = lIn ? Mathf.Lerp(0.22f, 0.3f, lNeck) : 0f;
+            PostFX.Instance.intensity = lIn ? Mathf.Lerp(0.5f, 0.9f, lNeck) : 0f;
         }
 
         private string CaughtWord()

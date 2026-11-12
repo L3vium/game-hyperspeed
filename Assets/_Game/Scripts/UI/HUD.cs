@@ -217,13 +217,15 @@ namespace Com.IsartDigital.Hyperspeed
         // Juice events snap the screen speed lines toward the centre (they ease back out by themselves).
         public static void LinesBurst(float pAmount) => _externalBurst = Mathf.Max(_externalBurst, Mathf.Clamp01(pAmount));
 
+        private float _lineLight;
+
         private void Update()
         {
             float lDt = Time.unscaledDeltaTime;
             if (_player != null)
             {
                 // A calm base that grows with speed (the wide view must stay readable) ; the kicks snap them in hard.
-                float lTarget = 0.05f + Mathf.Pow(_player.Speed01, 1.3f) * 0.45f + (_player.LightForm ? 0.12f : 0f) + (_player.Dashing ? 0.1f : 0f) + _player.BoostAmount * 0.1f + _player.Dive01 * 0.2f
+                float lTarget = 0.05f + Mathf.Pow(_player.Speed01, 1.3f) * 0.45f + (_player.LightForm ? 0.35f : 0f) + (_player.Dashing ? 0.1f : 0f) + _player.BoostAmount * 0.1f + _player.Dive01 * 0.2f
                                 + (_player.Hyper ? HSSpeedStateLook.Get(SpeedState.Hyper).speedLines : 0f) + (_player.LightForm ? HSSpeedStateLook.Get(SpeedState.Light).speedLines : 0f);
                 _lineIntensity = Mathf.Lerp(_lineIntensity, Mathf.Clamp01(lTarget), 1f - Mathf.Exp(-7f * lDt));
                 // Every new kick : the streaks snap toward the centre, then ease back out over 0.4 s.
@@ -237,6 +239,9 @@ namespace Com.IsartDigital.Hyperspeed
                 _speedLinesMaterial.SetFloat("_Boost", lBoost);
                 _speedLinesMaterial.SetFloat("_Burst", _lineBurst * _lineBurst);
                 _speedLinesMaterial.SetColor("_LineColor", new Color(0.9f, 0.95f, 1f, 0.95f));
+                _lineLight = Mathf.MoveTowards(_lineLight, _player.LightForm ? 1f : 0f, lDt * 1.5f);
+                _speedLinesMaterial.SetFloat("_Light", _lineLight);
+                if (RaceContext.Theme != null) _speedLinesMaterial.SetColor("_Accent", RaceContext.Theme.accent);
                 UpdateRail();
                 UpdateRivalPointer();
                 UpdateHints(lDt);

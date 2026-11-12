@@ -96,6 +96,12 @@ namespace Com.IsartDigital.Hyperspeed
         private Vector2 _leanVelocity;
         private bool _pendingWin;
         private PlayerLightBall _ball;
+        private RopeSpark _ropeSpark;
+        private static readonly int AURA_COLOR = Shader.PropertyToID("_Color");
+        private static readonly int AURA_TIP = Shader.PropertyToID("_TipColor");
+        private static readonly int AURA_NOISE_SPEED = Shader.PropertyToID("_NoiseSpeed");
+        private static readonly int AURA_PUSH = Shader.PropertyToID("_Push");
+        private bool _auraElectric;
         private Transform _upperArmL, _lowerArmL, _handL, _upperArmR, _lowerArmR, _handR;
         private Vector3 _headForward = Vector3.forward;
 
@@ -741,7 +747,7 @@ namespace Com.IsartDigital.Hyperspeed
             bool lSkid = _player.Drifting && lState == PlayerState.Ground;
             _skidL.emitting = lSkid;
             _skidR.emitting = lSkid;
-            if (lState == PlayerState.Grind) EmitFootSparks(UIFactory.YELLOW, 2);
+            if (lState == PlayerState.Grind) EmitFootSparks(new Color(0.5f, 0.9f, 1f), 3);
             if (_player.Drifting) EmitDriftSparks();
         }
 
@@ -994,14 +1000,15 @@ namespace Com.IsartDigital.Hyperspeed
             _coneInnerMaterial.SetColor("_Color", new Color(2.6f, 2.6f, 3f, 0.9f * _coneAmount));
         }
 
-        // On a rope, in hyper and at light speed the runner is a ball of light (bigger each time).
+        // In hyper and at light speed the runner is a ball of light. On a rope it stays itself, wrapped in electricity
+        // (RopeSpark and the electric aura, 2026-11-12).
         private BallMode WantedBall()
         {
             PlayerState lState = _player.State;
             if (lState == PlayerState.Dead || lState == PlayerState.Frozen || lState == PlayerState.Finished) return BallMode.None;
+            if (lState == PlayerState.Grind) return BallMode.None;
             if (_player.LightForm) return BallMode.Light;
             if (_player.Hyper) return BallMode.Hyper;
-            if (lState == PlayerState.Grind) return BallMode.Rope;
             return BallMode.None;
         }
 
@@ -1012,6 +1019,9 @@ namespace Com.IsartDigital.Hyperspeed
                 _ball = PlayerLightBall.Create(transform);
                 _lightWake = LightTrail.Create();
             }
+            if (_ropeSpark == null) _ropeSpark = RopeSpark.Create(transform);
+            bool lOnRope = _player.State == PlayerState.Grind;
+            _ropeSpark.Tick(lOnRope, transform.position - transform.up * 1.35f, Time.deltaTime);
             BallMode lMode = WantedBall();
             bool lWant = lMode != BallMode.None;
             if (lWant != _lightOn)
@@ -1027,7 +1037,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (!lWant) return;
             _ball.Tick(Time.deltaTime, _player.Speed01, _player.OnGroundVelocity);
             if (lMode == BallMode.Rope) return;
-            _lightWake.SetWidth(lMode == BallMode.Light ? 4f : 2.4f);
+            _lightWake.SetWidth(lMode == BallMode.Light ? 3f : 1.2f);
             _lightWake.Add(transform.position, transform.right, transform.up);
         }
 
@@ -1079,7 +1089,17 @@ namespace Com.IsartDigital.Hyperspeed
         private void UpdateAura(float pDt, float pSpeed)
         {
             if (_auraMaterial == null) return;
-            float lTarget = _player.Hyper ? 1f : Mathf.Max(_player.BoostAmount * 0.55f, _player.Dashing ? 0.7f : 0f);
+            bool lElectric = _player.State == PlayerState.Grind;
+            if (lElectric != _auraElectric)
+            {
+                // On a rope : white-cyan electricity crawling fast over the body.
+                _auraElectric = lElectric;
+                _auraMaterial.SetColor(AURA_COLOR, lElectric ? new Color(1.4f, 2.6f, 4.2f, 1f) : new Color(0.4f, 1.4f, 2.2f, 1f));
+                _auraMaterial.SetColor(AURA_TIP, lElectric ? new Color(3f, 3.4f, 4.5f, 1f) : new Color(2.2f, 0.6f, 1.8f, 1f));
+                _auraMaterial.SetFloat(AURA_NOISE_SPEED, lElectric ? 14f : 3f);
+                _auraMaterial.SetFloat(AURA_PUSH, lElectric ? 0.09f : 0.04f);
+            }
+            float lTarget = lElectric ? 1.4f : _player.Hyper ? 1f : Mathf.Max(_player.BoostAmount * 0.55f, _player.Dashing ? 0.7f : 0f);
             if (_player.State == PlayerState.Dead || _player.State == PlayerState.Frozen) lTarget = 0f;
             _aura = Mathf.MoveTowards(_aura, lTarget, pDt * (lTarget > _aura ? 4f : 1.5f));
             _auraDeploy = Mathf.MoveTowards(_auraDeploy, 1f, pDt / 0.35f);

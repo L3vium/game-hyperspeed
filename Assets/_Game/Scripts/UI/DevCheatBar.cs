@@ -3,7 +3,7 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // Dev build only : the digit-key cheats as a readable vertical list on the right edge, one row per key
+    // Dev build only : the digit-key cheats as a readable vertical list on the left edge, one row per key
     // (key cap + name). A row lights up gold while its cheat is on, or flashes when it fires.
     public class DevCheatBar : MonoBehaviour
     {
@@ -35,8 +35,9 @@ namespace Com.IsartDigital.Hyperspeed
         {
             int lCount = KEYS.Length;
             float lHeight = ROW * lCount + 56f;
-            Vector2 lAnchor = new Vector2(1f, 0.5f);
-            float lCenterX = -RIGHT - WIDTH * 0.5f;
+            // Left edge, centred : the race rail lives on the right, the speedometer at the bottom left.
+            Vector2 lAnchor = new Vector2(0f, 0.5f);
+            float lCenterX = RIGHT + WIDTH * 0.5f;
 
             UIShape lPanel = UIKit.Tile(pRoot, "CheatPanel", new Color(UIKit.INK.r, UIKit.INK.g, UIKit.INK.b, 0.72f), lAnchor, new Vector2(lCenterX, 0f), new Vector2(WIDTH, lHeight), 0f);
             lPanel.raycastTarget = false;

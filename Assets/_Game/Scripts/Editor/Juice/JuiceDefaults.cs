@@ -97,16 +97,16 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     break;
                 case JuiceId.Dash:
                 case JuiceId.DashAir:
-                    p.Hitstop(0.035f);
+                    // 2026-11-12 : no freeze, no impact frame, no full-screen flash on routine actions : the kick is told
+                    // by the lines, the edges, a short FOV punch, the shock in the world and the sound.
                     p.Sounds(1f, "sfx_dash_1", "sfx_dash_2", "sfx_dash_3");
-                    p.Fov(22f);
-                    p.Rollback(24f);
-                    p.Punch(new Vector3(-2.5f, 0f, 4f));
-                    p.Shake(0.4f);
-                    p.Screen(2.4f, 1.3f, 0.9f, 0.25f, 0.3f, 20f, 0.5f);
-                    p.Flash(Color.white, 0.18f);
+                    p.Fov(12f);
+                    p.Rollback(10f);
+                    p.Punch(new Vector3(-1.5f, 0f, 2.5f));
+                    p.Shake(0.18f);
+                    p.Screen(1.4f, 0.8f, 0.6f, 0.1f, 0.2f, 12f, 0.4f);
+                    p.Vignette(Color.white, 0.45f);
                     p.Lines(1f);
-                    p.Impact(ImpactReason.Dash, false, 2, 0.55f);
                     p.Body(0f, 3.4f, 0.6f);
                     p.FX(HSFXKind.Shockwave, HSColorSource.Fixed, Color.white, 1, 26f, 0f, 0.28f, HSDirection.ContextDirection);
                     p.FX(HSFXKind.Sparks, HSColorSource.Fixed, Color.white, 50, 8f, 55f, 0.35f, HSDirection.ContextDirection);
@@ -130,11 +130,10 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     p.FX(HSFXKind.Shockwave, HSColorSource.ThemeDust, Color.white, 1, 34f, 0f, 0.35f, HSDirection.ContextNormal);
                     break;
                 case JuiceId.Launch:
-                    p.Hitstop(0.03f);
                     p.Sound("sfx_launch", 1f);
-                    p.Fov(18f);
-                    p.Rollback(18f);
-                    p.Shake(0.38f);
+                    p.Fov(12f);
+                    p.Rollback(10f);
+                    p.Shake(0.2f);
                     p.Screen(1.4f, 0.9f, 0.6f, 0.15f, 0.2f, 15f, 0.5f);
                     p.Lines(0.9f);
                     p.Body(3.4f, 0f, 0.4f);
@@ -148,9 +147,8 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     p.Shake(0.06f).IntensityRemap = new Vector2(0.3f, 2f);
                     break;
                 case JuiceId.LandHard:
-                    p.Hitstop(0.04f).IntensityRemap = new Vector2(0.4f, 1.3f);
                     p.Sound("sfx_land_heavy", 0.95f);
-                    p.Shake(0.5f).IntensityRemap = new Vector2(0.4f, 1.5f);
+                    p.Shake(0.3f).IntensityRemap = new Vector2(0.4f, 1.5f);
                     p.Punch(new Vector3(5f, 0f, 2f)).IntensityRemap = new Vector2(0.4f, 1.4f);
                     p.Fov(8f);
                     p.Screen(1f, 0.5f, 0.5f, 0.1f, 0.15f, 0f, 0.35f);
@@ -163,18 +161,15 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     p.Rumble(0.6f).IntensityRemap = new Vector2(0.4f, 1.2f);
                     break;
                 case JuiceId.DiveLanding:
-                    p.Hitstop(0.05f);
-                    p.SlowMo(0.35f, 0.25f, 0.055f);
                     p.Sound("sfx_land_perfect", 1f);
                     p.Sound("sfx_boost", 0.7f).Pitch = 0.9f;
-                    p.Fov(26f);
-                    p.Rollback(30f);
-                    p.Punch(new Vector3(7f, 0f, 3f));
-                    p.Shake(0.65f);
-                    p.Flash(Color.white, 0.25f);
-                    p.Screen(2.6f, 1.5f, 1.1f, 0.3f, 0.35f, 25f, 0.6f);
+                    p.Fov(14f);
+                    p.Rollback(14f);
+                    p.Punch(new Vector3(4f, 0f, 2f));
+                    p.Shake(0.35f);
+                    p.Vignette(CYAN, 0.7f);
+                    p.Screen(1.8f, 1.1f, 0.9f, 0.15f, 0.25f, 18f, 0.5f);
                     p.Lines(1f);
-                    p.Impact(ImpactReason.Big, false, 2, 0.7f);
                     p.Body(-2.8f, 3f, 0.6f);
                     p.FX(HSFXKind.Shockwave, HSColorSource.Fixed, Color.white, 1, 95f, 0f, 0.45f, HSDirection.ContextNormal);
                     p.FX(HSFXKind.Shockwave, HSColorSource.Fixed, CYAN, 1, 64f, 0f, 0.55f, HSDirection.ContextNormal);
@@ -200,26 +195,24 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     p.Shake(0.12f);
                     break;
                 case JuiceId.RopeCatch:
-                    p.Hitstop(0.03f);
                     p.Sound("sfx_grind_start", 1f);
                     p.Sound("sfx_thunder", 0.55f).Pitch = 1.4f;
-                    p.Fov(16f);
-                    p.Rollback(14f);
-                    p.Shake(0.35f);
-                    p.Flash(CYAN, 0.25f);
-                    p.Screen(1.8f, 0.9f, 1.4f, 0.2f, 0.2f, 20f, 0.5f);
+                    p.Fov(10f);
+                    p.Rollback(8f);
+                    p.Shake(0.15f);
+                    p.Vignette(CYAN, 0.6f);
+                    p.Screen(1.4f, 0.7f, 1.1f, 0.1f, 0.15f, 15f, 0.45f);
                     p.Lines(0.8f);
-                    p.Impact(ImpactReason.Dash, false, 2, 0.5f);
                     p.FX(HSFXKind.Sparks, HSColorSource.Fixed, CYAN, 110, 9f, 70f, 0.45f, HSDirection.Random);
                     p.FX(HSFXKind.Shockwave, HSColorSource.Fixed, CYAN, 1, 46f, 0f, 0.35f, HSDirection.ContextDirection);
                     p.Rumble(0.5f);
                     break;
                 case JuiceId.RopeExit:
                     p.Sound("sfx_rope_exit", 1f);
-                    p.Fov(20f);
-                    p.Rollback(22f);
-                    p.Shake(0.42f);
-                    p.Flash(Color.white, 0.22f);
+                    p.Fov(12f);
+                    p.Rollback(10f);
+                    p.Shake(0.2f);
+                    p.Vignette(CYAN, 0.5f);
                     p.Screen(2.2f, 1.2f, 1.2f, 0.25f, 0.3f, 20f, 0.55f);
                     p.Lines(1f);
                     p.FX(HSFXKind.Shockwave, HSColorSource.Fixed, CYAN, 1, 60f, 0f, 0.4f, HSDirection.ContextDirection);
@@ -240,19 +233,15 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
 
                 // ---------------- boosts
                 case JuiceId.BoostPad:
-                    p.Hitstop(0.05f);
-                    p.SlowMo(0.45f, 0.18f, 0.055f);
                     p.Sound("sfx_pad", 1f);
                     p.Sound("sfx_impact", 0.45f);
-                    p.Fov(32f);
-                    p.Rollback(36f);
-                    p.Punch(new Vector3(-5f, 0f, 6f));
-                    p.Shake(0.55f);
-                    p.Flash(Color.white, 0.35f);
+                    p.Fov(14f);
+                    p.Rollback(16f);
+                    p.Punch(new Vector3(-3f, 0f, 3f));
+                    p.Shake(0.25f);
                     p.Vignette(CYAN, 1f);
-                    p.Screen(3.2f, 1.8f, 1.4f, 0.45f, 0.4f, 30f, 0.8f);
+                    p.Screen(2.2f, 1.4f, 1f, 0.25f, 0.3f, 22f, 0.6f);
                     p.Lines(1f);
-                    p.Impact(ImpactReason.Boost, false, 3, 0.9f);
                     p.Body(0f, 4f, 0.8f);
                     p.FX(HSFXKind.Shockwave, HSColorSource.Fixed, CYAN, 1, 72f, 0f, 0.45f, HSDirection.ContextNormal);
                     p.FX(HSFXKind.Shockwave, HSColorSource.Fixed, Color.white, 1, 40f, 0f, 0.3f, HSDirection.ContextDirection);
@@ -262,14 +251,12 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     p.Duck(0.3f);
                     break;
                 case JuiceId.Ring:
-                    p.Hitstop(0.03f);
                     p.Sound("sfx_ring", 1f);
                     p.Sound("sfx_boost", 0.6f).Pitch = 1.15f;
-                    p.Fov(22f);
-                    p.Rollback(24f);
-                    p.Shake(0.35f);
-                    p.Flash(GOLD, 0.2f);
-                    p.Vignette(GOLD, 0.6f);
+                    p.Fov(12f);
+                    p.Rollback(10f);
+                    p.Shake(0.15f);
+                    p.Vignette(GOLD, 0.7f);
                     p.Screen(2f, 1.2f, 1.2f, 0.25f, 0.25f, 20f, 0.6f);
                     p.Lines(1f);
                     p.Body(0f, 3f, 0.6f);
@@ -281,9 +268,9 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     p.Sound("sfx_boost", 0.95f);
                     p.Fov(18f);
                     p.Rollback(18f);
-                    p.Shake(0.38f);
-                    p.Flash(GOLD, 0.15f);
-                    p.Screen(1.8f, 1f, 1f, 0.2f, 0.25f, 20f, 0.55f);
+                    p.Shake(0.2f);
+                    p.Vignette(GOLD, 0.6f);
+                    p.Screen(1.6f, 0.9f, 0.9f, 0.15f, 0.2f, 18f, 0.5f);
                     p.Lines(1f);
                     p.Body(0f, 3f, 0.5f);
                     p.FX(HSFXKind.Burst, HSColorSource.Fixed, GOLD, 1, 30f, 0f, 0.3f, HSDirection.ContextDirection);
@@ -307,17 +294,16 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                 case JuiceId.BreakSmall:
                 case JuiceId.BreakBig:
                     bool lBig = pId == JuiceId.BreakBig;
-                    p.Hitstop(lBig ? 0.1f : 0.08f);
-                    p.Sound("sfx_punch_hit", 0.9f);
+                    // A tiny catch on the big ones only ; never an impact frame (they hid the track ahead).
+                    if (lBig) p.Hitstop(0.03f);
+                    p.Sound("sfx_punch_hit", 0.8f);
                     p.SoundId("sfx_break_{label}", 1f);
-                    p.Sound("sfx_freeze", 0.6f);
-                    p.Sound(lBig ? "sfx_explosion" : "sfx_impact", lBig ? 0.9f : 0.55f);
-                    p.Impact(lBig ? ImpactReason.Big : ImpactReason.Smash, true, lBig ? 3 : 2, lBig ? 1f : 0.9f);
-                    p.Shake(lBig ? 0.85f : 0.65f);
-                    p.Punch(new Vector3(-4f, 2f, 7f));
-                    p.Fov(lBig ? 22f : 16f);
-                    p.Rollback(lBig ? 20f : 14f);
-                    p.Flash(Color.white, lBig ? 0.4f : 0.3f);
+                    if (lBig) p.Sound("sfx_explosion", 0.8f);
+                    p.Shake(lBig ? 0.45f : 0.3f);
+                    p.Punch(new Vector3(-2.5f, 1f, 4f));
+                    p.Fov(lBig ? 14f : 10f);
+                    p.Rollback(lBig ? 12f : 8f);
+                    p.Vignette(Color.white, lBig ? 0.6f : 0.4f);
                     p.Screen(2.6f, 1.3f, 1.1f, 0.35f, 0.3f, 25f, 0.5f);
                     p.Lines(0.9f);
                     p.Body(0f, 3f, 0.6f);
@@ -329,25 +315,25 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     p.Duck(0.25f);
                     break;
                 case JuiceId.BodyHit:
-                    p.Hitstop(0.05f);
                     p.Sound("sfx_crash", 0.75f).Pitch = 1.2f;
-                    p.Shake(0.4f);
-                    p.Punch(new Vector3(6f, 0f, -6f));
-                    p.Flash(RED, 0.15f);
+                    p.Shake(0.3f);
+                    p.Punch(new Vector3(4f, 0f, -4f));
+                    p.Vignette(RED, 0.6f);
                     p.FX(HSFXKind.Sparks, HSColorSource.Fixed, Color.white, 30, 6f, 30f, 0.35f, HSDirection.Random);
                     break;
                 case JuiceId.PunchHit:
-                    p.Hitstop(0.07f);
+                    p.Hitstop(0.025f);
                     p.Sound("sfx_punch_hit", 1f);
                     p.Shake(0.5f);
                     p.FX(HSFXKind.Burst, HSColorSource.Fixed, ORANGE, 1, 40f, 0f, 0.3f, HSDirection.ContextDirection);
                     break;
                 case JuiceId.Crash:
-                    p.Hitstop(0.08f);
+                    p.Hitstop(0.03f);
                     p.Sound("sfx_crash", 1f);
-                    p.Shake(0.9f);
-                    p.Punch(new Vector3(8f, 4f, -10f));
-                    p.Flash(RED, 0.35f);
+                    p.Shake(0.6f);
+                    p.Punch(new Vector3(6f, 3f, -7f));
+                    p.Vignette(RED, 1f);
+                    p.Impact(ImpactReason.Big, false, 1, 0.6f);
                     p.Screen(2f, 0.6f, 0.4f, 0f, 0.2f, -40f, 0.45f);
                     p.FX(HSFXKind.Sparks, HSColorSource.Fixed, Color.white, 50, 7f, 40f, 0.4f, HSDirection.Random);
                     p.Rumble(1f);
@@ -359,13 +345,13 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     break;
                 case JuiceId.HazardHit:
                     p.Sound("sfx_hammer_hit", 1f);
-                    p.Shake(0.6f);
-                    p.Flash(RED, 0.2f);
+                    p.Shake(0.4f);
+                    p.Vignette(RED, 0.7f);
                     break;
                 case JuiceId.MeteorNear:
                     p.Sound("sfx_explosion", 1f).IntensityRemap = new Vector2(0.3f, 1f);
                     p.Shake(0.7f).IntensityRemap = new Vector2(0f, 1f);
-                    p.Flash(ORANGE, 0.2f).IntensityRemap = new Vector2(0f, 1f);
+                    p.Vignette(ORANGE, 0.8f).IntensityRemap = new Vector2(0f, 1f);
                     p.Screen(1.5f, 0.6f, 0.8f, 0.15f, 0.15f, 10f, 0.4f).IntensityRemap = new Vector2(0f, 1f);
                     p.Rumble(0.6f).IntensityRemap = new Vector2(0f, 1f);
                     break;
@@ -377,23 +363,20 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     break;
                 case JuiceId.LightningNear:
                     p.Sound("sfx_thunder", 1f).IntensityRemap = new Vector2(0.4f, 1f);
-                    p.Flash(Color.white, 0.5f).IntensityRemap = new Vector2(0f, 1f);
-                    p.Shake(0.3f).IntensityRemap = new Vector2(0f, 1f);
+                    p.Flash(Color.white, 0.2f).IntensityRemap = new Vector2(0f, 1f);
+                    p.Shake(0.2f).IntensityRemap = new Vector2(0f, 1f);
                     break;
 
                 // ---------------- speed states
                 case JuiceId.HyperEnter:
-                    p.Hitstop(0.06f);
-                    p.SlowMo(0.3f, 0.35f, 0.065f);
                     p.Sound("sfx_hyper", 1f);
                     p.Sound("sfx_impact", 0.5f);
-                    p.Flash(Color.white, 0.5f);
-                    p.Impact(ImpactReason.Big, false, 3, 1f);
-                    p.Fov(40f);
-                    p.Rollback(60f);
-                    p.Punch(new Vector3(-6f, 0f, 8f));
-                    p.Shake(0.8f);
-                    p.Screen(4f, 2.2f, 2f, 0.6f, 0.5f, 40f, 1.2f);
+                    p.Vignette(CYAN, 1f);
+                    p.Fov(16f);
+                    p.Rollback(20f);
+                    p.Punch(new Vector3(-3f, 0f, 4f));
+                    p.Shake(0.35f);
+                    p.Screen(2.6f, 1.6f, 1.4f, 0.3f, 0.4f, 30f, 0.9f);
                     p.Lines(1f);
                     p.Body(0f, 4f, 1f);
                     p.FX(HSFXKind.Shockwave, HSColorSource.Fixed, CYAN, 1, 130f, 0f, 0.6f, HSDirection.ContextNormal);
@@ -408,15 +391,15 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     p.Shake(0.15f);
                     break;
                 case JuiceId.LightEnter:
-                    p.Hitstop(0.08f);
-                    p.SlowMo(0.25f, 0.5f, 0.085f);
+                    // The one moment that still gets an impact frame : entering light (one frame ; it also hides the
+                    // switch to the wide view).
                     p.Sound("sfx_light", 1f);
                     p.Sound("sfx_impact", 0.7f);
-                    p.Flash(Color.white, 0.9f);
-                    p.Impact(ImpactReason.LightSpeed, false, 4, 1f);
-                    p.Fov(45f);
-                    p.Rollback(70f);
-                    p.Shake(1f);
+                    p.Flash(Color.white, 0.35f);
+                    p.Impact(ImpactReason.LightSpeed, false, 1, 0.6f);
+                    p.Fov(20f);
+                    p.Rollback(26f);
+                    p.Shake(0.5f);
                     p.Screen(5f, 3f, 3f, 1f, 0.7f, 50f, 1.6f);
                     p.Lines(1f);
                     p.FX(HSFXKind.Shockwave, HSColorSource.Fixed, Color.white, 1, 220f, 0f, 0.8f, HSDirection.ContextNormal);
@@ -440,25 +423,22 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     break;
                 case JuiceId.Go:
                     p.Sound("sfx_go", 1f);
-                    p.Shake(0.4f);
-                    p.Fov(14f);
-                    p.Rollback(10f);
-                    p.Flash(Color.white, 0.2f);
+                    p.Shake(0.25f);
+                    p.Fov(10f);
+                    p.Rollback(8f);
+                    p.Vignette(Color.white, 0.5f);
                     p.Screen(1.5f, 0.8f, 0.8f, 0.15f, 0.2f, 20f, 0.5f);
                     p.Lines(0.8f);
                     break;
                 case JuiceId.PerfectStart:
-                    p.Hitstop(0.05f);
                     p.Sound("sfx_perfect_start", 1f);
                     p.Sound("sfx_boost", 0.8f);
-                    p.Fov(24f);
-                    p.Rollback(30f);
-                    p.Shake(0.5f);
-                    p.Flash(GOLD, 0.3f);
-                    p.Vignette(GOLD, 0.8f);
-                    p.Screen(2.5f, 1.4f, 1.2f, 0.3f, 0.3f, 25f, 0.7f);
+                    p.Fov(14f);
+                    p.Rollback(14f);
+                    p.Shake(0.25f);
+                    p.Vignette(GOLD, 0.9f);
+                    p.Screen(1.8f, 1.1f, 1f, 0.15f, 0.25f, 20f, 0.6f);
                     p.Lines(1f);
-                    p.Impact(ImpactReason.Boost, false, 2, 0.8f);
                     break;
                 case JuiceId.FinalSprint:
                     p.Sound("ui_hint", 1f).Pitch = 0.8f;
@@ -488,26 +468,25 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     p.Sound("sfx_wrong_way", 0.8f);
                     break;
                 case JuiceId.FinishWin:
-                    p.Impact(ImpactReason.Finish, false, 4, 1f);
                     p.Sound("sfx_finish", 1f);
-                    p.SlowMo(0.25f, 1f, 0f);
-                    p.Flash(Color.white, 0.6f);
-                    p.Fov(20f);
-                    p.Shake(0.6f);
+                    p.SlowMo(0.55f, 0.6f, 0f);
+                    p.Vignette(GOLD, 1f);
+                    p.Fov(12f);
+                    p.Shake(0.3f);
                     p.Screen(3f, 1f, 2f, 0.4f, 0.3f, 40f, 1.5f);
                     p.Rumble(1f);
                     break;
                 case JuiceId.FinishLose:
-                    p.Flash(RED, 0.6f);
-                    p.Shake(0.6f);
+                    p.Vignette(RED, 1f);
+                    p.Shake(0.3f);
                     p.Sound("sfx_lose", 1f);
-                    p.SlowMo(0.3f, 0.8f, 0f);
+                    p.SlowMo(0.6f, 0.5f, 0f);
                     p.Screen(1.5f, 0.3f, 0.2f, -0.2f, 0.1f, -60f, 1.2f);
                     break;
                 case JuiceId.RankReveal:
                     p.SoundId("sfx_rank_{label}", 1f);
-                    p.Shake(0.8f).IntensityRemap = new Vector2(0.5f, 1.2f);
-                    p.Flash(Color.white, 0.25f);
+                    p.Shake(0.4f).IntensityRemap = new Vector2(0.5f, 1.2f);
+                    p.Vignette(GOLD, 0.6f);
                     p.Screen(1.4f, 0.4f, 0.8f, 0.1f, 0.2f, 20f, 0.5f);
                     p.Rumble(0.6f);
                     break;
@@ -517,16 +496,17 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
 
                 // ---------------- death
                 case JuiceId.Death:
-                    p.Hitstop(0.1f);
+                    p.Hitstop(0.03f);
                     p.Sound("sfx_death", 1f);
-                    p.Flash(RED, 0.35f);
+                    p.Flash(RED, 0.25f);
+                    p.Impact(ImpactReason.Big, false, 1, 0.6f);
                     p.Shake(0.7f);
                     p.Screen(2.5f, 0.4f, 0.3f, -0.1f, 0.2f, -60f, 0.8f);
                     p.Rumble(0.8f);
                     break;
                 case JuiceId.Respawn:
                     p.Sound("sfx_respawn", 0.9f);
-                    p.Flash(Color.white, 0.4f);
+                    p.Flash(Color.white, 0.2f);
                     p.Screen(1.2f, 0.4f, 1.5f, 0.2f, 0.1f, 20f, 0.6f);
                     p.Body(3f, 0f, 1f);
                     p.FX(HSFXKind.Shockwave, HSColorSource.Fixed, Color.white, 1, 30f, 0f, 0.35f, HSDirection.ContextNormal);

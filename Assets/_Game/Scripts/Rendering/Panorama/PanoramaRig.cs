@@ -60,7 +60,8 @@ namespace Com.IsartDigital.Hyperspeed
             lRig._mainMask = pMain.cullingMask & ~(1 << LAYER);
             lRig._mainClear = pMain.clearFlags;
             Active = lRig;
-            lRig.SetEnabled(GameSession.WideAngle);
+            // Off until light speed : CameraRig opens it (2026-11-12, the wide view only at light speed).
+            lRig.SetEnabled(false);
             return lRig;
         }
 
@@ -169,6 +170,21 @@ namespace Com.IsartDigital.Hyperspeed
             lRenderer.shadowCastingMode = ShadowCastingMode.Off;
             lRenderer.receiveShadows = false;
             _material.SetVector(PANO_FACES, new Vector4(GUARD, 1f, 0f, 0f));
+        }
+
+        // Renders every face once while the screen is covered, so the first switch to the wide view costs nothing.
+        public System.Collections.IEnumerator WarmUp()
+        {
+            bool lWas = _on;
+            if (!lWas) SetEnabled(true);
+            if (_material == null) yield break;
+            float lHfov = hfov;
+            hfov = 330f;
+            for (int i = 0; i < FACES; i++) if (_faces[i] != null) _faces[i].enabled = true;
+            yield return null;
+            yield return null;
+            hfov = lHfov;
+            if (!lWas) SetEnabled(false);
         }
 
         private static int ResolutionFor(int pQuality) => pQuality <= 0 ? 640 : pQuality == 1 ? 960 : 1408;

@@ -110,6 +110,8 @@ namespace Com.IsartDigital.Hyperspeed
         private void TimeEffect(float pDuration, float pScale, bool pEase)
         {
             if (Paused) return;
+            // The final sprint never stops : no freeze, no slow motion until the line.
+            if (RaceContext.Climax && RaceContext.Running) return;
             // A stronger, longer effect already running wins.
             if (Time.unscaledTime < _timeLockUntil && Time.timeScale <= pScale) return;
             if (_timeRoutine != null) StopCoroutine(_timeRoutine);
@@ -154,28 +156,21 @@ namespace Com.IsartDigital.Hyperspeed
                 GameObject lFx;
                 if (pWorldPoint.HasValue)
                 {
-                    // Set in the world on the block : it bends and inks the terrain and the pieces around it in 3D.
+                    // In the world : only the shock rings. The scene-sampling sprite is never set in the world any more :
+                    // only the front face of the wide view has the scene colour, so it drew a square in the middle of the
+                    // screen (2026-11-12).
                     Vector3 lAt = pWorldPoint.Value;
                     float lDistance = Mathf.Max(4f, Vector3.Distance(lCam.position, lAt));
-                    lFx = Instantiate(lPrefab, lAt, Quaternion.LookRotation(lAt - lCam.position, lCam.up));
-                    lFx.transform.localScale = Vector3.one * (lDistance / 3f) * 0.75f;
-                    foreach (ParticleSystem lSystem in lFx.GetComponentsInChildren<ParticleSystem>())
-                    {
-                        ParticleSystem.MainModule lMain = lSystem.main;
-                        lMain.scalingMode = ParticleSystemScalingMode.Hierarchy;
-                    }
                     FX.Shockwave(lAt, (lCam.position - lAt).normalized, Color.white, lDistance * 0.35f, 0.25f);
                     if (lTheme != null) FX.Shockwave(lAt, Vector3.up, lTheme.accent, lDistance * 0.5f, 0.35f);
+                    return;
                 }
-                else
-                {
-                    lFx = Instantiate(lPrefab, lCam);
-                    lFx.transform.localPosition = new Vector3(0f, 0f, 3f);
-                    lFx.transform.localRotation = Quaternion.identity;
-                    // Wide angle : drawn by the main camera over the recomposed picture, never inside one face.
-                    if (PanoramaRig.Active != null && PanoramaRig.Active.On)
-                        foreach (Transform lPart in lFx.GetComponentsInChildren<Transform>(true)) lPart.gameObject.layer = PanoramaRig.LAYER;
-                }
+                lFx = Instantiate(lPrefab, lCam);
+                lFx.transform.localPosition = new Vector3(0f, 0f, 3f);
+                lFx.transform.localRotation = Quaternion.identity;
+                // Wide angle : drawn by the main camera over the recomposed picture, never inside one face.
+                if (PanoramaRig.Active != null && PanoramaRig.Active.On)
+                    foreach (Transform lPart in lFx.GetComponentsInChildren<Transform>(true)) lPart.gameObject.layer = PanoramaRig.LAYER;
                 // The plugin distorts what is on screen : give it the colours of the place too.
                 if (lTheme != null)
                 {
