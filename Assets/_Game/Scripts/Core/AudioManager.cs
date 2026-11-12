@@ -173,6 +173,35 @@ namespace Com.IsartDigital.Hyperspeed
             lManager._layerTargets[2] = 0f;
         }
 
+        public static bool HasClip(string pId) => Instance._clips.ContainsKey(pId);
+
+        // A stinger played once, then its loop scheduled to start exactly when it ends (falls back to looping the
+        // stinger alone when there is no loop).
+        public static void PlayMusicSequence(string pStinger, string pLoop, float pVolume = 0.55f)
+        {
+            AudioManager lManager = Instance;
+            AudioClip lStinger, lLoop;
+            if (!lManager._clips.TryGetValue(pStinger, out lStinger)) return;
+            if (!lManager._clips.TryGetValue(pLoop, out lLoop))
+            {
+                PlayMusic(pStinger, pVolume);
+                return;
+            }
+            PlayMusic(pStinger, pVolume);
+            lManager._musicA.loop = false;
+            double lEnd = AudioSettings.dspTime + 0.05 + lStinger.length;
+            lManager._musicB.Stop();
+            lManager._musicB.clip = lLoop;
+            lManager._musicB.loop = true;
+            lManager._musicB.volume = pVolume * MusicMaster;
+            lManager._musicB.PlayScheduled(lEnd);
+            lManager._sequenceSwap = lEnd;
+            lManager._currentMusic = pLoop;
+        }
+
+        // When a scheduled loop takes over from its stinger, the two sources swap roles.
+        private double _sequenceSwap = -1.0;
+
         // Decodes a set of stems (prefix_base / _hyper / _light) ahead of time, off the main thread : call it while the
         // screen is covered, then wait for MusicReady before GO (2026-11-12 : the stems used to decode at GO).
         public static void PrepareMusicLayers(string pPrefix)
@@ -219,6 +248,8 @@ namespace Com.IsartDigital.Hyperspeed
             AudioSource lTmp = lManager._musicA;
             lManager._musicA = lManager._musicB;
             lManager._musicB = lTmp;
+            lManager._sequenceSwap = -1.0;
+            lManager._musicA.loop = true;
             lManager._musicA.clip = lClip;
             lManager._musicA.volume = 0f;
             lManager._musicA.Play();
@@ -245,7 +276,8 @@ namespace Com.IsartDigital.Hyperspeed
             lSource.loop = true;
             lSource.volume = pVolume * MasterSfx;
             lSource.spatialBlend = 1f;
-            lSource.dopplerLevel = 1.6f;
+            // No Doppler : at hyper and light speed it threw the engines' pitch all over the place (2026-11-12).
+            lSource.dopplerLevel = 0f;
             lSource.rolloffMode = AudioRolloffMode.Linear;
             lSource.minDistance = 10f;
             lSource.maxDistance = 220f;
@@ -278,9 +310,28 @@ namespace Com.IsartDigital.Hyperspeed
             _duckTimer -= lDt;
             float lDuck = _duckTimer > 0f ? 1f : 0f;
             _musicFilter.cutoffFrequency = Mathf.Lerp(_musicFilter.cutoffFrequency, lDuck > 0f ? 900f : 22000f, 1f - Mathf.Exp(-(lDuck > 0f ? 30f : 6f) * lDt));
+            // A stinger hands over to its scheduled loop : once the loop has started, it becomes the current music.
+            if (_sequenceSwap > 0.0)
+            {
+                if (AudioSettings.dspTime >= _sequenceSwap)
+                {
+                    AudioSource lTmp = _musicA;
+                    _musicA = _musicB;
+                    _musicB = lTmp;
+                    _musicB.Stop();
+                    _sequenceSwap = -1.0;
+                }
+                else
+                {
+                    _musicA.volume = _musicVolume * MusicMaster;
+                    _musicB.volume = _musicVolume * MusicMaster;
+                    goto Layers;
+                }
+            }
             _musicA.volume = Mathf.MoveTowards(_musicA.volume, _musicVolume * MusicMaster * (lDuck > 0f ? 0.6f : 1f), MUSIC_FADE_SPEED * 2f * lDt);
             _musicB.volume = Mathf.MoveTowards(_musicB.volume, 0f, MUSIC_FADE_SPEED * lDt);
             if (_musicB.volume <= 0f && _musicB.isPlaying) _musicB.Stop();
+            Layers:
             for (int i = 0; i < _layers.Length; i++)
             {
                 float lTarget = _layersOn ? _layerTargets[i] * _layerVolume * MusicMaster * (lDuck > 0f ? 0.6f : 1f) : 0f;

@@ -52,7 +52,9 @@ namespace Com.IsartDigital.Hyperspeed
                 lSince += Spine.STEP;
                 SpineSample lNow = pSpine.Evaluate(lS);
                 float lAngle = Mathf.Max(Vector3.Angle(lLast.forward, lNow.forward), Vector3.Angle(lLast.up, lNow.up));
-                if (lS >= pBlock.s1 - 0.01f || lSince >= MAX_ROW || (lSince >= MIN_ROW && lAngle >= ROW_ANGLE))
+                // Wide light highways get long rows : 300 km of road stays a few dozen chunks.
+                float lMaxRow = Mathf.Clamp(pBlock.halfWidth * 0.12f, MAX_ROW, 260f);
+                if (lS >= pBlock.s1 - 0.01f || lSince >= lMaxRow || (lSince >= MIN_ROW && lAngle >= ROW_ANGLE))
                 {
                     lRows.Add(lS);
                     lLast = lNow;

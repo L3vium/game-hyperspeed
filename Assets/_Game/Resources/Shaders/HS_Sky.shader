@@ -41,6 +41,10 @@ Shader "Hyperspeed/Sky"
             struct Attributes { float4 positionOS : POSITION; };
             struct Varyings { float4 positionCS : SV_POSITION; float3 dir : TEXCOORD0; };
 
+            // Set by the game (2026-11-12) : storm 0..1, and the flash of the last bolt.
+            float _HS_Storm;
+            float _HS_SkyFlash;
+
             float Hash(float2 p) { return frac(sin(dot(p, float2(127.1, 311.7))) * 43758.5453); }
 
             float Noise(float2 p)
@@ -76,10 +80,23 @@ Shader "Hyperspeed/Sky"
 
                 float3 lSun = normalize(_SunDir.xyz);
                 float lSunDot = dot(lDir, lSun);
-                lColor += _SunColor.rgb * (smoothstep(0.9975, 0.999, lSunDot) + pow(saturate(lSunDot), 64) * 0.4);
+                // A sun you can look at : a clear disc, a small halo (2026-11-12 : it blinded the track ahead).
+                lColor += _SunColor.rgb * (smoothstep(0.9975, 0.999, lSunDot) * 0.55 + pow(saturate(lSunDot), 256) * 0.2);
 
                 float lRays = step(0.5, frac(atan2(lDir.x - lSun.x, lDir.y - lSun.y) * 4.0)) * pow(saturate(lSunDot), 6);
                 lColor += _SunColor.rgb * lRays * _Rays * 0.15;
+
+                // The storm : heavy dark clouds churning across the upper sky, lit from inside by the bolts.
+                float2 lStormUV = float2(lAngle * 1.6 + _Time.y * 0.035, lY * 4.0 - _Time.y * 0.02);
+                float lStorm = Noise(lStormUV) * 0.55 + Noise(lStormUV * 2.7 + 3.1) * 0.3 + Noise(lStormUV * 6.1 - _Time.y * 0.1) * 0.15;
+                float lStormBand = smoothstep(0.02, 0.35, lY);
+                float lThick = smoothstep(0.42, 0.75, lStorm) * lStormBand * _HS_Storm;
+                half3 lStormColor = lerp(_HorizonColor.rgb * 0.35, _CloudColor.rgb * 0.25, 0.5);
+                lColor = lerp(lColor, lStormColor, lThick * 0.85);
+                // Bolts inside the clouds : random patches flare up, the whole sky flashes on every strike.
+                float lCell = Hash(floor(lStormUV * 3.0) + floor(_Time.y * 6.0));
+                float lInner = step(0.985, lCell) * lThick * _HS_Storm;
+                lColor += half3(0.7, 0.8, 1.2) * (lInner * 1.5 + _HS_SkyFlash * (0.35 + lThick * 0.9));
 
                 float2 lStarUV = float2(lAngle * 80.0, lY * 80.0);
                 float lStar = step(0.985, Hash(floor(lStarUV))) * _Stars * saturate(lY * 4.0 + 0.3);

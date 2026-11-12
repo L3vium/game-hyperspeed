@@ -218,7 +218,8 @@ namespace Com.IsartDigital.Hyperspeed
             _panini.distance.Override(lWide ? 0f : Mathf.Clamp01((lSpeed - 0.15f) * 0.7f));
             // Readability first (2026-11-12) : speed is shown by lines and colour, not by smearing the track ahead.
             _motionBlur.intensity.Override(lWide ? 0f : 0.03f + lSpeed * 0.12f);
-            _bloom.intensity.Override(0.8f + lSpeed * 0.5f + hyper01 * 0.3f + _pulse * 0.8f + _light * 0.6f + _kBloom + lStateBloom);
+            // The sun and the glows must never blind the track ahead (2026-11-12).
+            _bloom.intensity.Override(Mathf.Min(1.6f, 0.55f + lSpeed * 0.25f + hyper01 * 0.15f + _pulse * 0.4f + _light * 0.4f + _kBloom * 0.5f + lStateBloom * 0.5f));
             _color.postExposure.Override(_pulse * 0.15f + hyper01 * 0.1f - _pause * 0.35f + _kExposure);
             _color.saturation.Override(Mathf.Clamp(30f - _pause * 40f + _kSaturation + lStateSaturation, -100f, 100f));
 

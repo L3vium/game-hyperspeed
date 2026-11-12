@@ -510,30 +510,6 @@ namespace Com.IsartDigital.Hyperspeed
             return lHolder;
         }
 
-        private RectTransform EndPanel(string pName, string pWord, Color pWordColor)
-        {
-            RectTransform lTilt = TiltRoot("End3D", 30);
-            // The results float a little with the mouse, never enough to show an edge.
-            PerspectivePanel lSwing = lTilt.GetComponent<PerspectivePanel>();
-            lSwing.amountX = 1.6f;
-            lSwing.amountY = 1.2f;
-            lSwing.slide = new Vector2(6f, 4f);
-            RectTransform lPanel = UIFactory.Stretch(UIFactory.CreateRect(lTilt, pName, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
-            // Far wider than the screen : whatever the tilt and the aspect, no edge of the dim ever shows.
-            UIKit.FullScreen(lPanel, "Dim", new Color(0f, 0f, 0f, 0.35f)).rectTransform.localScale = new Vector3(2.4f, 2.4f, 1f);
-            UIShape lRed = UIKit.Tile(lPanel, "Red", UIKit.RED, new Vector2(0f, 0.5f), new Vector2(300f, 0f), new Vector2(1500f, 1800f), 0.15f);
-            UIKit.Chevrons(lRed.transform, "Chevrons", UIKit.RED, new Color(0.8f, 0.04f, 0.09f), 60f);
-            lRed.gameObject.AddComponent<Mask>().showMaskGraphic = true;
-            // The left column hangs from the left edge with a safe margin : nothing bites the edge at 16:10 or 4:3.
-            TextMeshProUGUI lWord = UIKit.Text(lPanel, pWord, 190f, pWordColor, new Vector2(0f, 1f), new Vector2(SAFE_LEFT + 470f, -150f), new Vector2(940f, 210f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
-            lWord.enableAutoSizing = true;
-            lWord.fontSizeMin = 50f;
-            lWord.fontSizeMax = 190f;
-            UIKit.Checker(lPanel, "Checker", new Vector2(0.5f, 0f), new Vector2(0f, 22f), new Vector2(4400f, 44f), UIKit.WHITE, UIKit.RED_DARK, 40f);
-            lPanel.gameObject.AddComponent<UISlideIn>();
-            return lPanel;
-        }
-
         private NavTile Button(Transform pParent, string pLabel, Vector2 pPosition, Vector2 pSize, Color pNormal, Color pText) => Button(pParent, pLabel, new Vector2(0.5f, 0.5f), pPosition, pSize, pNormal, pText);
 
         private NavTile Button(Transform pParent, string pLabel, Vector2 pAnchor, Vector2 pPosition, Vector2 pSize, Color pNormal, Color pText)
@@ -554,56 +530,115 @@ namespace Com.IsartDigital.Hyperspeed
             return lTile;
         }
 
+        // Results (2026-11-12) : the show is the runner still running the stage behind them, so the results stay small, in
+        // a corner : a compact card (time, best, margin, buttons) at the bottom left, and the rank letter big and centred
+        // at the top, under the cinema bars. No dim, no slab across the screen.
         public void ShowResult(bool pWin, string pHeadline, float pTime, int pRank, bool pRecord, float pBest, bool pHasNext,
-                               System.Action pNext, System.Action pRetry, System.Action pMenu, string pMargin = null)
+                               System.Action pNext, System.Action pRetry, System.Action pMenu, string pMargin = null, string pNextLabel = "NEXT STAGE")
         {
             // The race HUD leaves : only the results and the runner remain.
             SetPaused(true);
-            RectTransform lPanel = EndPanel("Result", pWin ? "VICTORY" : pHeadline, pWin ? UIKit.WHITE : UIKit.GOLD);
-            UIShape lTimeTile = UIKit.Tile(lPanel, "Time", UIKit.WHITE, new Vector2(0f, 0.5f), new Vector2(SAFE_LEFT + 330f, 150f), new Vector2(640f, 104f), 0.3f);
-            UIKit.Text(lTimeTile.transform, "TIME   " + GameSession.FormatTime(pTime), 54f, UIKit.INK, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(620f, 104f), UIKit.Font.Thin);
+            RectTransform lTilt = TiltRoot("End3D", 30);
+            PerspectivePanel lSwing = lTilt.GetComponent<PerspectivePanel>();
+            lSwing.amountX = 1.2f;
+            lSwing.amountY = 0.9f;
+            lSwing.slide = new Vector2(4f, 3f);
+            RectTransform lRoot = UIFactory.Stretch(UIFactory.CreateRect(lTilt, "Result", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
+
+            // ---- the card, bottom left, about a quarter of the width
+            const float CARD_W = 520f;
+            const float CARD_H = 470f;
+            RectTransform lCard = UIFactory.CreateRect(lRoot, "Card", new Vector2(0f, 0f), new Vector2(SAFE_LEFT + CARD_W * 0.5f - 40f, 200f + CARD_H * 0.5f), new Vector2(CARD_W, CARD_H));
+            UIShape lBack = UIKit.Tile(lCard, "Back", new Color(UIKit.INK.r, UIKit.INK.g, UIKit.INK.b, 0.82f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(CARD_W, CARD_H), 0.08f);
+            lBack.raycastTarget = false;
+            UIKit.Tile(lCard, "Edge", pWin ? UIKit.GOLD : UIKit.RED, new Vector2(0.5f, 1f), new Vector2(0f, -6f), new Vector2(CARD_W, 12f), 0.08f);
+            TextMeshProUGUI lWord = UIKit.Text(lCard, pWin ? "VICTORY" : pHeadline, 64f, pWin ? UIKit.WHITE : UIKit.GOLD, new Vector2(0.5f, 1f), new Vector2(0f, -58f), new Vector2(CARD_W - 50f, 74f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
+            lWord.enableAutoSizing = true;
+            lWord.fontSizeMin = 28f;
+            lWord.fontSizeMax = 64f;
+            UIKit.Text(lCard, "TIME  " + GameSession.FormatTime(pTime), 40f, UIKit.WHITE, new Vector2(0.5f, 1f), new Vector2(0f, -120f), new Vector2(CARD_W - 50f, 48f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
             string lBestLine = pRecord ? "NEW RECORD!" : "BEST  " + GameSession.FormatTime(pBest);
-            UIKit.Text(lPanel, lBestLine, 34f, pRecord ? UIKit.GOLD : UIKit.WHITE, new Vector2(0f, 0.5f), new Vector2(SAFE_LEFT + 330f, 72f), new Vector2(640f, 48f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
-            // How far ahead of the rival (or behind) you crossed : what the rank is made of.
+            UIKit.Text(lCard, lBestLine, 28f, pRecord ? UIKit.GOLD : new Color(1f, 1f, 1f, 0.75f), new Vector2(0.5f, 1f), new Vector2(0f, -162f), new Vector2(CARD_W - 50f, 36f), UIKit.Font.Bold, TextAlignmentOptions.Left);
             if (!string.IsNullOrEmpty(pMargin))
-            {
-                TextMeshProUGUI lMargin = UIKit.Text(lPanel, pMargin, 34f, pWin ? UIKit.CYAN : UIKit.RED, new Vector2(0f, 0.5f), new Vector2(SAFE_LEFT + 330f, 28f), new Vector2(640f, 44f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
-                UIFactory.Outline(lMargin, UIKit.INK, 0.25f);
-            }
+                UIKit.Text(lCard, pMargin, 28f, pWin ? UIKit.CYAN : UIKit.RED, new Vector2(0.5f, 1f), new Vector2(0f, -198f), new Vector2(CARD_W - 50f, 36f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
 
-            if (pWin)
-            {
-                // Top right, leaving the bottom right to the runner still running past the line.
-                RectTransform lRank = UIFactory.CreateRect(lPanel, "Rank", new Vector2(1f, 1f), new Vector2(-330f, -300f), new Vector2(500f, 500f));
-                lRank.localScale = Vector3.one * 0.72f;
-                UIShape lCard = UIFactory.CreateShape(lRank, "Card", UIShape.ShapeKind.Chevron, UIKit.WHITE, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(520f, 380f));
-                lCard.skew = 0.4f;
-                UIKit.Icon(lRank, "trophy", UIKit.GOLD, new Vector2(0.5f, 0.5f), new Vector2(-150f, 30f), 160f);
-                // The letter in real 3D : it drops from the sky, crushes on the card, the screen shakes.
-                UI3DText lLetter = UI3DText.Create(lRank, GameSession.RankLetter(pRank), 380f, new Vector2(0.5f, 0.5f), new Vector2(90f, 20f), new Vector2(360f, 420f), pRank >= 4 ? UIKit.GOLD : UIKit.RED, UIKit.RED_DARK, 24, 5f);
-                lLetter.tiltX = 14f;
-                lLetter.tiltY = 10f;
-                UIRankDrop lDrop = lLetter.gameObject.AddComponent<UIRankDrop>();
-                lDrop.letter = lLetter;
-                lDrop.rank = pRank;
-                UIKit.Text(lRank, "RANK", 40f, UIKit.INK, new Vector2(0.5f, 0.5f), new Vector2(0f, -140f), new Vector2(300f, 50f), UIKit.Font.Heavy);
-            }
-
-            UINav lNav = UINav.Create(lPanel.gameObject);
-            float lY = -100f;
-            Vector2 lLeft = new Vector2(0f, 0.5f);
+            UINav lNav = UINav.Create(lCard.gameObject);
+            float lY = -60f;
+            Vector2 lCenter = new Vector2(0.5f, 0.5f);
             if (pWin && pHasNext)
             {
-                NavTile lNext = Button(lPanel, "NEXT STAGE", lLeft, new Vector2(SAFE_LEFT + 290f, lY), new Vector2(540f, 96f), UIKit.WHITE, UIKit.INK);
+                NavTile lNext = Button(lCard, pNextLabel, lCenter, new Vector2(0f, lY), new Vector2(CARD_W - 70f, 62f), UIKit.WHITE, UIKit.INK);
+                lNext.label.fontSize = 36f;
                 lNav.Add((RectTransform)lNext.transform, new Vector2(0f, lY), pNext, lNext.SetSelected);
-                lY -= 120f;
+                lY -= 76f;
             }
-            NavTile lRetry = Button(lPanel, "RETRY", lLeft, new Vector2(SAFE_LEFT + 270f, lY), new Vector2(500f, 96f), UIKit.WHITE, UIKit.INK);
+            NavTile lRetry = Button(lCard, "RETRY", lCenter, new Vector2(0f, lY), new Vector2(CARD_W - 70f, 62f), UIKit.WHITE, UIKit.INK);
+            lRetry.label.fontSize = 36f;
             lNav.Add((RectTransform)lRetry.transform, new Vector2(0f, lY), pRetry, lRetry.SetSelected);
-            lY -= 120f;
-            NavTile lMenu = Button(lPanel, "STAGE SELECT", lLeft, new Vector2(SAFE_LEFT + 250f, lY), new Vector2(500f, 96f), new Color(0.3f, 0.3f, 0.32f), UIKit.WHITE);
+            lY -= 76f;
+            NavTile lMenu = Button(lCard, "STAGE SELECT", lCenter, new Vector2(0f, lY), new Vector2(CARD_W - 70f, 62f), new Color(0.3f, 0.3f, 0.32f), UIKit.WHITE);
+            lMenu.label.fontSize = 36f;
             lNav.Add((RectTransform)lMenu.transform, new Vector2(0f, lY), pMenu, lMenu.SetSelected);
             lNav.Select(0);
+            lCard.gameObject.AddComponent<UISlideIn>();
+
+            if (!pWin) return;
+            // ---- the rank, big and centred at the top, under the bar
+            // High in the frame : the runner, in the middle of the frame, stays in the clear under it.
+            RectTransform lRank = UIFactory.CreateRect(lRoot, "Rank", new Vector2(0.5f, 1f), new Vector2(0f, -330f), new Vector2(520f, 400f));
+            UI3DText lLetter = UI3DText.Create(lRank, GameSession.RankLetter(pRank), 400f, new Vector2(0.5f, 0.5f), new Vector2(0f, 10f), new Vector2(420f, 420f), pRank >= 4 ? UIKit.GOLD : UIKit.RED, UIKit.RED_DARK, 26, 7f);
+            lLetter.tiltX = 10f;
+            lLetter.tiltY = 8f;
+            UIRankDrop lDrop = lLetter.gameObject.AddComponent<UIRankDrop>();
+            lDrop.letter = lLetter;
+            lDrop.rank = pRank;
+            TextMeshProUGUI lRankWord = UIKit.Text(lRank, "RANK", 40f, UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(330f, -60f), new Vector2(200f, 50f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
+            UIFactory.Outline(lRankWord, UIKit.INK, 0.25f);
+        }
+
+        // The ending (2026-11-12) : after the last stage, the runner keeps running the supernova behind a card that says
+        // it is over, every stage's rank and time, and the credits rolling up. Any confirm goes back to the stages.
+        public void ShowEnding(System.Action pDone)
+        {
+            if (_endCanvas != null) Destroy(_endCanvas.gameObject);
+            RectTransform lTilt = TiltRoot("Ending3D", 40);
+            RectTransform lRoot = UIFactory.Stretch(UIFactory.CreateRect(lTilt, "Ending", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
+            TextMeshProUGUI lEnd = UIKit.Text(lRoot, "THE END", 150f, UIKit.GOLD, new Vector2(0.5f, 1f), new Vector2(0f, -280f), new Vector2(1400f, 170f), UIKit.Font.Heavy);
+            UIFactory.Outline(lEnd, UIKit.INK, 0.25f);
+            UIKit.Text(lRoot, "You outran everything. Even the end of the world.", 40f, UIKit.WHITE, new Vector2(0.5f, 1f), new Vector2(0f, -390f), new Vector2(1400f, 50f), UIKit.Font.Bold);
+
+            // Every stage : code, name, rank, best time ; the total at the bottom.
+            RectTransform lTable = UIFactory.CreateRect(lRoot, "Ranks", new Vector2(0f, 0.5f), new Vector2(SAFE_LEFT + 330f, -40f), new Vector2(640f, 760f));
+            UIKit.Tile(lTable, "Back", new Color(UIKit.INK.r, UIKit.INK.g, UIKit.INK.b, 0.8f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(640f, 760f), 0.06f).raycastTarget = false;
+            float lTotal = 0f;
+            bool lAll = true;
+            for (int i = 0; i < LevelDatabase.Count; i++)
+            {
+                float lY = 350f - i * 38f;
+                float lBest = GameSession.GetBestTime(i);
+                if (lBest > 0f) lTotal += lBest; else lAll = false;
+                int lRank = GameSession.GetRank(i);
+                UIKit.Text(lTable, LevelDatabase.Code(i), 24f, UIKit.GOLD, new Vector2(0.5f, 0.5f), new Vector2(-260f, lY), new Vector2(80f, 34f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
+                UIKit.Text(lTable, LevelDatabase.Get(i).title, 24f, UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(-40f, lY), new Vector2(360f, 34f), UIKit.Font.Bold, TextAlignmentOptions.Left);
+                UIKit.Text(lTable, GameSession.RankLetter(lRank), 28f, lRank >= 4 ? UIKit.GOLD : UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(170f, lY), new Vector2(50f, 34f), UIKit.Font.Heavy);
+                UIKit.Text(lTable, GameSession.FormatTime(lBest), 22f, new Color(1f, 1f, 1f, 0.8f), new Vector2(0.5f, 0.5f), new Vector2(255f, lY), new Vector2(130f, 34f), UIKit.Font.Bold, TextAlignmentOptions.Right);
+            }
+            UIKit.Text(lTable, (lAll ? "TOTAL  " : "TOTAL (so far)  ") + GameSession.FormatTime(lTotal), 32f, UIKit.CYAN, new Vector2(0.5f, 0.5f), new Vector2(0f, -345f), new Vector2(600f, 44f), UIKit.Font.Heavy);
+
+            // The credits roll on the right.
+            TextAsset lCredits = Resources.Load<TextAsset>("Credits");
+            RectTransform lRollMask = UIFactory.CreateRect(lRoot, "CreditsMask", new Vector2(1f, 0.5f), new Vector2(-SAFE_LEFT - 330f, -40f), new Vector2(660f, 640f));
+            lRollMask.gameObject.AddComponent<RectMask2D>();
+            TextMeshProUGUI lRoll = UIKit.Text(lRollMask, lCredits != null ? lCredits.text : "Thanks for playing.", 26f, UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(0f, -900f), new Vector2(640f, 1400f), UIKit.Font.Bold, TextAlignmentOptions.Top, false);
+            lRoll.richText = true;
+            lRoll.gameObject.AddComponent<UICreditsRoll>();
+
+            UINav lNav = UINav.Create(lRoot.gameObject);
+            NavTile lBack = Button(lRoot, "BACK TO THE STAGES", new Vector2(0.5f, 0f), new Vector2(0f, 230f), new Vector2(620f, 80f), UIKit.WHITE, UIKit.INK);
+            lBack.label.fontSize = 40f;
+            lNav.Add((RectTransform)lBack.transform, Vector2.zero, pDone, lBack.SetSelected);
+            lNav.Select(0);
+            AudioManager.PlayMusic(AudioManager.HasClip("music_ending") ? "music_ending" : "music_win", 0.55f);
         }
 
         public GameObject ShowPause(System.Action pResume, System.Action pRetry, System.Action pMenu)
@@ -765,15 +800,36 @@ namespace Com.IsartDigital.Hyperspeed
         }
     }
 
+    // Credits rolling up, slowly, over and over.
+    public class UICreditsRoll : MonoBehaviour
+    {
+        private void Update()
+        {
+            RectTransform lRect = (RectTransform)transform;
+            Vector2 lPosition = lRect.anchoredPosition + new Vector2(0f, Time.unscaledDeltaTime * 42f);
+            if (lPosition.y > 1200f) lPosition.y = -900f;
+            lRect.anchoredPosition = lPosition;
+        }
+    }
+
     public class UISlideIn : MonoBehaviour
     {
         private float _time;
+        private Vector2 _home;
+        private bool _init;
 
         private void Update()
         {
+            RectTransform lRect = (RectTransform)transform;
+            if (!_init)
+            {
+                // Slides in from the left onto wherever it was placed.
+                _home = lRect.anchoredPosition;
+                _init = true;
+            }
             _time += Time.unscaledDeltaTime;
             float lT = 1f - Mathf.Pow(1f - Mathf.Clamp01(_time / 0.35f), 3f);
-            ((RectTransform)transform).anchoredPosition = new Vector2(Mathf.Lerp(-1920f, 0f, lT), 0f);
+            lRect.anchoredPosition = _home + new Vector2(Mathf.Lerp(-1920f, 0f, lT), 0f);
             if (lT >= 1f) enabled = false;
         }
     }

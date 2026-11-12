@@ -98,7 +98,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (lAim.sqrMagnitude > 0.0001f && lFlatSpeed > 1f)
             {
                 // The flight answers the aim almost like the ground does : a jump is never a fixed direction.
-                float lTurn = (LightForm ? 3f : Mathf.Lerp(6.5f, 4.5f, Speed01)) * pDt;
+                float lTurn = (LightForm ? 3f : Mathf.Lerp(6.5f, 4.5f, Speed01)) * Mathf.Lerp(1f, 0.08f, Light01) * pDt;
                 lFlat = Vector3.RotateTowards(lFlat, lAim.normalized * lFlatSpeed, lTurn, 0f);
             }
             if (Mathf.Abs(Steer) > 0.05f)

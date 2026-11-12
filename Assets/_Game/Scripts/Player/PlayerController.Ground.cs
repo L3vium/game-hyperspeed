@@ -47,7 +47,7 @@ namespace Com.IsartDigital.Hyperspeed
                 Vector3 lAim = Vector3.ProjectOnPlane(_aimForward, _up);
                 if (lAim.sqrMagnitude > 0.0001f)
                 {
-                    float lTurn = Mathf.Lerp(14f, 8f, Speed01) * (Drifting ? 1.5f : 1f);
+                    float lTurn = Mathf.Lerp(14f, 8f, Speed01) * (Drifting ? 1.5f : 1f) * Mathf.Lerp(1f, 0.08f, Light01);
                     lForward = Vector3.RotateTowards(lForward, lAim.normalized, lTurn * pDt, 0f);
                 }
                 // On the sections that carry you (loops, twists) the track itself keeps you in : it is a ride, not a tightrope.
@@ -138,7 +138,7 @@ namespace Com.IsartDigital.Hyperspeed
                 // Past the line : the runner eases down to a proud run and keeps going (the results show it running),
                 // and only stops before the end of the track.
                 float lEnd = _layout != null ? _layout.Length - Mathf.Max(150f, lCruise * 1.5f) : float.MaxValue;
-                float lWanted = Progress < lEnd ? lCruise * 0.45f : 0f;
+                float lWanted = LapSpeed > 0f ? LapSpeed : Progress < lEnd ? lCruise * 0.45f : 0f;
                 float lRate = _speed > lWanted ? Mathf.Max(lCruise * 0.8f, (_speed - lWanted) * 2.2f) : RUN_ACCEL;
                 _speed = Mathf.MoveTowards(_speed, lWanted, lRate * pDt);
                 return;

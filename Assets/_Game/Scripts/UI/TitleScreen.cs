@@ -57,6 +57,7 @@ namespace Com.IsartDigital.Hyperspeed
                 for (int i = 0; i < lArgs.Length - 1; i++)
                 {
                     int lStage;
+                    if (lArgs[i] == "-hsRoute" && lArgs[i + 1] == "sky") Autopilot.Sky = true;
                     if (lArgs[i] == "-hsStage" && int.TryParse(lArgs[i + 1], out lStage))
                     {
                         Autopilot.Enabled = true;

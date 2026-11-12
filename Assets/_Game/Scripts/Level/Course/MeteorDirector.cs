@@ -90,6 +90,8 @@ namespace Com.IsartDigital.Hyperspeed
             lObject.transform.position = lFrom;
             lMeteor._velocity = (lHit - lFrom) / lTime;
             lMeteor._spin = Random.onUnitSphere * 160f;
+            // A red circle where it will land, closing until the impact (2026-11-12).
+            TelegraphRing.Create(pLayout.GroundPoint(pS, lAim), lUp, pRadius * 1.6f, lTime, true);
             BuildVisual(lObject.transform, pRadius, pTheme, (int)pS);
             lMeteor._trail = FX.FireTrail(lObject.transform, pRadius);
             AudioManager.Play("sfx_meteor_warn", 0.7f);

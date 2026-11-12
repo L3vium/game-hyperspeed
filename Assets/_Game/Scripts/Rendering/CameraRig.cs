@@ -170,7 +170,14 @@ namespace Com.IsartDigital.Hyperspeed
             _finishMode = pValue;
             _finishOrbit = 0f;
             _finishPosition = transform.position;
+            _finishShot = -1;
         }
+
+        // The runner was put back on the track : the next frame cuts to the shot instead of flying there.
+        public void CutFinish() => _finishShot = -1;
+
+        private int _finishShot = -1;
+        private const float SHOT_TIME = 4f;
 
         public void AddTrauma(float pAmount) => _trauma = Mathf.Clamp01(_trauma + pAmount);
 
@@ -327,22 +334,31 @@ namespace Com.IsartDigital.Hyperspeed
             _dive = Mathf.Lerp(_dive, target.Dive01, 1f - Mathf.Exp(-5f * lDt));
             UpdateAhead(lDt);
             UpdateWideMode();
+            UpdateDepth();
 
             Vector3 lDesired = DesiredPosition(lSpeed);
             Vector3 lLook = LookPoint(lSpeed);
             if (_finishMode)
             {
-                // Victory : a tracking shot from the runner's left, close, sliding slowly from behind to beside it. The
-                // runner keeps running and sits on the right of the frame (the results are on the left), running into it.
+                // Victory lap (2026-11-12) : a director cutting every few seconds between moving shots, the runner in the
+                // middle of the frame, never a still camera.
                 _finishOrbit += lDt;
                 Vector3 lRunForward = _player != null ? Vector3.ProjectOnPlane(_player.FacingDirection, _up).normalized : _look;
                 if (lRunForward.sqrMagnitude < 0.01f) lRunForward = _look;
                 Vector3 lRunRight = Vector3.Cross(_up, lRunForward).normalized;
-                float lSlide = HSMath.Smooth(Mathf.Clamp01(_finishOrbit / 5f));
-                lDesired = _focus - lRunRight * Mathf.Lerp(7f, 9f, lSlide) - lRunForward * Mathf.Lerp(8f, -1f, lSlide) + _up * Mathf.Lerp(3.5f, 2.4f, lSlide);
-                lLook = _focus + _up * 0.6f + lRunForward * Mathf.Lerp(3f, 6f, lSlide) - _up * 1.2f;
+                int lShot = Mathf.FloorToInt(_finishOrbit / SHOT_TIME) % 5;
+                float lT = (_finishOrbit % SHOT_TIME) / SHOT_TIME;
+                bool lCut = lShot != _finishShot;
+                _finishShot = lShot;
+                FinishShot(lShot, lT, lRunForward, lRunRight, out lDesired, out lLook);
                 lDesired = AvoidWorld(lDesired, lDt);
-                _base = Vector3.SmoothDamp(_base, lDesired, ref _velocity, 0.25f, Mathf.Infinity, lDt);
+                if (lCut)
+                {
+                    _base = lDesired;
+                    _velocity = Vector3.zero;
+                    _surfacePush = Vector3.zero;
+                }
+                else _base = Vector3.SmoothDamp(_base, lDesired, ref _velocity, 0.12f, Mathf.Infinity, lDt);
                 _offset = _base - _focus;
             }
             else
@@ -394,7 +410,7 @@ namespace Com.IsartDigital.Hyperspeed
                 return;
             }
             transform.SetPositionAndRotation(lPosition, lRotation);
-            Cam.fieldOfView = Mathf.Clamp(_finishMode ? 62f : _fov, 40f, FOV_CLAMP);
+            Cam.fieldOfView = Mathf.Clamp(_finishMode ? 60f : _fov, 40f, FOV_CLAMP);
             ApplyWide(_finishMode ? 125f : _hfov);
             if (lensShiftX != 0f)
             {
@@ -403,6 +419,20 @@ namespace Com.IsartDigital.Hyperspeed
                 lProjection[0, 2] = lensShiftX;
                 Cam.projectionMatrix = lProjection;
             }
+        }
+
+        // At light speed the world must reach far ahead : the far clip grows with the speed (3 s of road ahead), the fog
+        // thins in proportion.
+        private float _baseFog = -1f;
+
+        private void UpdateDepth()
+        {
+            if (_baseFog < 0f) _baseFog = RenderSettings.fogDensity;
+            float lSpeed = _player != null ? _player.Speed : 0f;
+            float lFar = Mathf.Clamp(lSpeed * 3f, 16000f, 90000f);
+            Cam.farClipPlane = Mathf.Lerp(Cam.farClipPlane, lFar, 0.2f);
+            Cam.nearClipPlane = lFar > 30000f ? 1f : 0.3f;
+            RenderSettings.fogDensity = _baseFog * Mathf.Clamp(16000f / Cam.farClipPlane, 0.15f, 1f);
         }
 
         // The wide view (past 180 degrees) only at light speed (2026-11-12) : normal and hyper use the classic perspective
@@ -429,6 +459,35 @@ namespace Com.IsartDigital.Hyperspeed
             lRig.hfov = pHFov;
             lRig.shape = _shape;
             lRig.cylinder = _cylinder;
+        }
+
+        // The victory shots, all moving, all framing the runner : side tracking, front pull-back, low ground hug, drone
+        // crane, orbit.
+        private void FinishShot(int pShot, float pT, Vector3 pForward, Vector3 pRight, out Vector3 pPosition, out Vector3 pLook)
+        {
+            Vector3 lBody = _focus + _up * 0.8f;
+            // Looking a little above the runner : it sits just under the middle of the frame, clear of the rank.
+            pLook = lBody + _up * 2.2f;
+            switch (pShot)
+            {
+                case 0:
+                    pPosition = lBody - pRight * Mathf.Lerp(9f, 7f, pT) - pForward * Mathf.Lerp(6f, -4f, pT) + _up * Mathf.Lerp(2.5f, 1.5f, pT);
+                    break;
+                case 1:
+                    pPosition = lBody + pForward * Mathf.Lerp(9f, 14f, pT) + pRight * Mathf.Sin(pT * 2f) * 3f + _up * 1.6f;
+                    break;
+                case 2:
+                    pPosition = lBody - pForward * Mathf.Lerp(10f, 6f, pT) + pRight * 2.5f - _up * 0.4f;
+                    pLook = lBody + pForward * 6f + _up * 2f;
+                    break;
+                case 3:
+                    pPosition = lBody - pForward * Mathf.Lerp(26f, 14f, pT) + _up * Mathf.Lerp(34f, 18f, pT) + pRight * 6f;
+                    break;
+                default:
+                    float lAngle = pT * Mathf.PI * 1.2f;
+                    pPosition = lBody + (pRight * Mathf.Cos(lAngle) + pForward * Mathf.Sin(lAngle)) * 12f + _up * 3.5f;
+                    break;
+            }
         }
 
         // Anything solid between the runner and the camera pulls it in fast and lets it out slowly.

@@ -228,7 +228,11 @@ namespace Com.IsartDigital.Hyperspeed
             _chainTimer -= pDt;
             if (_chainTimer <= 0f) Chain = 0;
             // A broken chain lets the charge leak slowly ; in light form the charge is what keeps you there.
-            if (LightForm) LightCharge = Mathf.Max(0f, LightCharge - pDt / LIGHT_CHARGE_TIME);
+            // On a light highway the light holds for the whole of it ; off it, the charge burns.
+            if (LightForm)
+            {
+                if (!OnHighway) LightCharge = Mathf.Max(0f, LightCharge - pDt / LIGHT_CHARGE_TIME);
+            }
             else if (Chain == 0) LightCharge = Mathf.Max(0f, LightCharge - pDt * 0.25f);
         }
 

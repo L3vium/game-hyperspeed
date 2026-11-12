@@ -32,6 +32,14 @@ namespace Com.IsartDigital.Hyperspeed
         public readonly List<KeyValuePair<float, string>> hints = new List<KeyValuePair<float, string>>();
 
         public float finishS;
+        // Light highways : (s0, s1) stretches built for light speed (see CourseBuilder.LightHighway).
+        public readonly List<Vector2> highways = new List<Vector2>();
+
+        public bool InHighway(float pS)
+        {
+            for (int i = 0; i < highways.Count; i++) if (pS >= highways[i].x && pS <= highways[i].y) return true;
+            return false;
+        }
         // Where the last straight begins : the neck and neck climax.
         public float climaxS = -1f;
         public float startLineS;

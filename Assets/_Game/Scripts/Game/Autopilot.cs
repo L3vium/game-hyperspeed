@@ -8,6 +8,9 @@ namespace Com.IsartDigital.Hyperspeed
     {
         public static bool Enabled;
         public static bool Aggressive;
+        // Sky mode (-hsRoute sky) : takes every kicker and follows the sky lanes (decks, ropes, rings) instead of the
+        // ground lane.
+        public static bool Sky;
 
         private PlayerController _player;
         private LevelLayout _layout;
@@ -101,6 +104,26 @@ namespace Com.IsartDigital.Hyperspeed
             float lTargetS = lS + lLook;
             float lLateral = _layout.RouteLateral(lTargetS);
             Vector3 lPoint = _layout.GroundPoint(lTargetS, lLateral);
+            bool lInSky = false;
+            if (Sky)
+            {
+                float lGroundY = _layout.GroundPoint(lS, _player.Lateral).y;
+                SkyRoute.Piece lPiece;
+                bool lAbove = _player.transform.position.y > lGroundY + 25f;
+                if (lAbove && SkyRoute.Find(lS, lSpeed * 3f, out lPiece))
+                {
+                    // Up there : follow the decks, ropes and rings.
+                    float lAt = Mathf.Clamp(lTargetS, lPiece.s0, lPiece.s1);
+                    lPoint = SkyKit.Point(_layout, lAt, lPiece.LateralAt(lAt), lPiece.HeightAt(lAt));
+                    lInSky = true;
+                }
+                else if (SkyRoute.NextKicker(lS - 5f, lSpeed * 4f, out lPiece))
+                {
+                    // A kicker ahead : line up with it.
+                    lPoint = _layout.GroundPoint(Mathf.Max(lTargetS, lPiece.s0), lPiece.lateral0);
+                    lInSky = lS > lPiece.s0 - lSpeed * 2f;
+                }
+            }
             HSInput.BotAimActive = true;
             HSInput.BotAimDirection = lPoint - _player.transform.position;
             HSInput.BotAimPitch = 0f;
@@ -116,7 +139,12 @@ namespace Com.IsartDigital.Hyperspeed
             }
 
             while (_actIndex < _layout.acts.Count && _layout.acts[_actIndex].s < lS - lSpeed * 0.5f) _actIndex++;
-            if (_actIndex < _layout.acts.Count && lS >= _layout.acts[_actIndex].s)
+            // In the sky the ground lane's jumps and dives do not apply.
+            if (lInSky)
+            {
+                while (_actIndex < _layout.acts.Count && _layout.acts[_actIndex].s <= lS) _actIndex++;
+            }
+            else if (_actIndex < _layout.acts.Count && lS >= _layout.acts[_actIndex].s)
             {
                 RouteAct lAct = _layout.acts[_actIndex];
                 if (lAct.action == RouteAction.Dive)
@@ -136,7 +164,7 @@ namespace Com.IsartDigital.Hyperspeed
             }
 
             // Over a hole with the speed dropping : a jump and a dash buy distance, as a player would.
-            if (_player.State == PlayerState.Air && !_layout.field.Solid(lS) && Vector3.Dot(_player.Velocity, _player.GravityUp) < -30f && _diveTimer <= 0f)
+            if (!lInSky && _player.State == PlayerState.Air && !_layout.field.Solid(lS) && Vector3.Dot(_player.Velocity, _player.GravityUp) < -30f && _diveTimer <= 0f)
             {
                 if (_player.HasDoubleJump) HSInput.BotJump();
                 else if (_player.DashEnergy >= 1f) HSInput.BotDashFrame = lNext;

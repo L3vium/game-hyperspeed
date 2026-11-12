@@ -205,6 +205,12 @@ namespace Com.IsartDigital.Hyperspeed
                 if (_targets[i] != null) _material.SetTexture(FACE_TEX[i], _targets[i]);
             }
             _material.SetColor(EDGE_COLOR, RenderSettings.fogColor);
+            for (int i = 0; i < FACES; i++)
+            {
+                if (_faces[i] == null) continue;
+                _faces[i].farClipPlane = _main.farClipPlane;
+                _faces[i].nearClipPlane = _main.nearClipPlane;
+            }
             CullFaces(Edge, lShape, lAspect);
         }
 

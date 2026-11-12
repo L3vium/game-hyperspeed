@@ -113,9 +113,11 @@ namespace Com.IsartDigital.Hyperspeed
             // Its own pace, only gently bent by the race : a little quicker when you are far ahead (it stays in the
             // fight), a little slower when it leads. It never copies your speed and never waits for you : beating it
             // by a lot really means you were much faster, and that is what the rank reads.
-            float lWanted = speed * Mathf.Clamp(1f + (lGap - lTarget) / (lCruise * 2.4f), chaser ? 0.85f : 0.88f, chaser ? 1.3f : 1.08f);
+            // On a light highway the rival runs at the highway's pace (Light itself at light speed, the chasers a little under).
+            float lBase = pLayout.profile.LightEnabled && pLayout.InHighway(distance) ? pLayout.profile.lightSpeed * (chaser ? 0.55f : 0.92f) : speed;
+            float lWanted = lBase * Mathf.Clamp(1f + (lGap - lTarget) / (lCruise * 2.4f), chaser ? 0.85f : 0.88f, chaser ? 1.3f : 1.08f);
             float lBefore = _rate;
-            _rate = Mathf.MoveTowards(_rate, lWanted, lCruise * 2.2f * pDt);
+            _rate = Mathf.MoveTowards(_rate, lWanted, Mathf.Max(lCruise * 2.2f, Mathf.Abs(lWanted - _rate) * 1.5f) * pDt);
             if (_wobble != null) _wobble.Accelerate((_rate - lBefore) / Mathf.Max(0.0001f, pDt) / lCruise);
             distance += _rate * pDt;
 

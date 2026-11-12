@@ -19,6 +19,10 @@ namespace Com.IsartDigital.Hyperspeed
 
             for (float lS0 = lSpine.StartS; lS0 < lSpine.EndS; lS0 += CHUNK)
             {
+                // On light highways only one chunk in twelve gets scenery, and none of it is solid : at 20 km/s the road
+                // has its own dressing (HighwayDressing), and 300 km of colliders would never be touched.
+                bool lHighway = pLayout.InHighway(lS0);
+                if (lHighway && Mathf.RoundToInt(lS0 / CHUNK) % 12 != 0) continue;
                 MeshData lData = new MeshData();
                 MeshData lLit = new MeshData();
                 Vector3 lOrigin = lSpine.Evaluate(lS0).position;
@@ -30,8 +34,8 @@ namespace Com.IsartDigital.Hyperspeed
                 Clouds(pLayout, lKit, lRandom, lS0);
 
                 if (lData.Count == 0 && lLit.Count == 0) continue;
-                Spawn(lParent, lOrigin, lData, lMaterial, "Scenery");
-                if (lLit.Count > 0) Spawn(lParent, lOrigin, lLit, lGlow, "SceneryLit");
+                Spawn(lParent, lOrigin, lData, lMaterial, "Scenery", !lHighway);
+                if (lLit.Count > 0) Spawn(lParent, lOrigin, lLit, lGlow, "SceneryLit", !lHighway);
             }
             GroundSheet.Create(pRoot, pLayout, pTheme);
             SafetyNet.Create(pRoot, pLayout);
@@ -39,7 +43,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         private enum Depth { Near, Middle, Far }
 
-        private static void Spawn(Transform pParent, Vector3 pOrigin, MeshData pData, Material pMaterial, string pName)
+        private static void Spawn(Transform pParent, Vector3 pOrigin, MeshData pData, Material pMaterial, string pName, bool pSolid = true)
         {
             GameObject lObject = new GameObject(pName);
             lObject.transform.SetParent(pParent, false);
@@ -47,6 +51,12 @@ namespace Com.IsartDigital.Hyperspeed
             // Solid : anything you can see beside the track can catch you, and you bounce back from it.
             lObject.layer = Layers.SCENERY;
             Mesh lMesh = pData.ToMesh(pName);
+            if (!pSolid)
+            {
+                lObject.AddComponent<MeshFilter>().sharedMesh = lMesh;
+                lObject.AddComponent<MeshRenderer>().sharedMaterial = pMaterial;
+                return;
+            }
             // Collider first (it would otherwise cook the render mesh too), from a copy whose huge triangles are split.
             MeshCollider lCollider = lObject.AddComponent<MeshCollider>();
             System.Collections.Generic.List<Vector3> lVertices = new System.Collections.Generic.List<Vector3>(lMesh.vertices);

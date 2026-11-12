@@ -275,6 +275,34 @@ namespace Com.IsartDigital.Hyperspeed
 
         private bool StartInputPressed => HSInput.JumpPressed || HSInput.DashPressed || HSInput.RunPressed;
 
+        // Victory lap (2026-11-12) : after the line the runner runs the whole stage again at this pace, for ever.
+        public float LapSpeed;
+
+        // ---------------- light speed (2026-11-12)
+        // On a light highway : light form runs at the stage's light speed (12 to 20 km/s) ; without it, the highway's
+        // stream still carries you at 40 % of that.
+        public bool OnHighway => _layout != null && _profile.LightEnabled && _layout.InHighway(Progress);
+        public float Light01 => _profile.LightEnabled ? Mathf.Clamp01((Speed - _profile.lightEnter) / Mathf.Max(1f, _profile.lightSpeed - _profile.lightEnter)) : 0f;
+        private const float HIGHWAY_STREAM = 0.4f;
+
+        // Speed the highway asks for right now (0 off a highway).
+        private float HighwaySpeed => !OnHighway || State == PlayerState.Finished ? 0f : LightForm ? _profile.lightSpeed : _profile.lightSpeed * HIGHWAY_STREAM;
+
+        private void UpdateHighwaySpeed(float pDt)
+        {
+            float lTarget = HighwaySpeed;
+            if (lTarget <= 0f) return;
+            // Eases up to it in about a second and a half, holds it without drag.
+            float lRate = _profile.lightSpeed * 0.7f * pDt;
+            if (OnSurface) _speed = Mathf.Max(_speed, Mathf.MoveTowards(_speed, lTarget, lRate));
+            else
+            {
+                Vector3 lFlat = Vector3.ProjectOnPlane(_velocity, _gravityUp);
+                float lFlatSpeed = lFlat.magnitude;
+                if (lFlatSpeed > 1f && lFlatSpeed < lTarget) _velocity += lFlat / lFlatSpeed * (Mathf.MoveTowards(lFlatSpeed, lTarget, lRate) - lFlatSpeed);
+            }
+        }
+
         public void Finish()
         {
             _autoRun = true;
@@ -317,7 +345,9 @@ namespace Com.IsartDigital.Hyperspeed
             if (State == PlayerState.Air || State == PlayerState.Crash) PredictAir();
 
             float lDistance = TotalSpeed * lDt;
+            // At light speed (up to 20 km/s, over 300 m a frame) the steps stay a few metres long : nothing is skipped.
             int lSubsteps = Mathf.Clamp(Mathf.CeilToInt(lDistance / 1.2f), 1, 28);
+            if (lDistance > 28f * 1.2f) lSubsteps = Mathf.Clamp(Mathf.CeilToInt(lDistance / 6f), 28, 72);
             _substeps = lSubsteps;
             float lSubDt = lDt / lSubsteps;
             for (int i = 0; i < lSubsteps; i++)
@@ -677,6 +707,7 @@ namespace Com.IsartDigital.Hyperspeed
         private void UpdateHyper(float pDt)
         {
             UpdateChain(pDt);
+            UpdateHighwaySpeed(pDt);
             // Falling is not running : a long drop alone never turns you to light.
             float lSpeed = OnSurface ? _speed : Vector3.ProjectOnPlane(_velocity, _gravityUp).magnitude;
             // Hyper only exists from 2-4 on (2026-11-12).

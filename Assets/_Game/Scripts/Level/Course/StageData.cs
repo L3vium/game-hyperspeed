@@ -8,7 +8,9 @@ namespace Com.IsartDigital.Hyperspeed
     // the road carries every object along with it.
     public enum ItemKind
     {
-        Pad, Strip, Ring, Crate, Laser, Hammer, Pane, Rope, Mover, Bridge, Meteor, Prop, Arch, GravityGate
+        Pad, Strip, Ring, Crate, Laser, Hammer, Pane, Rope, Mover, Bridge, Meteor, Prop, Arch, GravityGate,
+        // 2026-11-12, sky lanes : a ramp out of the ground lane that throws you up, pads and launch strips on the decks.
+        Kicker, DeckPad, DeckStrip
     }
 
     // One piece of the racing line : it advances by `steps` samples of Spine.STEP metres while yaw, pitch and roll ease by
@@ -131,6 +133,8 @@ namespace Com.IsartDigital.Hyperspeed
         public float spawnS = -130f;
         public float finishS = 20000f;
         public float climaxS = -1f;
+        // Light highways (2026-11-12) : stretches built for light speed, (s0, s1).
+        public List<Vector2> highways = new List<Vector2>();
         public List<SegmentData> segments = new List<SegmentData>();
         public List<BlockData> blocks = new List<BlockData>();
         public List<ItemData> items = new List<ItemData>();

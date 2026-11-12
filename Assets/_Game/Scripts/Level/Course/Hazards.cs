@@ -8,14 +8,14 @@ namespace Com.IsartDigital.Hyperspeed
         private float _radius;
         private Transform _visual;
 
-        public static Ring Create(Transform pParent, LevelLayout pLayout, float pS, float pLateral, float pHeight, float pRadius, Color pColor)
+        public static Ring Create(Transform pParent, LevelLayout pLayout, float pS, float pLateral, float pHeight, float pRadius, Color pColor, bool pInLineFrame = false)
         {
             SpineSample lSample = pLayout.spine.Evaluate(pS);
-            Vector3 lUp = pLayout.field.Normal(pS);
-            Vector3 lPosition = pLayout.field.Point(pS, pLateral) + lUp * pHeight;
+            Vector3 lUp = pInLineFrame ? Vector3.up : pLayout.field.Normal(pS);
+            Vector3 lPosition = pInLineFrame ? SkyKit.Point(pLayout, pS, pLateral, pHeight) : pLayout.field.Point(pS, pLateral) + lUp * pHeight;
             GameObject lObject = new GameObject("Ring");
             lObject.transform.SetParent(pParent, false);
-            lObject.transform.SetPositionAndRotation(lPosition, Quaternion.LookRotation(lSample.forward, lUp));
+            lObject.transform.SetPositionAndRotation(lPosition, pInLineFrame ? SkyKit.Frame(pLayout, pS) : Quaternion.LookRotation(lSample.forward, lUp));
             Ring lRing = lObject.AddComponent<Ring>();
             lRing._radius = pRadius;
             lRing.halfExtents = new Vector3(pRadius, pRadius, Mathf.Max(5f, pLayout.profile.cruise * 0.04f));
