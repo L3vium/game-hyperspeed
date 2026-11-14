@@ -499,7 +499,9 @@ namespace Com.IsartDigital.Hyperspeed
             lObject.AddComponent<BoltFlicker>();
             FX.Shockwave(pPoint + Vector3.up * 3f, Vector3.up, new Color(0.7f, 0.85f, 1.4f), 160f, 0.45f);
             FX.Sparks(pPoint, new Color(0.6f, 0.85f, 1.4f), 120, 90f, 1.4f, 0.6f);
-            Craters.Add(pPoint, Vector3.up, 40f, _theme.roadSide);
+            // The strike punches a hole where it lands on the track (nothing drawn over it).
+            TrackHoles.Punch(pPoint, Vector3.up, 26f * Mathf.Sqrt(Mathf.Max(1f, _layout.profile.scale)));
+            PhysicalChaos.Blast(pPoint, 220f * Mathf.Sqrt(Mathf.Max(1f, _layout.profile.scale)), 60f);
             float lDistance = Vector3.Distance(pPoint, lPlayer.transform.position);
             HSJuice.Play(JuiceId.LightningNear, pPoint, Mathf.Clamp01(1f - lDistance / 3000f));
             SkyFlash = 1f;
@@ -515,7 +517,8 @@ namespace Com.IsartDigital.Hyperspeed
             if (_debrisTimer <= 0f)
             {
                 // 2026-11-12 : the sky keeps coming down : far more again.
-                _debrisTimer = R(0.1f, 0.24f);
+                // 2026-11-14 : calmer on the first stages, the full storm on the last ones.
+                _debrisTimer = R(0.1f, 0.24f) * Mathf.Lerp(2.5f, 1f, _layout.profile.difficulty);
                 // One in three falls beside the track, into the valley : the whole world is coming down.
                 if (R(0f, 1f) < 0.35f)
                 {
@@ -788,9 +791,10 @@ namespace Com.IsartDigital.Hyperspeed
             FX.Puff(pPoint + pNormal * radius * 0.5f, Color.Lerp(lGround, Color.white, 0.3f), 18, radius * 1.4f, 30f);
             FX.Sparks(pPoint + pNormal * 3f, new Color(1f, 0.6f, 0.15f), 90, 80f, 1.2f, 0.7f);
             Fracture.Explode(transform.position, radius, color, pNormal, 120f, 0.5f);
-            Craters.Add(pPoint, pNormal, radius * 1.6f, lGround);
-            // On the hardest stages it goes right through the track (world 3 : TrackHoles.Enabled).
-            if (!_offTrack) TrackHoles.Punch(pPoint, pNormal, Mathf.Clamp(radius * 1.1f, 12f, 34f));
+            // It goes right through the track : a real hole, nothing drawn over it (2026-11-14).
+            float lScaleRoot = RaceContext.Layout != null && RaceContext.Layout.profile != null ? Mathf.Sqrt(Mathf.Max(1f, RaceContext.Layout.profile.scale)) : 1f;
+            if (!_offTrack) TrackHoles.Punch(pPoint, pNormal, Mathf.Clamp(radius * 1.1f, 12f, 34f) * lScaleRoot);
+            PhysicalChaos.Blast(pPoint, radius * 7f * lScaleRoot, 70f);
             if (pPlayer != null)
             {
                 float lDistance = Vector3.Distance(pPlayer.transform.position, pPoint);

@@ -124,7 +124,30 @@ namespace Com.IsartDigital.Hyperspeed
                 float lHigh = pLayout.profile.lightSpeed * (chaser ? 0.36f : 0.85f);
                 lBase = Mathf.Lerp(Mathf.Max(speed, pLayout.profile.hyperEnter * 1.2f), lHigh, HSMath.Smooth(Mathf.Clamp01((lHighwayEnd - distance) / lBrake)));
             }
-            float lWanted = lBase * Mathf.Clamp(1f + (lGap - lTarget) / (lCruise * 2.4f), chaser ? 0.85f : 0.88f, chaser ? 1.3f : 1.08f);
+            // 2026-11-14, rubber band on YOUR real speed (asked) : behind you it speeds up to stay in the race, ahead of you
+            // it eases off so you can catch it. Gentle on the first stages (an easy race), tighter on the last ones.
+            float lDifficulty = pLayout.profile.difficulty;
+            float lPlayerSpeed = RaceContext.Player != null ? Mathf.Max(RaceContext.Player.Speed, lCruise * 0.5f) : lBase;
+            float lSeconds = (lGap - lTarget) / Mathf.Max(1f, Mathf.Max(lPlayerSpeed, lCruise));
+            float lWanted;
+            if (chaser)
+            {
+                // Hunts from behind at its distance : it only catches you if you stop running.
+                lWanted = lPlayerSpeed * Mathf.Clamp(1f + lSeconds * 0.12f, 0.8f, Mathf.Lerp(1.08f, 1.18f, lDifficulty));
+            }
+            else if (lSeconds > 0f)
+            {
+                // You lead : past a second and a half it closes in, faster the further back it is. On the last straight it
+                // stops pushing : a lead you built is yours to keep.
+                float lPush = lClimax ? 0f : Mathf.Lerp(0.04f, 0.18f, lDifficulty) * Mathf.Clamp01((lSeconds - 1.5f) / 3f);
+                lWanted = Mathf.Max(lBase * 0.9f, lPlayerSpeed * (1f + lPush));
+            }
+            else
+            {
+                // It leads : it eases off below your pace (a lot on the first stages, a little on the last ones).
+                float lEase = Mathf.Lerp(0.4f, 0.08f, lDifficulty) * Mathf.Clamp01(-lSeconds / 2f);
+                lWanted = Mathf.Min(lBase * 1.6f, lPlayerSpeed * (1f - lEase));
+            }
             float lBefore = _rate;
             _rate = Mathf.MoveTowards(_rate, lWanted, Mathf.Max(lCruise * 2.2f, Mathf.Abs(lWanted - _rate) * 1.5f) * pDt);
             if (_wobble != null) _wobble.Accelerate((_rate - lBefore) / Mathf.Max(0.0001f, pDt) / lCruise);

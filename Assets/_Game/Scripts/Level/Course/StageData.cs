@@ -15,7 +15,9 @@ namespace Com.IsartDigital.Hyperspeed
         // length = advance per radian, width = lead on the ground at each end, value = sideways drift over the loop).
         LoopRope,
         // 2026-11-14 : a rock floating in the air (height above the line, or an absolute altitude when flag ; size ; variant).
-        FloatRock
+        FloatRock,
+        // 2026-11-14 : a crater, a real hole through the track (size = radius).
+        Crater
     }
 
     // One piece of the racing line : it advances by `steps` samples of Spine.STEP metres while yaw, pitch and roll ease by

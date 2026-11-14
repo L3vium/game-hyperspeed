@@ -79,7 +79,8 @@ namespace Com.IsartDigital.Hyperspeed
             lTrackRoot.SetParent(lRoot, false);
             // A stage shaped in the Level Design window wins over its recipe.
             TrackHoles.Clear();
-            TrackHoles.Enabled = _level.world >= 2;
+            // Craters are real holes on every stage (2026-11-14).
+            TrackHoles.Enabled = true;
             StageAsset lAsset = StageAsset.Load(_levelIndex);
             if (lAsset != null) _layout = StageBuilder.Build(lAsset.data, lTheme, lProfile, lTrackRoot);
             else _layout = LevelDatabase.Recipe(_levelIndex, lTrackRoot).Build();
@@ -289,10 +290,13 @@ namespace Com.IsartDigital.Hyperspeed
                 HSJuice.Play(JuiceId.FinalSprint, _player.transform.position);
             }
             RaceContext.Climax = lIn;
-            // 2026-11-12 : the bars are far more present in the last sprint (a cinema frame, 11-15 % per side).
-            float lNeck = Mathf.Clamp01(1f - Mathf.Abs(_rival.Gap) / (_layout.profile.cruise * 1.2f));
-            PostFX.Instance.letterbox = lIn ? Mathf.Lerp(0.22f, 0.3f, lNeck) : 0f;
-            PostFX.Instance.intensity = lIn ? Mathf.Lerp(0.5f, 0.9f, lNeck) : 0f;
+            // 2026-11-14 : the cinema bars close in only when the race is close (the rival within about 1.5 s of you) ;
+            // a runaway lead or a lost race keeps the full picture.
+            float lSpeed = Mathf.Max(_player.Speed, _layout.profile.cruise);
+            float lNeck = _rival != null ? Mathf.Clamp01(1f - Mathf.Abs(_rival.Gap) / (lSpeed * 1.5f)) : 0f;
+            lNeck = HSMath.Smooth(lNeck);
+            PostFX.Instance.letterbox = lIn ? Mathf.Lerp(0f, 0.28f, lNeck) : 0f;
+            PostFX.Instance.intensity = lIn ? Mathf.Lerp(0.25f, 0.9f, lNeck) : 0f;
         }
 
         // Like the end of a kart race : the runner never stops, it runs the whole stage again and again while the
@@ -460,11 +464,12 @@ namespace Com.IsartDigital.Hyperspeed
             string lMargin = null;
             if (pWin)
             {
-                // The rank is the lead you really had on the line : how long the rival still needed to finish, against
-                // the length of your race. Crossing neck and neck is a C, however fast the stage was.
+                // 2026-11-14 : the rival rubber-bands around you, so the lead on the line says little. The rank is how fast
+                // you really ran : your average speed against the stage's cruise, a higher bar on the late stages.
                 float lLead = _endLead;
-                float lShare = lLead / Mathf.Max(1f, _raceTime);
-                lRank = lShare >= RANK_S ? 4 : lShare >= RANK_A ? 3 : lShare >= RANK_B ? 2 : 1;
+                float lShare = (_layout.finishS - _layout.startLineS) / Mathf.Max(1f, _raceTime) / Mathf.Max(1f, _layout.profile.cruise);
+                float lD = _layout.profile.difficulty;
+                lRank = lShare >= Mathf.Lerp(2.4f, 3.6f, lD) ? 4 : lShare >= Mathf.Lerp(1.9f, 2.8f, lD) ? 3 : lShare >= Mathf.Lerp(1.5f, 2.1f, lD) ? 2 : 1;
                 if (_player.Respawns >= 3 && lRank > 1) lRank--;
                 // Test runs on autopilot never touch the save.
                 lRecord = !Autopilot.Enabled && GameSession.RegisterWin(_levelIndex, _raceTime, lRank);

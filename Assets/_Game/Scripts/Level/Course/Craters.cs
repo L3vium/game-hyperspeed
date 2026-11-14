@@ -19,7 +19,13 @@ namespace Com.IsartDigital.Hyperspeed
             _next = 0;
         }
 
+        // 2026-11-14 : no decal any more (craters are holes, TrackHoles) : only the embers and the dust of the impact.
         public static void Add(Vector3 pPoint, Vector3 pNormal, float pRadius, Color pRim)
+        {
+            FX.Sparks(pPoint + pNormal * 2f, new Color(1f, 0.45f, 0.1f), 40, pRadius * 1.2f, 1.2f, 1.2f);
+        }
+
+        private static void AddDecal(Vector3 pPoint, Vector3 pNormal, float pRadius, Color pRim)
         {
             GameObject lCrater = _pool[_next];
             if (lCrater == null)
@@ -83,6 +89,7 @@ namespace Com.IsartDigital.Hyperspeed
     // impact, so the danger is read well before it lands.
     public class TelegraphRing : MonoBehaviour
     {
+        private const bool SHOW = false;
         private float _life;
         private float _time;
         private float _radius;
@@ -96,6 +103,9 @@ namespace Com.IsartDigital.Hyperspeed
             lRing.transform.SetPositionAndRotation(pPoint + pNormal * 0.6f, Quaternion.FromToRotation(Vector3.up, pNormal));
             lRing._life = Mathf.Max(0.3f, pTime);
             lRing._radius = pRadius;
+            // 2026-11-14 : nothing drawn on the ground any more (no circle) : the falling thing itself, seen from far with
+            // its smoke, is the warning, and the ticks are heard as it nears.
+            if (!SHOW) return lRing;
             lRing._material = new Material(Mats.Glow(new Color(3f, 0.25f, 0.2f, 0.85f), true, 1f));
             GameObject lMesh = new GameObject("Ring");
             lMesh.transform.SetParent(lRing.transform, false);
@@ -118,7 +128,7 @@ namespace Com.IsartDigital.Hyperspeed
             _time += Time.deltaTime;
             if (_time >= _life)
             {
-                Destroy(_material);
+                if (_material != null) Destroy(_material);
                 Destroy(gameObject);
                 return;
             }
@@ -141,6 +151,7 @@ namespace Com.IsartDigital.Hyperspeed
                 if (lNear > 0.05f) AudioManager.Play("sfx_telegraph_tick", 0.65f * lNear, 1f, 0.02f);
             }
             // Closes from wide to the impact size, pulsing faster and faster.
+            if (_material == null) return;
             float lPulse = 0.5f + 0.5f * Mathf.Sin(_time * Mathf.Lerp(8f, 30f, lT));
             transform.localScale = Vector3.one * _radius * Mathf.Lerp(1.8f, 1f, lT * lT);
             _material.SetColor("_Color", new Color(3f, 0.25f, 0.2f, Mathf.Lerp(0.35f, 0.95f, lPulse) * Mathf.Lerp(0.6f, 1f, lT)));

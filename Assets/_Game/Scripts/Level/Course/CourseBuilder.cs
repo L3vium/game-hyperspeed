@@ -57,6 +57,23 @@ namespace Com.IsartDigital.Hyperspeed
         private struct BridgeDef { public float s0, s1, lateral, height, halfWidth; public bool sky; }
         // A rock floating in the air (height above the line, or an absolute altitude when sky).
         private struct FloatRockDef { public float s, lateral, height, size; public bool sky; }
+        // A crater : a real hole through the ground lane.
+        private struct CraterDef { public float s, lateral, radius; }
+        private readonly List<CraterDef> _craters = new List<CraterDef>();
+
+        // Craters dug into a stretch of open ground : holes to jump or to go round, more of them on the late stages.
+        private void DigCraters(float pS0, float pS1)
+        {
+            if (pS1 - pS0 < M(2f)) return;
+            int lCount = Chance(Mathf.Lerp(0.35f, 0.95f, difficulty)) ? 1 + (Chance(difficulty) ? 1 : 0) : 0;
+            for (int i = 0; i < lCount; i++)
+            {
+                float lRadius = Rand(18f, 40f) * SizeRoot;
+                float lS = Mathf.Lerp(pS0 + M(0.8f), pS1 - M(0.8f), Rand(0.1f, 0.9f));
+                _craters.Add(new CraterDef { s = lS, lateral = Rand(-0.5f, 0.5f) * _halfWidth, radius = lRadius });
+                NoPads(lS - lRadius * 1.6f, lS + lRadius * 1.6f);
+            }
+        }
         private readonly List<FloatRockDef> _floatRocks = new List<FloatRockDef>();
 
         private readonly Transform _root;
@@ -299,6 +316,7 @@ namespace Com.IsartDigital.Hyperspeed
             TrackBlock lHillBlock = Open(BlockLook.Ground, 7f);
             lHillBlock.mounds = Rand(14f, 26f) * SizeRoot;
             AirRocks(_s, _s + M(pSeconds), 0.5f);
+            DigCraters(_s, _s + M(pSeconds));
             int lHumps = Mathf.Max(1, Mathf.RoundToInt(pSeconds / 3.4f));
             float lLength = M(pSeconds) / lHumps;
             for (int i = 0; i < lHumps; i++)
@@ -824,6 +842,7 @@ namespace Com.IsartDigital.Hyperspeed
             TrackBlock lMeadow = Open(BlockLook.Ground, 6f);
             if (Chance(0.7f)) lMeadow.mounds = Rand(10f, 24f) * SizeRoot;
             float lEnd = _s + M(pSeconds);
+            DigCraters(_s, lEnd);
             while (_s < lEnd)
             {
                 float lLength = M(Rand(1.2f, 2f));
@@ -1489,6 +1508,9 @@ namespace Com.IsartDigital.Hyperspeed
                 foreach (PaneDef lPane in _panes) lItems.Add(new ItemData { kind = ItemKind.Pane, s = lPane.s, lateral = lPane.lateral, width = lPane.width, height = lPane.height, variant = (int)lPane.kind });
                 PlacePads(lItems);
                 foreach (MeteorDef lMeteor in _meteors) lItems.Add(new ItemData { kind = ItemKind.Meteor, s = lMeteor.s, lateral = lMeteor.lateral, size = lMeteor.radius, flag = lMeteor.fromSky });
+                foreach (CraterDef lCrater in _craters)
+                    if (_layout.field.Solid(lCrater.s) && !_layout.spine.samples[_layout.spine.IndexOf(lCrater.s)].localGravity)
+                        lItems.Add(new ItemData { kind = ItemKind.Crater, s = lCrater.s, lateral = lCrater.lateral, size = lCrater.radius });
                 foreach (FloatRockDef lRock in _floatRocks) lItems.Add(new ItemData { kind = ItemKind.FloatRock, s = lRock.s, lateral = lRock.lateral, height = lRock.height, size = lRock.size, flag = lRock.sky, variant = _random.Next(0, 6), jitter = Rand(0f, 360f) });
             }
             foreach (ArchDef lArch in _arches) lItems.Add(new ItemData { kind = ItemKind.Arch, s = lArch.s, flag = lArch.lit });

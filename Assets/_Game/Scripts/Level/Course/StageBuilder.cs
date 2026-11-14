@@ -162,6 +162,8 @@ namespace Com.IsartDigital.Hyperspeed
             GateKit.FinishGate(lProps, lLayout, lLayout.finishS, lLayout.field.TotalHalfWidth(lLayout.finishS));
             CourseScenery.Build(lLayout, pTheme, pRoot, pData.seed * 7 + 3);
             ChaosDirector.Create(pRoot, lLayout, pTheme, !pNoItems, pData.seed * 13 + 5);
+            // Real rigid bodies everywhere, and a sky that never rests (2026-11-14).
+            if (!pNoItems && Application.isPlaying) PhysicalChaos.Create(pRoot, lLayout, pTheme);
 
             Debug.Log("[HS-GEN] length=" + lLayout.finishS.ToString("F0") + "m track=" + ((lTrackDone - lStart) * 1000f).ToString("F0") + "ms total=" + ((Time.realtimeSinceStartup - lStart) * 1000f).ToString("F0")
                 + "ms segments=" + pData.segments.Count + " blocks=" + pData.blocks.Count + " chunks=" + TrackBaker.Chunks.Count + " items=" + lCount + " dives=" + pData.dives);
@@ -216,6 +218,9 @@ namespace Com.IsartDigital.Hyperspeed
                     return null;
                 case ItemKind.FloatRock:
                     return PlaceFloatRock(pItem, pLayout, pTheme, pParent);
+                case ItemKind.Crater:
+                    TrackHoles.Punch(pLayout.field.Point(pItem.s, pItem.lateral), pLayout.field.Normal(pItem.s), Mathf.Max(6f, pItem.size), true);
+                    return null;
             }
             return null;
         }

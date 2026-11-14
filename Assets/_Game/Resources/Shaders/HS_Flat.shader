@@ -33,6 +33,8 @@ Shader "Hyperspeed/Flat"
 
         // Holes punched through the track (TrackHoles.cs) : xyz centre, w radius.
         float4 _HS_Holes[24];
+        // Most fog a track surface may take (2026-11-14) : the road ahead always reads, however far.
+        float _HS_TrackFogCap;
         float _HS_HoleCount;
 
         void ClipHoles(float3 pPositionWS)
@@ -166,7 +168,11 @@ Shader "Hyperspeed/Flat"
                 }
 
                 lColor = lerp(lColor, half3(1, 1, 1) * 1.5, _Flash);
-                lColor = MixFog(lColor, input.fogFactor);
+                half3 lFogged = MixFog(lColor, input.fogFactor);
+                // The track (the surfaces cut by holes) never fades past the cap : a silhouette against the sky at any range.
+                half lCap = _Holes > 0.5 && _HS_TrackFogCap > 0.001 ? _HS_TrackFogCap : 1.0;
+                half lFogAmount = saturate(length(lFogged - lColor) / max(length(unity_FogColor.rgb - lColor), 0.0001));
+                lColor = lerp(lColor, lFogged, saturate(min(1.0, lCap / max(lFogAmount, 0.0001))));
                 return half4(lColor, 1);
             }
             ENDHLSL

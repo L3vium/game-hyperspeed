@@ -141,7 +141,9 @@ namespace Com.IsartDigital.Hyperspeed
             FX.Sparks(transform.position, lFire, 60, radius * 3f, 1.2f, 0.8f);
             FX.Puff(lAt, new Color(0.25f, 0.2f, 0.2f), 18, radius * 0.9f, radius * 1.2f);
             if (_trail != null) Destroy(_trail.gameObject);
-            TrackHoles.Punch(lAt, Mathf.Clamp(radius * 1.2f, 14f, 40f));
+            float lScaleRoot = RaceContext.Layout != null && RaceContext.Layout.profile != null ? Mathf.Sqrt(Mathf.Max(1f, RaceContext.Layout.profile.scale)) : 1f;
+            TrackHoles.Punch(lAt, Mathf.Clamp(radius * 1.2f, 14f, 40f) * lScaleRoot);
+            PhysicalChaos.Blast(lAt, radius * 9f * lScaleRoot, 90f);
             PlayerController lPlayer = RaceContext.Player;
             float lDistance = lPlayer != null ? Vector3.Distance(lPlayer.transform.position, transform.position) : 999f;
             if (lPlayer != null && lDistance < radius * 1.6f && !lPlayer.Dashing && !lPlayer.LightForm) lPlayer.Crash(transform.position);

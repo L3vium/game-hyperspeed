@@ -8881,21 +8881,24 @@ MonoBehaviour:
   DebugActive: 0
   InScriptDrivenPause: 0
   FeedbacksList:
-  - rid: 1046638594198340213
-  - rid: 1046638594198340214
-  - rid: 1046638594198340215
-  - rid: 1046638594198340216
-  - rid: 1046638594198340217
-  - rid: 1046638594198340218
-  - rid: 1046638594198340219
-  - rid: 1046638594198340220
-  - rid: 1046638594198340221
-  - rid: 1046638594198340222
-  - rid: 1046638594198340223
-  - rid: 1046638594198340224
-  - rid: 1046638594198340225
-  - rid: 1046638594198340226
-  - rid: 1046638594198340227
+  - rid: 3294976095111610465
+  - rid: 3294976095111610466
+  - rid: 3294976095111610467
+  - rid: 3294976095111610468
+  - rid: 3294976095111610469
+  - rid: 3294976095111610470
+  - rid: 3294976095111610471
+  - rid: 3294976095111610472
+  - rid: 3294976095111610473
+  - rid: 3294976095111610474
+  - rid: 3294976095111610475
+  - rid: 3294976095111610476
+  - rid: 3294976095111610477
+  - rid: 3294976095111610478
+  - rid: 3294976095111610479
+  - rid: 3294976095111610480
+  - rid: 3294976095111610481
+  - rid: 3294976095111610482
   PlayMode: 0
   SequentialDelay: 0
   KeepPlayModeChanges: 0
@@ -8911,11 +8914,11 @@ MonoBehaviour:
   references:
     version: 2
     RefIds:
-    - rid: 1046638594198340213
+    - rid: 3294976095111610465
       type: {class: MMF_HSSound, ns: Com.IsartDigital.Hyperspeed.Feel, asm: Assembly-CSharp}
       data:
         Active: 1
-        UniqueID: -1371147969
+        UniqueID: 427205575
         Label: Sound sfx_pad
         OriginalLabel: Sound
         ChannelMode: 0
@@ -9001,11 +9004,11 @@ MonoBehaviour:
         Pitch: 1
         PitchVariance: 0.05
         PitchFromIntensity: 0
-    - rid: 1046638594198340214
+    - rid: 3294976095111610466
       type: {class: MMF_HSFovKick, ns: Com.IsartDigital.Hyperspeed.Feel, asm: Assembly-CSharp}
       data:
         Active: 1
-        UniqueID: 187449066
+        UniqueID: -988396644
         Label: FOV kick
         OriginalLabel: Camera FOV Kick
         ChannelMode: 0
@@ -9084,12 +9087,12 @@ MonoBehaviour:
         DebugActive: 0
         Amount: 1
         IntensityRemap: {x: 1, y: 1}
-        Degrees: 14
-    - rid: 1046638594198340215
+        Degrees: 16
+    - rid: 3294976095111610467
       type: {class: MMF_HSRollback, ns: Com.IsartDigital.Hyperspeed.Feel, asm: Assembly-CSharp}
       data:
         Active: 1
-        UniqueID: 628588778
+        UniqueID: -826167525
         Label: Camera pull back
         OriginalLabel: Camera Pull Back
         ChannelMode: 0
@@ -9168,12 +9171,12 @@ MonoBehaviour:
         DebugActive: 0
         Amount: 1
         IntensityRemap: {x: 1, y: 1}
-        Meters: 16
-    - rid: 1046638594198340216
+        Meters: 18
+    - rid: 3294976095111610468
       type: {class: MMF_HSCameraPunch, ns: Com.IsartDigital.Hyperspeed.Feel, asm: Assembly-CSharp}
       data:
         Active: 1
-        UniqueID: 2110102451
+        UniqueID: 414193287
         Label: Camera punch
         OriginalLabel: Camera Punch
         ChannelMode: 0
@@ -9252,13 +9255,13 @@ MonoBehaviour:
         DebugActive: 0
         Amount: 1
         IntensityRemap: {x: 1, y: 1}
-        Degrees: {x: -3, y: 0, z: 3}
+        Degrees: {x: -3.5, y: 0, z: 3.5}
         RandomRollSide: 1
-    - rid: 1046638594198340217
+    - rid: 3294976095111610469
       type: {class: MMF_HSShake, ns: Com.IsartDigital.Hyperspeed.Feel, asm: Assembly-CSharp}
       data:
         Active: 1
-        UniqueID: 838322968
+        UniqueID: 2004946003
         Label: Shake
         OriginalLabel: Camera Shake
         ChannelMode: 0
@@ -9337,13 +9340,13 @@ MonoBehaviour:
         DebugActive: 0
         Amount: 1
         IntensityRemap: {x: 1, y: 1}
-        Trauma: 0.25
+        Trauma: 0.28
         AlsoRumble: 1
-    - rid: 1046638594198340218
+    - rid: 3294976095111610470
       type: {class: MMF_HSVignette, ns: Com.IsartDigital.Hyperspeed.Feel, asm: Assembly-CSharp}
       data:
         Active: 1
-        UniqueID: 1040723502
+        UniqueID: 2005654826
         Label: Vignette
         OriginalLabel: Screen Vignette
         ChannelMode: 0
@@ -9425,11 +9428,11 @@ MonoBehaviour:
         ColorSource: 0
         VignetteColor: {r: 0.25, g: 0.95, b: 1, a: 1}
         Amount01: 1
-    - rid: 1046638594198340219
+    - rid: 3294976095111610471
       type: {class: MMF_HSScreenKick, ns: Com.IsartDigital.Hyperspeed.Feel, asm: Assembly-CSharp}
       data:
         Active: 1
-        UniqueID: 1062265424
+        UniqueID: 116414750
         Label: Screen kick
         OriginalLabel: Screen Kick (aberration, blur, bloom...)
         ChannelMode: 0
@@ -9508,13 +9511,13 @@ MonoBehaviour:
         DebugActive: 0
         Amount: 1
         IntensityRemap: {x: 1, y: 1}
-        Aberration: 2.2
-        RadialBlur: 1.4
-        Bloom: 1
-        Exposure: 0.25
-        Lens: 0.3
-        Saturation: 22
-        Duration: 0.6
+        Aberration: 4.5
+        RadialBlur: 0.5
+        Bloom: 1.2
+        Exposure: 0.3
+        Lens: 0.35
+        Saturation: 30
+        Duration: 0.75
         Fade:
           serializedVersion: 2
           m_Curve:
@@ -9539,11 +9542,11 @@ MonoBehaviour:
           m_PreInfinity: 2
           m_PostInfinity: 2
           m_RotationOrder: 4
-    - rid: 1046638594198340220
+    - rid: 3294976095111610472
       type: {class: MMF_HSSpeedLines, ns: Com.IsartDigital.Hyperspeed.Feel, asm: Assembly-CSharp}
       data:
         Active: 1
-        UniqueID: -974520385
+        UniqueID: -30132341
         Label: Speed lines
         OriginalLabel: Speed Lines Burst
         ChannelMode: 0
@@ -9622,12 +9625,291 @@ MonoBehaviour:
         DebugActive: 0
         Amount: 1
         IntensityRemap: {x: 1, y: 1}
-        Burst: 1
-    - rid: 1046638594198340221
+        Burst: 1.4
+    - rid: 3294976095111610473
+      type: {class: MMF_HSFX, ns: Com.IsartDigital.Hyperspeed.Feel, asm: Assembly-CSharp}
+      data:
+        Active: 1
+        UniqueID: -1249127794
+        Label: FX Shards
+        OriginalLabel: World FX (sparks, shockwave, debris...)
+        ChannelMode: 0
+        Channel: 0
+        MMChannelDefinition: {fileID: 0}
+        Chance: 100
+        Timing:
+          TimescaleMode: 0
+          ExcludeFromHoldingPauses: 0
+          ContributeToTotalDuration: 1
+          InitialDelay: 0
+          CooldownDuration: 0
+          InterruptsOnStop: 1
+          NumberOfRepeats: 0
+          RepeatForever: 0
+          DelayBetweenRepeats: 1
+          IgnoreFeedbackDurationForRepeats: 0
+          PlayCount: 0
+          LimitPlayCount: 0
+          MaxPlayCount: 3
+          SetPlayCountToZeroOnReset: 0
+          MMFeedbacksDirectionCondition: 0
+          PlayDirection: 0
+          ConstantIntensity: 0
+          UseIntensityInterval: 0
+          IntensityIntervalMin: 0
+          IntensityIntervalMax: 0
+          Sequence: {fileID: 0}
+          TrackID: 0
+          Quantized: 0
+          TargetBPM: 120
+        AutomatedTargetAcquisition:
+          Mode: 0
+          ChildIndex: 0
+        AutomatedMultipleTargetAcquisition:
+          Mode: 0
+          ChildIndex: 0
+          IncludeChildren: 1
+          IncludeInactive: 0
+          ListMode: 0
+        RandomizeOutput: 0
+        RandomMultiplier: {x: 0.8, y: 1}
+        RandomizeDuration: 0
+        RandomDurationMultiplier: {x: 0.5, y: 2}
+        UseRange: 0
+        RangeDistance: 5
+        UseRangeFalloff: 0
+        RangeFalloff:
+          serializedVersion: 2
+          m_Curve:
+          - serializedVersion: 3
+            time: 0
+            value: 1
+            inSlope: 0
+            outSlope: 0
+            tangentMode: 0
+            weightedMode: 0
+            inWeight: 0
+            outWeight: 0
+          - serializedVersion: 3
+            time: 1
+            value: 0
+            inSlope: 0
+            outSlope: 0
+            tangentMode: 0
+            weightedMode: 0
+            inWeight: 0
+            outWeight: 0
+          m_PreInfinity: 2
+          m_PostInfinity: 2
+          m_RotationOrder: 4
+        RemapRangeFalloff: {x: 0, y: 1}
+        AutomaticShakerSetupButton:
+          ButtonText: 
+        Owner: {fileID: 5067129292725925252}
+        DebugActive: 0
+        Amount: 1
+        IntensityRemap: {x: 1, y: 1}
+        Kind: 3
+        ColorSource: 1
+        EffectColor: {r: 1, g: 1, b: 1, a: 1}
+        Direction: 1
+        Count: 34
+        Size: 5
+        Speed: 70
+        Life: 0.8
+        Lift: 0.5
+        UseContextSize: 0
+    - rid: 3294976095111610474
+      type: {class: MMF_HSFX, ns: Com.IsartDigital.Hyperspeed.Feel, asm: Assembly-CSharp}
+      data:
+        Active: 1
+        UniqueID: 2054509045
+        Label: FX Shards
+        OriginalLabel: World FX (sparks, shockwave, debris...)
+        ChannelMode: 0
+        Channel: 0
+        MMChannelDefinition: {fileID: 0}
+        Chance: 100
+        Timing:
+          TimescaleMode: 0
+          ExcludeFromHoldingPauses: 0
+          ContributeToTotalDuration: 1
+          InitialDelay: 0
+          CooldownDuration: 0
+          InterruptsOnStop: 1
+          NumberOfRepeats: 0
+          RepeatForever: 0
+          DelayBetweenRepeats: 1
+          IgnoreFeedbackDurationForRepeats: 0
+          PlayCount: 0
+          LimitPlayCount: 0
+          MaxPlayCount: 3
+          SetPlayCountToZeroOnReset: 0
+          MMFeedbacksDirectionCondition: 0
+          PlayDirection: 0
+          ConstantIntensity: 0
+          UseIntensityInterval: 0
+          IntensityIntervalMin: 0
+          IntensityIntervalMax: 0
+          Sequence: {fileID: 0}
+          TrackID: 0
+          Quantized: 0
+          TargetBPM: 120
+        AutomatedTargetAcquisition:
+          Mode: 0
+          ChildIndex: 0
+        AutomatedMultipleTargetAcquisition:
+          Mode: 0
+          ChildIndex: 0
+          IncludeChildren: 1
+          IncludeInactive: 0
+          ListMode: 0
+        RandomizeOutput: 0
+        RandomMultiplier: {x: 0.8, y: 1}
+        RandomizeDuration: 0
+        RandomDurationMultiplier: {x: 0.5, y: 2}
+        UseRange: 0
+        RangeDistance: 5
+        UseRangeFalloff: 0
+        RangeFalloff:
+          serializedVersion: 2
+          m_Curve:
+          - serializedVersion: 3
+            time: 0
+            value: 1
+            inSlope: 0
+            outSlope: 0
+            tangentMode: 0
+            weightedMode: 0
+            inWeight: 0
+            outWeight: 0
+          - serializedVersion: 3
+            time: 1
+            value: 0
+            inSlope: 0
+            outSlope: 0
+            tangentMode: 0
+            weightedMode: 0
+            inWeight: 0
+            outWeight: 0
+          m_PreInfinity: 2
+          m_PostInfinity: 2
+          m_RotationOrder: 4
+        RemapRangeFalloff: {x: 0, y: 1}
+        AutomaticShakerSetupButton:
+          ButtonText: 
+        Owner: {fileID: 5067129292725925252}
+        DebugActive: 0
+        Amount: 1
+        IntensityRemap: {x: 1, y: 1}
+        Kind: 3
+        ColorSource: 0
+        EffectColor: {r: 1, g: 0.25, b: 0.75, a: 1}
+        Direction: 4
+        Count: 22
+        Size: 4
+        Speed: 60
+        Life: 0.7
+        Lift: 0.5
+        UseContextSize: 0
+    - rid: 3294976095111610475
+      type: {class: MMF_HSFX, ns: Com.IsartDigital.Hyperspeed.Feel, asm: Assembly-CSharp}
+      data:
+        Active: 1
+        UniqueID: 551567295
+        Label: FX Puff
+        OriginalLabel: World FX (sparks, shockwave, debris...)
+        ChannelMode: 0
+        Channel: 0
+        MMChannelDefinition: {fileID: 0}
+        Chance: 100
+        Timing:
+          TimescaleMode: 0
+          ExcludeFromHoldingPauses: 0
+          ContributeToTotalDuration: 1
+          InitialDelay: 0
+          CooldownDuration: 0
+          InterruptsOnStop: 1
+          NumberOfRepeats: 0
+          RepeatForever: 0
+          DelayBetweenRepeats: 1
+          IgnoreFeedbackDurationForRepeats: 0
+          PlayCount: 0
+          LimitPlayCount: 0
+          MaxPlayCount: 3
+          SetPlayCountToZeroOnReset: 0
+          MMFeedbacksDirectionCondition: 0
+          PlayDirection: 0
+          ConstantIntensity: 0
+          UseIntensityInterval: 0
+          IntensityIntervalMin: 0
+          IntensityIntervalMax: 0
+          Sequence: {fileID: 0}
+          TrackID: 0
+          Quantized: 0
+          TargetBPM: 120
+        AutomatedTargetAcquisition:
+          Mode: 0
+          ChildIndex: 0
+        AutomatedMultipleTargetAcquisition:
+          Mode: 0
+          ChildIndex: 0
+          IncludeChildren: 1
+          IncludeInactive: 0
+          ListMode: 0
+        RandomizeOutput: 0
+        RandomMultiplier: {x: 0.8, y: 1}
+        RandomizeDuration: 0
+        RandomDurationMultiplier: {x: 0.5, y: 2}
+        UseRange: 0
+        RangeDistance: 5
+        UseRangeFalloff: 0
+        RangeFalloff:
+          serializedVersion: 2
+          m_Curve:
+          - serializedVersion: 3
+            time: 0
+            value: 1
+            inSlope: 0
+            outSlope: 0
+            tangentMode: 0
+            weightedMode: 0
+            inWeight: 0
+            outWeight: 0
+          - serializedVersion: 3
+            time: 1
+            value: 0
+            inSlope: 0
+            outSlope: 0
+            tangentMode: 0
+            weightedMode: 0
+            inWeight: 0
+            outWeight: 0
+          m_PreInfinity: 2
+          m_PostInfinity: 2
+          m_RotationOrder: 4
+        RemapRangeFalloff: {x: 0, y: 1}
+        AutomaticShakerSetupButton:
+          ButtonText: 
+        Owner: {fileID: 5067129292725925252}
+        DebugActive: 0
+        Amount: 1
+        IntensityRemap: {x: 1, y: 1}
+        Kind: 4
+        ColorSource: 0
+        EffectColor: {r: 1, g: 0.9, b: 0.3, a: 1}
+        Direction: 1
+        Count: 8
+        Size: 14
+        Speed: 30
+        Life: 0.5
+        Lift: 0.5
+        UseContextSize: 0
+    - rid: 3294976095111610476
       type: {class: MMF_HSBody, ns: Com.IsartDigital.Hyperspeed.Feel, asm: Assembly-CSharp}
       data:
         Active: 1
-        UniqueID: -613039002
+        UniqueID: 1550401599
         Label: Runner squash/stretch
         OriginalLabel: Runner Squash and Stretch
         ChannelMode: 0
@@ -9709,11 +9991,11 @@ MonoBehaviour:
         Up: 0
         Forward: 4
         Flash: 0.8
-    - rid: 1046638594198340222
+    - rid: 3294976095111610477
       type: {class: MMF_HSFX, ns: Com.IsartDigital.Hyperspeed.Feel, asm: Assembly-CSharp}
       data:
         Active: 1
-        UniqueID: -1417571462
+        UniqueID: 917801608
         Label: FX Shockwave
         OriginalLabel: World FX (sparks, shockwave, debris...)
         ChannelMode: 0
@@ -9802,11 +10084,11 @@ MonoBehaviour:
         Life: 0.45
         Lift: 0.5
         UseContextSize: 0
-    - rid: 1046638594198340223
+    - rid: 3294976095111610478
       type: {class: MMF_HSFX, ns: Com.IsartDigital.Hyperspeed.Feel, asm: Assembly-CSharp}
       data:
         Active: 1
-        UniqueID: -1789781474
+        UniqueID: 1185110459
         Label: FX Shockwave
         OriginalLabel: World FX (sparks, shockwave, debris...)
         ChannelMode: 0
@@ -9895,11 +10177,11 @@ MonoBehaviour:
         Life: 0.3
         Lift: 0.5
         UseContextSize: 0
-    - rid: 1046638594198340224
+    - rid: 3294976095111610479
       type: {class: MMF_HSFX, ns: Com.IsartDigital.Hyperspeed.Feel, asm: Assembly-CSharp}
       data:
         Active: 1
-        UniqueID: 92696787
+        UniqueID: 1746115692
         Label: FX Sparks
         OriginalLabel: World FX (sparks, shockwave, debris...)
         ChannelMode: 0
@@ -9988,11 +10270,11 @@ MonoBehaviour:
         Life: 0.5
         Lift: 0.5
         UseContextSize: 0
-    - rid: 1046638594198340225
+    - rid: 3294976095111610480
       type: {class: MMF_HSFX, ns: Com.IsartDigital.Hyperspeed.Feel, asm: Assembly-CSharp}
       data:
         Active: 1
-        UniqueID: -706326910
+        UniqueID: -1982064133
         Label: FX Burst
         OriginalLabel: World FX (sparks, shockwave, debris...)
         ChannelMode: 0
@@ -10081,11 +10363,11 @@ MonoBehaviour:
         Life: 0.3
         Lift: 0.5
         UseContextSize: 0
-    - rid: 1046638594198340226
+    - rid: 3294976095111610481
       type: {class: MMF_HSRumble, ns: Com.IsartDigital.Hyperspeed.Feel, asm: Assembly-CSharp}
       data:
         Active: 1
-        UniqueID: 501661783
+        UniqueID: 1969009693
         Label: Pad rumble
         OriginalLabel: Pad Rumble
         ChannelMode: 0
@@ -10165,11 +10447,11 @@ MonoBehaviour:
         Amount: 1
         IntensityRemap: {x: 1, y: 1}
         Power: 0.8
-    - rid: 1046638594198340227
+    - rid: 3294976095111610482
       type: {class: MMF_HSDuck, ns: Com.IsartDigital.Hyperspeed.Feel, asm: Assembly-CSharp}
       data:
         Active: 1
-        UniqueID: 557484069
+        UniqueID: 998833434
         Label: Music duck
         OriginalLabel: Music Duck
         ChannelMode: 0

@@ -230,14 +230,19 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
 
                 // ---------------- boosts
                 case JuiceId.BoostPad:
+                    // 2026-11-14 : a pad must be felt hard : a big chromatic aberration burst (asked), little blur so the way
+                    // ahead stays sharp, a burst of toon colour at the pad.
                     p.Sound("sfx_pad", 1f);
-                    p.Fov(14f);
-                    p.Rollback(16f);
-                    p.Punch(new Vector3(-3f, 0f, 3f));
-                    p.Shake(0.25f);
+                    p.Fov(16f);
+                    p.Rollback(18f);
+                    p.Punch(new Vector3(-3.5f, 0f, 3.5f));
+                    p.Shake(0.28f);
                     p.Vignette(CYAN, 1f);
-                    p.Screen(2.2f, 1.4f, 1f, 0.25f, 0.3f, 22f, 0.6f);
-                    p.Lines(1f);
+                    p.Screen(4.5f, 0.5f, 1.2f, 0.3f, 0.35f, 30f, 0.75f);
+                    p.Lines(1.4f);
+                    p.FX(HSFXKind.Shards, HSColorSource.ThemeAccent, Color.white, 34, 5f, 70f, 0.8f, HSDirection.ContextNormal);
+                    p.FX(HSFXKind.Shards, HSColorSource.Fixed, new Color(1f, 0.25f, 0.75f), 22, 4f, 60f, 0.7f, HSDirection.Random);
+                    p.FX(HSFXKind.Puff, HSColorSource.Fixed, new Color(1f, 0.9f, 0.3f), 8, 14f, 30f, 0.5f, HSDirection.ContextNormal);
                     p.Body(0f, 4f, 0.8f);
                     p.FX(HSFXKind.Shockwave, HSColorSource.Fixed, CYAN, 1, 72f, 0f, 0.45f, HSDirection.ContextNormal);
                     p.FX(HSFXKind.Shockwave, HSColorSource.Fixed, Color.white, 1, 40f, 0f, 0.3f, HSDirection.ContextDirection);
