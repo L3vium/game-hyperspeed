@@ -19,6 +19,7 @@ namespace Com.IsartDigital.Hyperspeed
         private int _blocked;
         private int _outside;
         private int _fogged;
+        private readonly System.Collections.Generic.Dictionary<string, int> _blockers = new System.Collections.Generic.Dictionary<string, int>();
 
         public static void Create()
         {
@@ -47,7 +48,10 @@ namespace Com.IsartDigital.Hyperspeed
             }
             if (_window >= WINDOW && _total > 0)
             {
-                Debug.Log("[HS-VIEW] visible=" + (_seen * 100 / _total) + "% samples=" + _total + " outside=" + _outside + " blocked=" + _blocked + " fogged=" + _fogged + " s=" + lPlayer.Progress.ToString("F0"));
+                string lTop = "";
+                foreach (System.Collections.Generic.KeyValuePair<string, int> lPair in _blockers) lTop += " " + lPair.Key + "x" + lPair.Value;
+                _blockers.Clear();
+                Debug.Log("[HS-VIEW] visible=" + (_seen * 100 / _total) + "% samples=" + _total + " outside=" + _outside + " blocked=" + _blocked + " fogged=" + _fogged + " s=" + lPlayer.Progress.ToString("F0") + " by:" + lTop);
                 _window = 0f;
                 _seen = _total = _blocked = _outside = _fogged = 0;
             }
@@ -69,6 +73,10 @@ namespace Com.IsartDigital.Hyperspeed
             if (lDistance > 20f && Physics.Raycast(lEye, lDelta / lDistance, out RaycastHit lHit, lDistance - Mathf.Max(15f, lDistance * 0.02f), BLOCKERS, QueryTriggerInteraction.Ignore))
             {
                 _blocked++;
+                string lName = lHit.collider.name + (lHit.distance < lDistance * 0.3f ? "(near)" : "(far)");
+                int lCount;
+                _blockers.TryGetValue(lName, out lCount);
+                _blockers[lName] = lCount + 1;
                 return;
             }
             // Fog : squared exponential, capped on the track (HS_Flat _HS_TrackFogCap).

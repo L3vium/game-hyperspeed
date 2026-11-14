@@ -24,8 +24,9 @@ namespace Com.IsartDigital.Hyperspeed
         // The world is six times wider than the stage recipes say : the runner is tiny in a huge circuit.
         public const float WIDTH_SCALE = 6f;
         // Sides are mountains, not kerbs : a gentle foot that steepens, high enough that nobody flies over.
-        private const float MOUNTAIN_MIN = 120f;
-        private const float MOUNTAIN_MAX = 210f;
+        // 2026-11-14 : lower (they hid the road around every bend) ; death off the stage replaces the wall's job.
+        private const float MOUNTAIN_MIN = 80f;
+        private const float MOUNTAIN_MAX = 145f;
         private const float MOUNTAIN_LEAN = 52f;
         // Hazards and props grow with the world, not as much as its width.
         private const float PROP_BASE = 3f;
@@ -216,7 +217,7 @@ namespace Com.IsartDigital.Hyperspeed
                 else
                 {
                     lMountain = true;
-                    float lMountainScale = Mathf.Pow(Mathf.Max(1f, size), 0.6f);
+                    float lMountainScale = Mathf.Pow(Mathf.Max(1f, size), 0.45f);
                     lLeft = Rand(MOUNTAIN_MIN, MOUNTAIN_MAX) * lMountainScale;
                     lRight = Rand(MOUNTAIN_MIN, MOUNTAIN_MAX) * lMountainScale;
                 }

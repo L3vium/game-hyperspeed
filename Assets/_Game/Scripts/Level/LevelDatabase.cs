@@ -199,7 +199,7 @@ namespace Com.IsartDigital.Hyperspeed
                 rival = RivalKind.Time, rivalPace = 1.44f, worldBreaker = true, collapse = true, theme = Theme.Void, seed = 143, music = "music_race2",
                 build = b => b.Start(64f, 4800f)
                     .Hint("THE GROUND CANNOT KEEP UP").Road(2f).Sky(26f, 1, Side.Right, 0).Meadow(3f).Parallel(6f).Lasers(3f, 0.9f).Hills(4f, 12f)
-                    .Platforms(6f, 3).Corkscrew(Side.Right).Spiral(Side.Right, 2)
+                    .Platforms(6f, 3).Meadow(3f).Corkscrew(Side.Right).Spiral(Side.Right, 2)
                     .Sky(26f, 2, Side.Left, 2).Meadow(3f).Parallel(5f).Hammers(3f, 0.9f).Hills(4f, 12f)
                     .SideLoop(Side.Right).Twist(2.4f, 1).Slabs(5f).LaunchRamp().Dive(360f).Meadow(2f)
                     .FinalRush(7f).Finish()
@@ -223,7 +223,7 @@ namespace Com.IsartDigital.Hyperspeed
                 rival = RivalKind.Death, rivalPace = 0.9f, chaser = true, chaserStart = -460f, worldBreaker = true, collapse = true, theme = Theme.Night, seed = 165, music = "music_race2",
                 build = b => b.Start(64f, 5200f)
                     .Hint("DON'T LET DEATH CATCH YOU").Road(2f).Sky(26f, 1, Side.Right, 0).Meadow(3f).Parallel(6f).Hammers(3f, 0.8f).Hills(4f, 12f)
-                    .Inverted(3f).Platforms(6f, 3).Spiral(Side.Right, 2).Corkscrew()
+                    .Inverted(3f).Platforms(6f, 3).Meadow(3f).Spiral(Side.Right, 2).Corkscrew()
                     .Sky(26f, 2, Side.Left, 3).Meadow(3f).Hint("CHAIN THE PADS : TURN TO LIGHT").PadLine(6f, 0.3f).Parallel(6f).Lasers(3f, 0.8f)
                     .SideLoop(Side.Right).LaunchRamp().Slabs(5f).Meadow(2f)
                     .FinalRush(7f).Finish()
@@ -235,7 +235,7 @@ namespace Com.IsartDigital.Hyperspeed
                 rival = RivalKind.Light, rivalPace = 1.5f, worldBreaker = true, theme = Theme.Void, seed = 132, music = "music_race2",
                 build = b => b.Start(64f, 4600f)
                     .Road(2f).Sky(26f, 1, Side.Left, 2).Meadow(3f).Parallel(6f).Lasers(3f, 0.8f).Hills(4f, 12f)
-                    .Platforms(6f, 3).Spiral(Side.Left, 2)
+                    .Platforms(6f, 3).Meadow(3f).Spiral(Side.Left, 2)
                     .Sky(28f, 2, Side.Right, 0).Meadow(3f).Hint("CHAIN THE PADS : TURN TO LIGHT").PadLine(8f, 0.28f).Parallel(6f).Hammers(3f, 0.8f)
                     .Corkscrew().SideLoop(Side.Right)
                     .Sky(22f, 3, Side.Left, 3).Meadow(3f).Parallel(4f).Hills(4f, 12f).Loop().RingArc(8)
@@ -248,7 +248,7 @@ namespace Com.IsartDigital.Hyperspeed
                 rival = RivalKind.Supernova, rivalPace = 0.95f, chaser = true, chaserStart = -520f, worldBreaker = true, collapse = true, theme = Theme.Space, seed = 176, music = "music_race2",
                 build = b => b.Start(64f, 5400f)
                     .Hint("THE STAR IS COLLAPSING. RUN.").Road(2f).Sky(30f, 0, Side.Left, 3).Meadow(3f).Parallel(6f).Meteors(6f, 0.9f).Hills(4f, 12f)
-                    .Platforms(6f, 3).Spiral(Side.Right, 2)
+                    .Platforms(6f, 3).Meadow(3f).Spiral(Side.Right, 2)
                     .Sky(30f, 2, Side.Right, 0).Meadow(3f).Hint("CHAIN THE PADS : TURN TO LIGHT").PadLine(8f, 0.28f).Parallel(6f).Hammers(3f, 0.8f)
                     .Loop().SideLoop(Side.Left).Slabs(5f).Inverted(3f, Side.Right)
                     .Sky(24f, 1, Side.Left, 1).Meadow(3f).Parallel(5f).Lasers(3f, 0.8f).Meteors(5f, 0.9f).Hills(3f, 12f)

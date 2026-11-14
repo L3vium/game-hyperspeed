@@ -51,7 +51,8 @@ namespace Com.IsartDigital.Hyperspeed
             if (lVertical <= 0f) _jumpCut = false;
             // A short float at the top of the arc : the jump reads soft, then it falls for real.
             if (Mathf.Abs(lVertical) < 14f && !Diving) lGravity *= 0.6f;
-            if (LightForm) lGravity *= 0.25f;
+            // 2026-11-14 : no float in light form any more : at 4 to 12 km/s a quarter of gravity turned every crest into
+            // a flight of kilometres off the stage.
             if (Dashing) lGravity *= 0.2f;
             // Loop magnet : after a short hop the surface draws you back, and moving away from it is cancelled.
             if (_localAirTime > 0.35f)
