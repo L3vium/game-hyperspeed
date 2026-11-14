@@ -113,9 +113,53 @@ namespace Com.IsartDigital.Hyperspeed
             // Its own pace, only gently bent by the race : a little quicker when you are far ahead (it stays in the
             // fight), a little slower when it leads. It never copies your speed and never waits for you : beating it
             // by a lot really means you were much faster, and that is what the rank reads.
-            float lWanted = speed * Mathf.Clamp(1f + (lGap - lTarget) / (lCruise * 2.4f), chaser ? 0.85f : 0.88f, chaser ? 1.3f : 1.08f);
+            // On a light highway the rival runs at the highway's pace : Light itself at 85 % of light speed ; the chasers just under
+            // the highway's stream (40 %), so whoever missed the light is not caught for it, only left without a lead.
+            float lBase = speed;
+            float lHighwayEnd = pLayout.profile.LightEnabled ? pLayout.HighwayEnd(distance) : -1f;
+            if (lHighwayEnd > 0f)
+            {
+                // Brakes over the highway's last 1.5 s of light, like the runner.
+                float lBrake = pLayout.profile.lightSpeed * 1.5f;
+                float lHigh = pLayout.profile.lightSpeed * (chaser ? 0.36f : 0.85f);
+                lBase = Mathf.Lerp(Mathf.Max(speed, pLayout.profile.hyperEnter * 1.2f), lHigh, HSMath.Smooth(Mathf.Clamp01((lHighwayEnd - distance) / lBrake)));
+            }
+            // 2026-11-14, rubber band on YOUR real speed (asked) : behind you it speeds up to stay in the race, ahead of you
+            // it eases off so you can catch it. Gentle on the first stages (an easy race), tighter on the last ones.
+            float lDifficulty = pLayout.profile.difficulty;
+            // Your pace ALONG THE TRACK (progress per second), not your speed : in a corkscrew or a spiral you run far
+            // from the line and your progress grows slower than your speed (the chaser caught a runner at 5 km/s there).
+            float lProgress = RaceContext.PlayerProgress;
+            if (pDt > 0f && _lastPlayerProgress > -1e8f)
+                _playerRate = Mathf.Lerp(_playerRate, Mathf.Max(0f, (lProgress - _lastPlayerProgress) / pDt), 1f - Mathf.Exp(-5f * pDt));
+            _lastPlayerProgress = lProgress;
+            float lPlayerSpeed = RaceContext.Player != null ? Mathf.Max(Mathf.Min(_playerRate, RaceContext.Player.Speed * 1.2f), lCruise * 0.5f) : lBase;
+            float lSeconds = (lGap - lTarget) / Mathf.Max(1f, Mathf.Max(lPlayerSpeed, lCruise));
+            float lWanted;
+            if (chaser)
+            {
+                // Hunts from behind a few seconds back (in time, not metres : at light speed metres are nothing). It
+                // keeps your pace there, closes in when it is further, and never slows under its own cruise : it only
+                // catches a runner who stops running or keeps falling.
+                float lHold = Mathf.Max(lCruise * 0.9f, lPlayerSpeed * Mathf.Lerp(3f, 1.8f, lDifficulty));
+                float lBehind = (lGap - lHold) / Mathf.Max(1f, Mathf.Max(lPlayerSpeed, lCruise));
+                lWanted = Mathf.Max(lBase, lPlayerSpeed * Mathf.Clamp(1f + lBehind * 0.12f, 0.8f, Mathf.Lerp(1.08f, 1.18f, lDifficulty)));
+            }
+            else if (lSeconds > 0f)
+            {
+                // You lead : past a second and a half it closes in, faster the further back it is. On the last straight it
+                // stops pushing : a lead you built is yours to keep.
+                float lPush = lClimax ? 0f : Mathf.Lerp(0.04f, 0.18f, lDifficulty) * Mathf.Clamp01((lSeconds - 1.5f) / 3f);
+                lWanted = Mathf.Max(lBase * 0.9f, lPlayerSpeed * (1f + lPush));
+            }
+            else
+            {
+                // It leads : it eases off below your pace (a lot on the first stages, a little on the last ones).
+                float lEase = Mathf.Lerp(0.45f, 0.15f, lDifficulty) * Mathf.Clamp01(-lSeconds / 2f);
+                lWanted = Mathf.Min(lBase * 1.6f, lPlayerSpeed * (1f - lEase));
+            }
             float lBefore = _rate;
-            _rate = Mathf.MoveTowards(_rate, lWanted, lCruise * 2.2f * pDt);
+            _rate = Mathf.MoveTowards(_rate, lWanted, Mathf.Max(lCruise * 2.2f, Mathf.Abs(lWanted - _rate) * 1.5f) * pDt);
             if (_wobble != null) _wobble.Accelerate((_rate - lBefore) / Mathf.Max(0.0001f, pDt) / lCruise);
             distance += _rate * pDt;
 
@@ -131,6 +175,17 @@ namespace Com.IsartDigital.Hyperspeed
                 }
             }
             if (Passing && !lSurging && lGap > lCruise * 0.15f) Passing = false;
+        }
+
+        private float _playerRate;
+        private float _lastPlayerProgress = -1e9f;
+
+        // Back to its own base pace at once (after the runner respawned).
+        public void ResetPace()
+        {
+            _rate = speed;
+            _playerRate = speed;
+            _lastPlayerProgress = -1e9f;
         }
 
         public void SetDistance(float pDistance)

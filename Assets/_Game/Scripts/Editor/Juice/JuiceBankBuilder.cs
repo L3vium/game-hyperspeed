@@ -35,6 +35,29 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
             AssetDatabase.OpenAsset(AssetDatabase.LoadAssetAtPath<GameObject>(PATH));
         }
 
+        // Rebuilds only these events from their default recipes ; every other event keeps its tweaks.
+        public static void ResetEvents(params JuiceId[] pIds)
+        {
+            GameObject lRoot = PrefabUtility.LoadPrefabContents(PATH);
+            try
+            {
+                foreach (HSJuiceEvent lEvent in lRoot.GetComponentsInChildren<HSJuiceEvent>(true))
+                {
+                    if (Array.IndexOf(pIds, lEvent.id) < 0) continue;
+                    MMF_Player lPlayer = lEvent.GetComponent<MMF_Player>();
+                    if (lPlayer.FeedbacksList != null) lPlayer.FeedbacksList.Clear();
+                    Configure(lPlayer);
+                    JuiceDefaults.Fill(lEvent.id, lPlayer);
+                    lEvent.notes = JuiceDefaults.Notes(lEvent.id);
+                }
+                PrefabUtility.SaveAsPrefabAsset(lRoot, PATH);
+            }
+            finally
+            {
+                PrefabUtility.UnloadPrefabContents(lRoot);
+            }
+        }
+
         [MenuItem("Hyperspeed/Juice/Reset Selected Event To Defaults")]
         public static void ResetSelected()
         {

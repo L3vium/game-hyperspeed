@@ -8,7 +8,16 @@ namespace Com.IsartDigital.Hyperspeed
     // the road carries every object along with it.
     public enum ItemKind
     {
-        Pad, Strip, Ring, Crate, Laser, Hammer, Pane, Rope, Mover, Bridge, Meteor, Prop, Arch, GravityGate
+        Pad, Strip, Ring, Crate, Laser, Hammer, Pane, Rope, Mover, Bridge, Meteor, Prop, Arch, GravityGate,
+        // 2026-11-12, sky lanes : a ramp out of the ground lane that throws you up, pads and launch strips on the decks.
+        Kicker, DeckPad, DeckStrip,
+        // 2026-11-12, side loops : an electric rope that winds into a vertical loop beside the line (size = radius,
+        // length = advance per radian, width = lead on the ground at each end, value = sideways drift over the loop).
+        LoopRope,
+        // 2026-11-14 : a rock floating in the air (height above the line, or an absolute altitude when flag ; size ; variant).
+        FloatRock,
+        // 2026-11-14 : a crater, a real hole through the track (size = radius).
+        Crater
     }
 
     // One piece of the racing line : it advances by `steps` samples of Spine.STEP metres while yaw, pitch and roll ease by
@@ -52,18 +61,20 @@ namespace Com.IsartDigital.Hyperspeed
         public float wallLean = 28f;
         public bool mountain;
         public int seed;
+        // Hills on the floor (metres, 0 = flat).
+        public float mounds;
 
         public TrackBlock ToBlock() => new TrackBlock
         {
             s0 = s0, s1 = s1, look = look, halfWidth = halfWidth, offset = offset, drop = drop, tilt = tilt, thickness = thickness,
-            wallLeft = wallLeft, wallRight = wallRight, wallLean = wallLean, mountain = mountain, seed = seed
+            wallLeft = wallLeft, wallRight = wallRight, wallLean = wallLean, mountain = mountain, seed = seed, mounds = mounds
         };
 
         public static BlockData From(TrackBlock pBlock) => new BlockData
         {
             s0 = pBlock.s0, s1 = pBlock.s1, look = pBlock.look, halfWidth = pBlock.halfWidth, offset = pBlock.offset, drop = pBlock.drop,
             tilt = pBlock.tilt, thickness = pBlock.thickness, wallLeft = pBlock.wallLeft, wallRight = pBlock.wallRight,
-            wallLean = pBlock.wallLean, mountain = pBlock.mountain, seed = pBlock.seed
+            wallLean = pBlock.wallLean, mountain = pBlock.mountain, seed = pBlock.seed, mounds = pBlock.mounds
         };
 
         public BlockData Clone() => (BlockData)MemberwiseClone();
@@ -131,6 +142,8 @@ namespace Com.IsartDigital.Hyperspeed
         public float spawnS = -130f;
         public float finishS = 20000f;
         public float climaxS = -1f;
+        // Light highways (2026-11-12) : stretches built for light speed, (s0, s1).
+        public List<Vector2> highways = new List<Vector2>();
         public List<SegmentData> segments = new List<SegmentData>();
         public List<BlockData> blocks = new List<BlockData>();
         public List<ItemData> items = new List<ItemData>();

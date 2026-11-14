@@ -8,24 +8,14 @@ namespace Com.IsartDigital.Hyperspeed
         // Dash energy : a press costs one, holding burns it. Rings and bursts give some back.
         private const float DASH_ENERGY = 3f;
         private const float DASH_RECHARGE = 0.5f;
-        // 2026-11-11 : the run is calmer, the kicks far stronger (they still fade, see DRAG).
-        private const float DASH_KICK = 0.8f;
-        private const float AIR_DASH_KICK = 1f;
-        // Past this many times cruise, kicks add nothing more.
-        private const float SOFT_CAP = 4.6f;
+        private const float DASH_KICK = 0.6f;
+        private const float AIR_DASH_KICK = 0.8f;
         private const float THRUST_DELAY = 0.2f;
         private const float THRUST_BURN = 1.3f;
         private const float THRUST_POWER = 0.75f;
         private const float LIFT_PITCH = 13f;
 
-        private float JumpSpeed
-        {
-            get
-            {
-                float lGround = OnSurface ? _speed : Vector3.ProjectOnPlane(_velocity, _gravityUp).magnitude;
-                return Mathf.Min(JUMP_VELOCITY_MAX, JUMP_VELOCITY + lGround * JUMP_SPEED_SHARE);
-            }
-        }
+        private float JumpSpeed => JUMP_VELOCITY;
 
         private void TryJump()
         {
@@ -78,16 +68,15 @@ namespace Com.IsartDigital.Hyperspeed
             _dashCooldown = 0.3f;
 
             float lCruise = _profile.cruise;
-            float lScale = KickScale(0.25f);
             if (State == PlayerState.Ground || State == PlayerState.Grind)
             {
-                _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + lCruise * DASH_KICK * lScale);
+                _speed = Mathf.Min(_profile.SafetyMax, _speed + lCruise * DASH_KICK);
                 if (State == PlayerState.Ground && AimPitch > LIFT_PITCH) LiftOff();
             }
             else
             {
-                float lNew = _velocity.magnitude + lCruise * AIR_DASH_KICK * lScale;
-                _velocity = AimDirection * Mathf.Min(SpeedProfile.SAFETY_MAX, lNew);
+                float lNew = _velocity.magnitude + lCruise * AIR_DASH_KICK;
+                _velocity = AimDirection * Mathf.Min(_profile.SafetyMax, lNew);
             }
             JuiceContext lDashJuice = Jx(transform.position + PhysUp);
             lDashJuice.direction = OnSurface ? _heading : AimDirection;
@@ -115,10 +104,10 @@ namespace Com.IsartDigital.Hyperspeed
             Thrusting = lWant;
             if (!Thrusting) return;
             _dashEnergy = Mathf.Max(0f, _dashEnergy - THRUST_BURN * pDt);
-            float lPush = _profile.cruise * THRUST_POWER * KickScale(0.15f) * pDt;
+            float lPush = _profile.cruise * THRUST_POWER * pDt;
             if (State == PlayerState.Ground || State == PlayerState.Grind)
             {
-                _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + lPush);
+                _speed = Mathf.Min(_profile.SafetyMax, _speed + lPush);
                 if (State == PlayerState.Ground && AimPitch > LIFT_PITCH) LiftOff();
             }
             else _velocity += AimDirection * lPush * (Diving ? 2f : 1.3f);
@@ -137,6 +126,13 @@ namespace Com.IsartDigital.Hyperspeed
         // Launch strip : a high jump. Your speed and your line stay yours.
         public void Launch(float pUp)
         {
+            // In light form the runner is a ball of light : a strip or a kicker built for cruise would throw it kilometres
+            // off the stage. It stays on the track and just flashes through.
+            if (LightForm)
+            {
+                HSJuice.Play(JuiceId.Launch, Jx(transform.position, 0.4f));
+                return;
+            }
             Vector3 lUp = OnSurface ? _up : _gravityUp;
             Vector3 lVelocity = OnSurface ? _moveDir * _speed + Vector3.Cross(_up, _moveDir).normalized * _slip : _velocity;
             _velocity = Vector3.ProjectOnPlane(lVelocity, lUp) + lUp * pUp;
@@ -152,14 +148,15 @@ namespace Com.IsartDigital.Hyperspeed
         // One instant kick. It fades on its own : see the drag in SpeedStep. pRefill also gives dash energy back.
         public void ApplyBoost(float pBoost, Vector3 pDirection, float pAlign, string pLabel, bool pRefill = false, bool pPad = false, JuiceId pJuice = JuiceId.BoostOther)
         {
-            // Kicks are huge from a calm run and worth less and less up high : one pad throws you toward hyper, only a
-            // chain of them and your dashes reaches light, and nothing stacks forever.
-            pBoost *= KickScale(pPad ? 0.35f : 0.2f);
-            if (OnSurface) _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + pBoost);
+            // Kicks are worth less up high : what takes you to light is your own dashes on top of them. A pad keeps
+            // most of its punch at any speed : running over one must always be felt.
+            if (pPad) pBoost *= _profile.PadPower;
+            pBoost *= KickScale(pPad ? _profile.PadFloor : 0.3f);
+            if (OnSurface) _speed = Mathf.Min(_profile.SafetyMax, _speed + pBoost);
             else _velocity += pDirection.normalized * pBoost;
             if (pRefill) _dashEnergy = Mathf.Min(DASH_ENERGY, _dashEnergy + 0.7f);
 
-            float lAmount = Mathf.Clamp01(pBoost / (_profile.cruise * 0.8f));
+            float lAmount = Mathf.Clamp01(pBoost / (_profile.cruise * 0.3f));
             _boostTimer = Mathf.Max(_boostTimer, 0.5f + lAmount * 0.6f);
             // Everything you see, hear and feel : the event in the HS_Juice prefab (pads, rings, drift, others).
             JuiceContext lJuice = Jx(transform.position + PhysUp * 0.5f, pPad ? 1f : lAmount);
@@ -169,13 +166,12 @@ namespace Com.IsartDigital.Hyperspeed
             AddCombo();
         }
 
-        // How much of a kick lands at the current speed : all of it up to cruise, less and less above (never under the
-        // floor), and nothing past SOFT_CAP times cruise.
+        // Share of a kick that lands at the current speed (the base build's curve) : all of it up to cruise, less and
+        // less above, never under the floor.
         private float KickScale(float pFloor)
         {
             float lRatio = Speed / Mathf.Max(1f, _profile.cruise);
-            float lScale = Mathf.Clamp(1.6f - 0.45f * lRatio, pFloor, 1f);
-            return lScale * Mathf.Clamp01(SOFT_CAP - lRatio);
+            return Mathf.Clamp(1.45f - 0.36f * lRatio, pFloor, 1f);
         }
 
         // Touching a hazard : most of your speed is gone. That is the whole punishment, and it is enough.
@@ -185,7 +181,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (Autopilot.Enabled) Debug.Log("[HS-CRASH] s=" + Progress.ToString("F0") + " v=" + Speed.ToString("F0") + " state=" + State + " at=" + pPoint.ToString("F0") + " lat=" + Lateral.ToString("F0"));
             Vector3 lUp = OnSurface ? _up : _gravityUp;
             Vector3 lAway = Vector3.ProjectOnPlane(transform.position - pPoint, lUp).normalized;
-            float lSpeed = Mathf.Max(Speed * 0.4f, RunFloor);
+            float lSpeed = Mathf.Max(Speed * 0.4f, _profile.cruise * 0.55f);
             _gravityUp = lUp;
             _velocity = _heading * lSpeed + lAway * 10f + lUp * 18f;
             _crashTimer = 0.45f;

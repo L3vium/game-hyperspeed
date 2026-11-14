@@ -19,6 +19,8 @@ namespace Com.IsartDigital.Hyperspeed
 
         public float Length { get; private set; }
         public float catchRadius = 20f;
+        // A side loop rope (2026-11-12) : the view turns with the runner around it.
+        public bool loop;
 
         private void OnEnable() => All.Add(this);
 

@@ -34,6 +34,9 @@ namespace Com.IsartDigital.Hyperspeed
             string lDetail = "";
             for (int i = 0; i < lSpine.Count; i += STRIDE)
             {
+                // Light highways are checked by construction (wide, gentle, alternating) : their width would make this
+                // search thousands of times slower.
+                if (pLayout.InHighway(lSpine.samples[i].s)) continue;
                 Vector3 lPoint = lSpine.samples[i].position;
                 float lReach = lField.TotalHalfWidth(lSpine.samples[i].s);
                 int lCells = Mathf.CeilToInt(lReach * 2f / CELL) + 1;

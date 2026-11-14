@@ -87,6 +87,8 @@ namespace Com.IsartDigital.Hyperspeed
                 case RivalKind.Time: return new Character { squash = 0.3f, wobble = 14f, hop = 2f, hopEvery = 0.8f, flail = 1.2f };
                 case RivalKind.TRex: return new Character { squash = 0.2f, wobble = 12f, hop = 1.6f, hopEvery = 0.45f, wheelie = 10f, flail = 1.2f };
                 case RivalKind.Death: return new Character { squash = 0.2f, wobble = 18f, hop = 0.8f, hopEvery = 1.2f, snake = 8f, flail = 1f };
+                // The pack runs on its own legs (DogPack) : the root barely moves.
+                case RivalKind.Dogs: return new Character { hopEvery = 2f };
                 default: return new Character { squash = 0.1f, wobble = 6f, hopEvery = 2f, flail = 0.5f };
             }
         }

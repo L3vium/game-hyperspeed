@@ -12,10 +12,8 @@ namespace Com.IsartDigital.Hyperspeed
         // ---------------- tuning
         private const float RUN_ACCEL = 90f;
         private const float SLOPE_ACCEL = 46f;
-        // Jumps grow with the speed : a fast runner leaps far higher (base + share of the ground speed, capped).
-        private const float JUMP_VELOCITY = 62f;
-        private const float JUMP_SPEED_SHARE = 0.1f;
-        private const float JUMP_VELOCITY_MAX = 140f;
+        // 2026-11-14 : a quarter higher than the base jump (asked), so decks, ropes and kickers are reached.
+        private const float JUMP_VELOCITY = 69f;
         private const float DASH_TIME = 0.26f;
         // After a dash press, breakables still shatter for this long : the timing is generous.
         private const float BREAK_WINDOW = 0.6f;
@@ -23,6 +21,9 @@ namespace Com.IsartDigital.Hyperspeed
         private const float DASH_BUFFER = 0.2f;
         private const float COYOTE_TIME = 0.2f;
         private const float JUMP_BUFFER = 0.18f;
+        private const float WRONG_WAY_TIME = 0.8f;
+        // Every dash-break is a small speed pad (share of cruise).
+        private const float BREAK_KICK = 0.3f;
         private const float RADIUS = 0.45f;
         private const float HEIGHT = 1.8f;
         private const float SKIN = 0.04f;
@@ -31,22 +32,12 @@ namespace Com.IsartDigital.Hyperspeed
         private const float START_WINDOW_AFTER = 0.2f;
         private const float FREE_ROAM_SPEED = 34f;
         // Above cruise : half of the extra speed is gone after about 5 s, sooner the further above you are.
-        private const float DRAG = 0.13f;
-        private const float DRAG_OVER = 0.12f;
-        private const float DRAG_LIGHT = 0.1f;
+        private const float DRAG = 0.14f;
+        private const float DRAG_OVER = 0.085f;
+        private const float DRAG_LIGHT = 0.05f;
         private const float LIGHT_HOLD = 0.5f;
         private const float AIM_PITCH_MIN = -80f;
         private const float AIM_PITCH_MAX = 70f;
-        // No run asked : the runner slows down to a stop (fraction of cruise lost per second), harder with the brake.
-        private const float COAST_DECEL = 0.9f;
-        private const float BRAKE_DECEL = 2.6f;
-        // Out of the stage : sideways past the walls, or this far under the floor around you.
-        private const float OUT_SIDE_MARGIN = 75f;
-        private const float OUT_UNDER = 90f;
-        private const float FALL_TIME = 0.55f;
-        private const float SCENERY_TIME = 0.35f;
-        private const float WRONG_WAY_TIME = 0.8f;
-        private const float BREAK_KICK = 0.3f;
 
         // ---------------- state
         public PlayerState State { get; private set; } = PlayerState.Frozen;
@@ -79,12 +70,13 @@ namespace Com.IsartDigital.Hyperspeed
         public bool HasDoubleJump { get; private set; } = true;
         public float DashEnergy => _dashEnergy;
         public float Steer { get; private set; }
-        // How hard the player asks to run (0 to 1) and to brake : nothing asked, nothing run.
-        public float RunInput { get; private set; }
-        public float BrakeInput { get; private set; }
         // Running against the track for a moment : the HUD says so.
         public bool WrongWay { get; private set; }
         private float _wrongWayTime;
+        // Victory lap : after the line the runner runs the whole stage again at this pace, for ever.
+        public float LapSpeed;
+        // Riding the electric loop of a side loop rope.
+        public bool OnLoopRope => State == PlayerState.Grind && _rail != null && _rail.loop;
         // Riding a leaning wall : which side, 0 when on the floor.
         public int WallSide { get; private set; }
         public bool WallRiding => WallSide != 0;
@@ -173,7 +165,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             get
             {
-                if (_layout == null || _freeRoam) return PhysUp;
+                if (_layout == null || _freeRoam || OnLoopRope) return PhysUp;
                 SpineSample lSample = _layout.spine.samples[_layout.spine.IndexOf(Progress)];
                 if (lSample.localGravity) return PhysUp;
                 // A short hop keeps the view it had : the frame only goes back to world up on a real flight.
@@ -257,15 +249,14 @@ namespace Com.IsartDigital.Hyperspeed
             _barrier = false;
             if (State == PlayerState.Frozen || State == PlayerState.Dead) SetState(PlayerState.Ground);
             _slip = 0f;
-            // Already asking to run on GO : you leave at once.
-            if (HSInput.Run > 0.1f || Autopilot.Enabled) _speed = Mathf.Max(_speed, _profile.cruise * 0.8f);
+            _speed = Mathf.Max(_speed, _profile.cruise * 0.8f);
             float lDelta = _startPressTime - _goTime;
             if (_startPressTime > 0f && lDelta >= -START_WINDOW_BEFORE && lDelta <= START_WINDOW_AFTER) PerfectStart();
         }
 
         private void PerfectStart()
         {
-            _speed = Mathf.Max(_speed, _profile.cruise * 1.45f);
+            _speed = Mathf.Max(_speed, _profile.cruise * 1.7f);
             _boostTimer = 2f;
             OnPerfectStart?.Invoke();
             HSJuice.Play(JuiceId.PerfectStart, Jx(transform.position));
@@ -316,6 +307,8 @@ namespace Com.IsartDigital.Hyperspeed
 
             float lDistance = TotalSpeed * lDt;
             int lSubsteps = Mathf.Clamp(Mathf.CeilToInt(lDistance / 1.2f), 1, 28);
+            // Late stages run ten times faster (over 30 m a frame) : the steps stay a few metres long, nothing is skipped.
+            if (lDistance > 28f * 1.2f) lSubsteps = Mathf.Clamp(Mathf.CeilToInt(lDistance / 4f), 28, 96);
             _substeps = lSubsteps;
             float lSubDt = lDt / lSubsteps;
             for (int i = 0; i < lSubsteps; i++)
@@ -379,6 +372,8 @@ namespace Com.IsartDigital.Hyperspeed
                     AimAt(_layout.Flow(Progress + Speed * 0.3f), AimPitch, lAssist);
                 }
             }
+            // Around a loop rope the view looks along the rope : the classic loop shot, whatever the mouse did.
+            if (OnLoopRope) AimAt(_heading, 0f, 20f * pDt);
             Vector3 lFlat = Vector3.ProjectOnPlane(_aimForward, _aimUp);
             _aimForward = lFlat.sqrMagnitude > 0.0001f ? lFlat.normalized : Vector3.Cross(_aimUp, Vector3.right).normalized;
         }
@@ -411,9 +406,6 @@ namespace Com.IsartDigital.Hyperspeed
             bool lCanAct = State != PlayerState.Crash && State != PlayerState.Finished && !_autoRun && !InputLocked;
             Steer = lCanAct ? HSInput.Steer : 0f;
             _turnStick = lCanAct ? HSInput.TurnStick : 0f;
-            // Nobody at the controls (title runner) : it runs on its own.
-            RunInput = InputLocked ? 1f : _autoRun ? 0f : HSInput.Run;
-            BrakeInput = lCanAct ? HSInput.Brake : 0f;
             float lMouseTurn = lCanAct && !HSInput.BotAimActive ? HSInput.LookDelta.x / Mathf.Max(0.0001f, pDt) : 0f;
             MouseTurn = Mathf.Lerp(MouseTurn, lMouseTurn, 1f - Mathf.Exp(-12f * pDt));
             _jumpPressed = lCanAct && (HSInput.JumpPressed || _bufJump);
@@ -514,8 +506,9 @@ namespace Com.IsartDigital.Hyperspeed
             AddCombo();
             _dashEnergy = Mathf.Min(DASH_ENERGY, _dashEnergy + 0.4f);
             // Every break is a small speed pad.
-            if (OnSurface) _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + _profile.cruise * BREAK_KICK * KickScale(0.3f));
-            else _velocity += _velocity.normalized * _profile.cruise * BREAK_KICK * KickScale(0.3f);
+            float lKick = _profile.cruise * BREAK_KICK * KickScale(0.3f);
+            if (OnSurface) _speed = Mathf.Min(_profile.SafetyMax, _speed + lKick);
+            else if (_velocity.sqrMagnitude > 1f) _velocity += _velocity.normalized * lKick;
             _boostTimer = Mathf.Max(_boostTimer, 0.6f);
             JuiceContext lJuice = Jx(lAt);
             lJuice.size = pBreakable.radius / 16f;
@@ -529,7 +522,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             pBreakable.Smash(_heading, Speed * 0.5f);
             if (Invulnerable || CheatInvincible) return;
-            if (OnSurface) _speed = Mathf.Max(RunFloor, _speed * 0.75f);
+            if (OnSurface) _speed = Mathf.Max(_profile.cruise * 0.55f, _speed * 0.75f);
             else _velocity *= 0.75f;
             _invulnerable = 0.3f;
             HSJuice.Play(JuiceId.BodyHit, Jx(pBreakable.transform.position));
@@ -571,7 +564,9 @@ namespace Com.IsartDigital.Hyperspeed
                 Vector3 lBottom = transform.position + lUp * (lLift + RADIUS);
                 Vector3 lTop = transform.position + lUp * (HEIGHT - RADIUS);
                 RaycastHit lHit;
-                if (!Physics.CapsuleCast(lBottom, lTop, RADIUS, lDir, out lHit, lDistance + SKIN, GroundMask, QueryTriggerInteraction.Ignore))
+                // Inside a hole punched through the track there is nothing to stand on : the move goes through.
+                if (!Physics.CapsuleCast(lBottom, lTop, RADIUS, lDir, out lHit, lDistance + SKIN, GroundMask, QueryTriggerInteraction.Ignore)
+                    || (TrackHoles.Count > 0 && TrackHoles.Inside(lHit.point)))
                 {
                     transform.position += pDisplacement;
                     return;
@@ -637,7 +632,7 @@ namespace Com.IsartDigital.Hyperspeed
             float lLoss = 1f - lHeadOn * 0.35f;
             if (OnSurface)
             {
-                _speed = Mathf.Max(RunFloor, _speed * lLoss);
+                _speed = Mathf.Max(_profile.cruise * 0.55f, _speed * lLoss);
                 _heading = Vector3.ProjectOnPlane(Vector3.ProjectOnPlane(_heading, pHit.normal), _up).normalized;
                 _moveDir = _heading;
             }
@@ -663,7 +658,7 @@ namespace Com.IsartDigital.Hyperspeed
             _gravityUp = lHit.normal;
             _heading = lTangent.sqrMagnitude > 1f ? lTangent.normalized : Vector3.ProjectOnPlane(_heading, lHit.normal).normalized;
             _moveDir = _heading;
-            _speed = Mathf.Max(lTangent.magnitude, RunFloor);
+            _speed = Mathf.Max(lTangent.magnitude, _profile.cruise * 0.55f);
             _slip = 0f;
             Diving = false;
             SetState(_autoRun ? PlayerState.Finished : PlayerState.Ground);
@@ -702,17 +697,30 @@ namespace Com.IsartDigital.Hyperspeed
                 LightForm = false;
                 HSJuice.Play(JuiceId.LightExit, Jx(transform.position));
             }
-            // The wind is the speed you hear : a low roar at a jog, a howl near light.
             // Three layers of wind : a low roar from the first steps, the body of the wind, a howl near light.
             float lWind = Mathf.Clamp01(Speed / Mathf.Max(1f, _profile.cruise));
             AudioManager.SetLoop("sfx_wind_low", Mathf.Clamp01(lWind * 0.7f) * 0.9f, 0.8f + Speed01 * 0.4f);
             AudioManager.SetLoop("sfx_wind_mid", Mathf.Clamp01(Speed01 * 1.2f) * 0.85f, 0.85f + Speed01 * 0.5f);
             AudioManager.SetLoop("sfx_wind_high", Mathf.Clamp01((Speed01 - 0.45f) * 1.8f) * 0.8f, 0.9f + Speed01 * 0.4f);
-            AudioManager.SetLoop("sfx_light_loop", LightForm ? 0.7f : 0f, 1f + Speed01 * 0.2f);
+            AudioManager.SetLoop("sfx_light_loop", LightForm ? 0.7f : 0f);
             AudioManager.SetLoop("sfx_dive_loop", Diving ? 0.3f + Dive01 * 0.6f : 0f, 0.85f + Dive01 * 0.4f);
             if (Diving && !_wasDiving) HSJuice.Play(JuiceId.DiveStart, Jx(transform.position));
             _wasDiving = Diving;
         }
+
+        private bool _wasDiving;
+
+        // Heading against the track on the ground, for a moment : the HUD warns. Nothing pushes you around.
+        private void UpdateWrongWay(float pDt)
+        {
+            bool lAgainst = _layout != null && OnSurface && !_freeRoam && !_autoRun && _speed > 15f && Vector3.Dot(_heading, _layout.Flow(Progress)) < -0.3f;
+            _wrongWayTime = lAgainst ? _wrongWayTime + pDt : Mathf.Max(0f, _wrongWayTime - pDt * 2f);
+            WrongWay = _wrongWayTime > WRONG_WAY_TIME;
+        }
+
+        // Context of a juice event happening to the runner : where, the way it runs, its up.
+        private JuiceContext Jx(Vector3 pAt, float pIntensity = 1f) =>
+            new JuiceContext { position = pAt, direction = _heading, normal = PhysUp, intensity = pIntensity, size = 1f };
 
         // ================================================================ progress, death, respawn
 
@@ -756,64 +764,51 @@ namespace Com.IsartDigital.Hyperspeed
             }
         }
 
+        // ---------------- out of the stage (2026-11-14)
+        // Death only ever happens OFF the stage, never on it : standing or riding on anything walkable (track, platform,
+        // deck, prop, rope) is always safe. In the air you die only once nothing can catch you any more (no landing on
+        // the arc, no rope or ring ahead), and near the stage you get a little longer to steer back. Standing on scenery
+        // well outside the stage is the only other way out. No throw-back : you come back behind, after a camera flight.
+        private const float FALL_TIME = 0.7f;
+        private const float FALL_TIME_NEAR = 1.25f;
+        private const float SIDE_MARGIN = 25f;
+        private const float SCENERY_TIME = 1.2f;
         private float _noGroundTime;
         private float _sceneryTime;
-        private bool _wasDiving;
+        // The arc meets a rope or a ring : a route through the air, not a fall.
+        public bool HasRouteAhead { get; private set; }
 
-        // Speed you keep after a knock while you ask to run. Without a run asked, nothing holds you up.
-        private float RunFloor => RunInput > 0.1f ? _profile.cruise * 0.55f : 0f;
+        // How far past the stage's sides (and its sky routes) you may fly and still steer back.
+        // At light speed that band is crossed in a blink : it is at least a third of a second of sideways flight wide.
+        private float SideMargin => Mathf.Max(SIDE_MARGIN * Mathf.Sqrt(Mathf.Max(1f, _profile.scale)), Mathf.Abs(LateralSpeed) * 0.35f);
 
-        // Out of the stage is death, at once, and you come back at a safe spot behind : off the sides, under the floor,
-        // on the scenery, falling with no track under the arc, or lost in the air of a loop. No throw-back, no bounce.
         private void CheckFallOut()
         {
             if (_layout == null || State == PlayerState.Finished || State == PlayerState.Dead || _autoRun || _freeRoam) return;
             float lDt = Time.deltaTime;
+            float lEdge = Mathf.Abs(Lateral - _layout.field.CenterLateral(Progress)) - _layout.field.TotalHalfWidth(Progress);
+            bool lNearStage = lEdge < SideMargin || SkyRoute.Near(Progress, Lateral);
             string lWhy = null;
-
-            float lSide = Mathf.Abs(Lateral - _layout.field.CenterLateral(Progress)) - _layout.field.TotalHalfWidth(Progress);
-            if (lSide > OUT_SIDE_MARGIN) lWhy = "side";
-            else if (UnderFloor() > OUT_UNDER) lWhy = "under";
-            else if (_layout.IsLost(transform.position, Progress)) lWhy = "lost";
-
-            _sceneryTime = OnSurface && _groundLayer == Layers.SCENERY ? _sceneryTime + lDt : 0f;
-            if (lWhy == null && _sceneryTime > SCENERY_TIME) lWhy = "scenery";
-
-            if (State == PlayerState.Air || State == PlayerState.Crash)
+            if (OnSurface)
             {
+                _noGroundTime = 0f;
+                bool lOutside = _groundLayer == Layers.SCENERY && !lNearStage;
+                _sceneryTime = lOutside ? _sceneryTime + lDt : 0f;
+                if (_sceneryTime > SCENERY_TIME) lWhy = "scenery";
+            }
+            else
+            {
+                _sceneryTime = 0f;
                 bool lFalling = Vector3.Dot(_velocity, _gravityUp) < 0f;
-                _noGroundTime = !HasLandingPrediction && lFalling ? _noGroundTime + lDt : 0f;
-                if (lWhy == null && _noGroundTime > FALL_TIME) lWhy = "fall";
+                bool lSupported = HasLandingPrediction || HasRouteAhead;
+                _noGroundTime = !lSupported && lFalling ? _noGroundTime + lDt : 0f;
+                if (_noGroundTime > (lNearStage ? FALL_TIME_NEAR : FALL_TIME)) lWhy = lNearStage ? "fall" : "side";
+                else if (!lSupported && _layout.IsLost(transform.position, Progress)) lWhy = "lost";
             }
-            else _noGroundTime = 0f;
-
             if (lWhy == null) return;
-            if (Autopilot.Enabled) Debug.Log("[HS-LD] out (" + lWhy + ") s=" + Progress.ToString("F0") + " lat=" + Lateral.ToString("F0") + " pos=" + transform.position.ToString("F0") + " vel=" + _velocity.ToString("F0") + " state=" + State);
+            if (Autopilot.Enabled || Debug.isDebugBuild)
+                Debug.Log("[HS-LD] out (" + lWhy + ") s=" + Progress.ToString("F0") + " lat=" + Lateral.ToString("F0") + " edge=" + lEdge.ToString("F0") + " pos=" + transform.position.ToString("F0") + " vel=" + _velocity.ToString("F0") + " state=" + State + " layer=" + _groundLayer);
             Die();
-        }
-
-        // How far under the lowest floor around (just behind to well ahead) the runner is, along the floor's normal.
-        private float UnderFloor()
-        {
-            float lAhead = Mathf.Max(200f, Speed * 1.5f);
-            float lDeepest = float.MinValue;
-            for (float lD = -50f; lD <= lAhead; lD += 50f)
-            {
-                float lS = Progress + lD;
-                Vector3 lFloor = _layout.GroundPoint(lS, _layout.field.CenterLateral(lS));
-                float lUnder = Vector3.Dot(lFloor - transform.position, _layout.field.Normal(lS));
-                // The shallowest "under" wins : being above any floor around means you are not under the stage.
-                if (lD == -50f || lUnder < lDeepest) lDeepest = lUnder;
-            }
-            return lDeepest;
-        }
-
-        // Heading against the track on the ground, for a moment : the HUD warns. Nothing pushes you around.
-        private void UpdateWrongWay(float pDt)
-        {
-            bool lAgainst = _layout != null && OnSurface && !_freeRoam && !_autoRun && _speed > 15f && Vector3.Dot(_heading, _layout.Flow(Progress)) < -0.3f;
-            _wrongWayTime = lAgainst ? _wrongWayTime + pDt : Mathf.Max(0f, _wrongWayTime - pDt * 2f);
-            WrongWay = _wrongWayTime > WRONG_WAY_TIME;
         }
 
         public void Die()
@@ -834,11 +829,30 @@ namespace Com.IsartDigital.Hyperspeed
             OnDied?.Invoke();
         }
 
-        public Breadcrumb PickRespawn() => _crumbs.PickSafe(Progress, Speed, _layout);
+        // Where RespawnAt will put the runner and how the race camera will frame it : the respawn flight lands there.
+        public void PreviewRespawn(Breadcrumb pCrumb, out Vector3 pFocus, out Vector3 pUp, out Vector3 pLook, out float pSpeed, out float pSpeed01)
+        {
+            float lCenter = _layout.field.CenterLateral(pCrumb.s);
+            float lHalf = _layout.field.HalfWidth(pCrumb.s) * 0.7f;
+            float lLateral = Mathf.Clamp(pCrumb.lateral, lCenter - lHalf, lCenter + lHalf);
+            pUp = _layout.field.Normal(pCrumb.s);
+            Vector3 lFeet = _layout.GroundPoint(pCrumb.s, lLateral) + pUp * 0.05f;
+            pFocus = lFeet + pUp * 0.9f;
+            pLook = Vector3.ProjectOnPlane(_layout.Flow(pCrumb.s), pUp).normalized;
+            pSpeed = Mathf.Max(pCrumb.speed * 0.8f, _profile.cruise);
+            pSpeed01 = Mathf.Clamp01((pSpeed - _profile.cruise * 0.55f) / (_profile.lightEnter - _profile.cruise * 0.55f));
+        }
 
-        // Context of a juice event happening to the runner : where, the way it runs, its up.
-        private JuiceContext Jx(Vector3 pAt, float pIntensity = 1f) =>
-            new JuiceContext { position = pAt, direction = _heading, normal = PhysUp, intensity = pIntensity, size = 1f };
+        // Dev cheat : straight to light speed.
+        public void CheatMaxSpeed()
+        {
+            float lTarget = _profile.lightEnter * 1.05f;
+            if (OnSurface) _speed = Mathf.Max(_speed, lTarget);
+            else _velocity = _velocity.normalized * Mathf.Max(_velocity.magnitude, lTarget);
+            _boostTimer = Mathf.Max(_boostTimer, 1f);
+        }
+
+        public Breadcrumb PickRespawn() => _crumbs.PickSafe(Progress, Speed, _layout);
 
         public Breadcrumbs Crumbs => _crumbs;
 
@@ -849,12 +863,12 @@ namespace Com.IsartDigital.Hyperspeed
             float lHalf = _layout.field.HalfWidth(pCrumb.s) * 0.7f;
             float lLateral = Mathf.Clamp(pCrumb.lateral, lCenter - lHalf, lCenter + lHalf);
             Place(pCrumb.s, lLateral);
-            // Back in the race at once if you are asking to run, standing still otherwise.
-            _speed = HSInput.Run > 0.1f || Autopilot.Enabled ? Mathf.Max(pCrumb.speed * 0.8f, _profile.cruise * 0.85f) : 0f;
+            _speed = Mathf.Max(pCrumb.speed * 0.8f, _profile.cruise);
             _wrongWayTime = 0f;
             WrongWay = false;
             _sceneryTime = 0f;
             _noGroundTime = 0f;
+            _localAirTime = 0f;
             _velocity = _heading * _speed;
             _invulnerable = 1.5f;
             _airTime = 0f;

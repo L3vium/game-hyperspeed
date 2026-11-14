@@ -19,7 +19,8 @@ namespace Com.IsartDigital.Hyperspeed
             ElectricArcs lArcs = pRail.gameObject.AddComponent<ElectricArcs>();
             lArcs._rail = pRail;
             lArcs._lines = new LineRenderer[ARCS];
-            Material lMaterial = Mats.Glow(Color.Lerp(pColor, Color.white, 0.55f) * 3.2f, true);
+            // Electric blue-white whatever the stage colour : it must read as current (2026-11-12).
+            Material lMaterial = Mats.Glow(Color.Lerp(Color.Lerp(pColor, new Color(0.45f, 0.85f, 1f), 0.7f), Color.white, 0.35f) * 3.2f, true);
             for (int i = 0; i < ARCS; i++)
             {
                 LineRenderer lLine = new GameObject("Arc" + i).AddComponent<LineRenderer>();
@@ -53,11 +54,12 @@ namespace Com.IsartDigital.Hyperspeed
             }
             for (int i = 0; i < ARCS; i++)
             {
-                // Riding : bursts around you, a little ahead. Otherwise : crawling anywhere along the whole rope.
-                bool lAround = lRiding && i < 5;
-                float lLength = lAround ? 46f : 80f;
-                float lCenter = lAround ? lRider + Random.Range(-1.5f, 1f) * lLength * 0.4f : Random.Range(0f, _rail.Length);
-                float lWander = lAround ? 11f : 7f;
+                // Riding : the current runs ahead of you along the wire, tight on it. Otherwise : crawling anywhere along
+                // the whole rope.
+                bool lAround = lRiding && i < 6;
+                float lLength = lAround ? 34f : 80f;
+                float lCenter = lAround ? lRider + Random.Range(0.2f, 2.4f) * lLength * 0.5f : Random.Range(0f, _rail.Length);
+                float lWander = lAround ? 4f : 7f;
                 for (int j = 0; j < POINTS; j++)
                 {
                     float lT = j / (float)(POINTS - 1);

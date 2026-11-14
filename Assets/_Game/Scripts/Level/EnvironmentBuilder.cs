@@ -27,7 +27,11 @@ namespace Com.IsartDigital.Hyperspeed
             // Enormous views : the fog opens with the world scale.
             // The circuit got six times wider : open the fog so the immense things far away stay in view.
             float lWorld = 2f;
-            RenderSettings.fogDensity = pTheme.fogDensity * 0.24f / lWorld;
+            // 2026-11-14 : the whole stage is drawn and must be seen : the fog opens with the stage's size (the last stages
+            // are ten times bigger) and is half as thick as before ; the track itself never takes more than 55 % of it.
+            float lScale = Mathf.Max(1f, SpeedProfile.Current != null ? SpeedProfile.Current.scale : 1f);
+            RenderSettings.fogDensity = pTheme.fogDensity * 0.24f / lWorld * 0.55f / lScale;
+            Shader.SetGlobalFloat("_HS_TrackFogCap", 0.55f);
             RenderSettings.ambientMode = AmbientMode.Flat;
             RenderSettings.ambientLight = pTheme.ambient;
 

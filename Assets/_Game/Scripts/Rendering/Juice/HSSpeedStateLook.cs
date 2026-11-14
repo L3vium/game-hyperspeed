@@ -50,13 +50,15 @@ namespace Com.IsartDigital.Hyperspeed
                     pLook.height = new Vector2(10f, 24f);
                     pLook.blendTime = 0.6f;
                     break;
+                // 2026-11-12 : normal and hyper are the camera of build 600da29 again (close, classic perspective) ;
+                // only light speed goes far, and only light speed opens the wide view.
                 case SpeedState.Hyper:
                     pLook.fov = new Vector2(50f, 0f);
                     pLook.shape = 0.3f;
                     pLook.cylinder = 0.45f;
-                    pLook.classicFov = new Vector2(8f, 0f);
-                    pLook.distance = new Vector2(90f, 0f);
-                    pLook.height = new Vector2(22f, 0f);
+                    pLook.classicFov = new Vector2(4f, 0f);
+                    pLook.distance = new Vector2(35f, 0f);
+                    pLook.height = new Vector2(8f, 0f);
                     pLook.blendTime = 0.45f;
                     pLook.aberration = 0.6f;
                     pLook.radialBlur = 0.2f;
@@ -69,8 +71,9 @@ namespace Com.IsartDigital.Hyperspeed
                     pLook.shape = 0.12f;
                     pLook.cylinder = 0.35f;
                     pLook.classicFov = new Vector2(10f, 0f);
-                    pLook.distance = new Vector2(140f, 0f);
-                    pLook.height = new Vector2(40f, 0f);
+                    // Hyper + light together keep the far light framing (about 315 m back, 86 m up at full speed).
+                    pLook.distance = new Vector2(195f, 0f);
+                    pLook.height = new Vector2(54f, 0f);
                     pLook.blendTime = 0.7f;
                     pLook.aberration = 0.8f;
                     pLook.radialBlur = 0.25f;

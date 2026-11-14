@@ -32,6 +32,21 @@ namespace Com.IsartDigital.Hyperspeed
         public readonly List<KeyValuePair<float, string>> hints = new List<KeyValuePair<float, string>>();
 
         public float finishS;
+        // Light highways : (s0, s1) stretches built for light speed (see CourseBuilder.LightHighway).
+        public readonly List<Vector2> highways = new List<Vector2>();
+
+        public bool InHighway(float pS)
+        {
+            for (int i = 0; i < highways.Count; i++) if (pS >= highways[i].x && pS <= highways[i].y) return true;
+            return false;
+        }
+
+        // Where the highway under s ends (-1 off any highway).
+        public float HighwayEnd(float pS)
+        {
+            for (int i = 0; i < highways.Count; i++) if (pS >= highways[i].x && pS <= highways[i].y) return highways[i].y;
+            return -1f;
+        }
         // Where the last straight begins : the neck and neck climax.
         public float climaxS = -1f;
         public float startLineS;
@@ -64,11 +79,15 @@ namespace Com.IsartDigital.Hyperspeed
         public bool IsSafe(float pS, float pLateral)
         {
             TrackBlock lBlock = field.BlockAt(pS);
-            if (lBlock == null || lBlock.look == BlockLook.Slab) return false;
+            if (lBlock == null) return false;
+            // A wide, nearly flat platform is a fine place to come back to (2026-11-14 : respawns were kilometres back).
+            if (lBlock.look == BlockLook.Slab && (Mathf.Abs(lBlock.tilt) > 6f || lBlock.halfWidth < 40f)) return false;
             SpineSample lSample = spine.Evaluate(pS);
-            if (lSample.localGravity || lSample.up.y < 0.7f) return false;
+            // Carried sections only where they are right way up (a spiral, the bottom of a loop), never upside down.
+            if (lSample.up.y < (lSample.localGravity ? 0.85f : 0.7f)) return false;
             float lHalf = field.HalfWidth(pS);
             if (Mathf.Abs(pLateral - field.CenterLateral(pS)) > lHalf * 0.75f) return false;
+            if (TrackHoles.Count > 0 && TrackHoles.Inside(field.Point(pS, pLateral), 40f)) return false;
             float lLook = 1.4f * (profile != null ? profile.cruise : 120f);
             for (float lD = lLook * 0.25f; lD <= lLook; lD += lLook * 0.25f)
                 if (!field.Solid(pS + lD)) return false;
