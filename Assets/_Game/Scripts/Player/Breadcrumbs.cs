@@ -15,7 +15,8 @@ namespace Com.IsartDigital.Hyperspeed
     // Ring buffer of where the runner has been (every 0.1 s) : the rewind replays it, respawn picks a safe one.
     public class Breadcrumbs
     {
-        private const int CAPACITY = 90;
+        // Thirty seconds of trail : long unsafe stretches (platforms, a spiral) still leave a recent safe spot.
+        private const int CAPACITY = 300;
         private const float INTERVAL = 0.1f;
 
         private readonly Breadcrumb[] _crumbs = new Breadcrumb[CAPACITY];
@@ -60,14 +61,21 @@ namespace Com.IsartDigital.Hyperspeed
         public Breadcrumb PickSafe(float pDeathS, float pSpeed, LevelLayout pLayout)
         {
             float lBack = Mathf.Max(100f, Mathf.Max(pSpeed, pLayout.profile.cruise) * 1.5f);
+            // The nearest safe spot on the track itself, searched back from just behind the death.
+            float lS = Mathf.Max(pDeathS - lBack, pLayout.startLineS + 5f);
+            float lStep = Mathf.Max(40f, pLayout.profile.cruise * 0.25f);
+            for (int i = 0; i < 400 && !pLayout.IsSafe(lS, pLayout.field.CenterLateral(lS)) && lS > pLayout.startLineS + 5f; i++) lS -= lStep;
+            lS = Mathf.Max(lS, pLayout.startLineS + 5f);
+            // A crumb where the runner really stood wins, unless the track offers a closer safe spot.
             for (int i = 0; i < _count; i++)
             {
                 Breadcrumb lCrumb = Get(i);
-                if (lCrumb.safe && lCrumb.s <= pDeathS - lBack && (TrackHoles.Count == 0 || !TrackHoles.Inside(lCrumb.position, 40f))) return lCrumb;
+                if (lCrumb.safe && lCrumb.s <= pDeathS - lBack && (TrackHoles.Count == 0 || !TrackHoles.Inside(lCrumb.position, 40f)))
+                {
+                    if (lCrumb.s >= lS - lStep) return lCrumb;
+                    break;
+                }
             }
-            float lS = Mathf.Max(pDeathS - lBack, pLayout.startLineS + 5f);
-            for (int i = 0; i < 60 && !pLayout.IsSafe(lS, pLayout.field.CenterLateral(lS)) && lS > pLayout.startLineS + 5f; i++) lS -= lBack * 0.25f;
-            lS = Mathf.Max(lS, pLayout.startLineS + 5f);
             float lCenter = pLayout.field.CenterLateral(lS);
             return new Breadcrumb { position = pLayout.GroundPoint(lS, lCenter), heading = pLayout.Flow(lS), s = lS, lateral = lCenter, speed = pLayout.profile.cruise, safe = true };
         }

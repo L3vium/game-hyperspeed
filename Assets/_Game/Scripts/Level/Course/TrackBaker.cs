@@ -76,6 +76,17 @@ namespace Com.IsartDigital.Hyperspeed
 
         private static int WallColumns(TrackBlock pBlock) => pBlock.mountain ? MOUNTAIN_COLUMNS : WALL_COLUMNS;
 
+        // A floor with hills needs columns to draw them.
+        private static int FloorColumns(TrackBlock pBlock) => pBlock.mounds > 0.01f ? Mathf.Clamp(Mathf.RoundToInt(pBlock.halfWidth / 16f), 12, 44) : FLOOR_COLUMNS;
+
+        // Normal of the hilly floor at (s, local lateral) : the row's up bent by the slopes of the mounds.
+        private static Vector3 MoundNormal(TrackBlock pBlock, float pS, float pLocal, Vector3 pUp, Vector3 pWidth, Vector3 pForward)
+        {
+            float lDx = (pBlock.MoundAt(pS, pLocal + 3f) - pBlock.MoundAt(pS, pLocal - 3f)) / 6f;
+            float lDs = (pBlock.MoundAt(pS + 3f, pLocal) - pBlock.MoundAt(pS - 3f, pLocal)) / 6f;
+            return (pUp - pWidth * lDx - pForward * lDs).normalized;
+        }
+
         // Height of a side at t (0 at the floor's edge, 1 at the crest). A mountain is rocky : its slope wanders along the
         // route but always starts flat and steepens, with no step anywhere between it and the floor.
         private static float SideHeight(TrackBlock pBlock, float pHeight, float pT, float pS, int pSide)
@@ -108,7 +119,12 @@ namespace Com.IsartDigital.Hyperspeed
                 }
             }
             else lPoints.Add(new Vector2(-lHalf - 1.6f, -1.4f));
-            for (int i = 0; i <= FLOOR_COLUMNS; i++) lPoints.Add(new Vector2(Mathf.Lerp(-lHalf, lHalf, i / (float)FLOOR_COLUMNS), 0f));
+            int lFloorColumns = FloorColumns(pBlock);
+            for (int i = 0; i <= lFloorColumns; i++)
+            {
+                float lX = Mathf.Lerp(-lHalf, lHalf, i / (float)lFloorColumns);
+                lPoints.Add(new Vector2(lX, pBlock.MoundAt(pS, lX)));
+            }
             if (pBlock.wallRight > 0.01f)
             {
                 for (int i = 1; i <= lCols; i++)
@@ -151,6 +167,7 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3[] lGrid = new Vector3[lRowCount * lColumns];
             Vector3[] lRowUp = new Vector3[lRowCount];
             Vector3[] lRowForward = new Vector3[lRowCount];
+            Vector3[] lRowWidth = new Vector3[lRowCount];
             for (int lRow = 0; lRow < lRowCount; lRow++)
             {
                 float lS = pRows[pFirst + lRow];
@@ -164,12 +181,14 @@ namespace Com.IsartDigital.Hyperspeed
                     lGrid[lRow * lColumns + lColumn] = lCenter + lWidth * lSection[lColumn].x + lHeight * lSection[lColumn].y;
                 lRowUp[lRow] = lHeight;
                 lRowForward[lRow] = lSample.forward;
+                lRowWidth[lRow] = lWidth;
             }
 
             MeshData lData = new MeshData();
             int lWallColumns = pBlock.wallLeft > 0.01f ? WallColumns(pBlock) + 1 : 1;
             int lFloorFirst = lWallColumns;
-            int lFloorLast = lFloorFirst + FLOOR_COLUMNS - 1;
+            int lFloorColumns = FloorColumns(pBlock);
+            int lFloorLast = lFloorFirst + lFloorColumns - 1;
             for (int lRow = 0; lRow < lRowCount - 1; lRow++)
             {
                 float lS0 = pRows[pFirst + lRow];
@@ -188,10 +207,18 @@ namespace Com.IsartDigital.Hyperspeed
                         // Smooth along the route : a loop stays a clean curve instead of a stack of facets.
                         Vector3 lN0 = lRowUp[lRow];
                         Vector3 lN1 = lRowUp[lRow + 1];
-                        float lX0 = Mathf.Lerp(-pBlock.halfWidth, pBlock.halfWidth, (lColumn - lFloorFirst) / (float)FLOOR_COLUMNS) + pBlock.offset;
-                        float lX1 = Mathf.Lerp(-pBlock.halfWidth, pBlock.halfWidth, (lColumn + 1 - lFloorFirst) / (float)FLOOR_COLUMNS) + pBlock.offset;
-                        Color lColor = FloorColor(pBlock, pTheme, (lS0 + lS1) * 0.5f, lColumn - lFloorFirst);
-                        lData.Quad(lA, lB, lC, lD, lN0, lN0, lN1, lN1, lColor, lColor, lColor, lColor, new Vector2(lX0, lS0), new Vector2(lX1, lS0), new Vector2(lX1, lS1), new Vector2(lX0, lS1));
+                        float lX0 = Mathf.Lerp(-pBlock.halfWidth, pBlock.halfWidth, (lColumn - lFloorFirst) / (float)lFloorColumns) + pBlock.offset;
+                        float lX1 = Mathf.Lerp(-pBlock.halfWidth, pBlock.halfWidth, (lColumn + 1 - lFloorFirst) / (float)lFloorColumns) + pBlock.offset;
+                        Color lColor = FloorColor(pBlock, pTheme, (lS0 + lS1) * 0.5f, (lColumn - lFloorFirst) * FLOOR_COLUMNS / lFloorColumns);
+                        Vector3 lNA = lN0, lNB = lN0, lNC = lN1, lND = lN1;
+                        if (pBlock.mounds > 0.01f)
+                        {
+                            lNA = MoundNormal(pBlock, lS0, lX0 - pBlock.offset, lN0, lRowWidth[lRow], lRowForward[lRow]);
+                            lNB = MoundNormal(pBlock, lS0, lX1 - pBlock.offset, lN0, lRowWidth[lRow], lRowForward[lRow]);
+                            lNC = MoundNormal(pBlock, lS1, lX1 - pBlock.offset, lN1, lRowWidth[lRow + 1], lRowForward[lRow + 1]);
+                            lND = MoundNormal(pBlock, lS1, lX0 - pBlock.offset, lN1, lRowWidth[lRow + 1], lRowForward[lRow + 1]);
+                        }
+                        lData.Quad(lA, lB, lC, lD, lNA, lNB, lNC, lND, lColor, lColor, lColor, lColor, new Vector2(lX0, lS0), new Vector2(lX1, lS0), new Vector2(lX1, lS1), new Vector2(lX0, lS1));
                     }
                     else
                     {

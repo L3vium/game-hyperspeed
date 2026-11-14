@@ -79,9 +79,12 @@ namespace Com.IsartDigital.Hyperspeed
         public bool IsSafe(float pS, float pLateral)
         {
             TrackBlock lBlock = field.BlockAt(pS);
-            if (lBlock == null || lBlock.look == BlockLook.Slab) return false;
+            if (lBlock == null) return false;
+            // A wide, nearly flat platform is a fine place to come back to (2026-11-14 : respawns were kilometres back).
+            if (lBlock.look == BlockLook.Slab && (Mathf.Abs(lBlock.tilt) > 6f || lBlock.halfWidth < 40f)) return false;
             SpineSample lSample = spine.Evaluate(pS);
-            if (lSample.localGravity || lSample.up.y < 0.7f) return false;
+            // Carried sections only where they are right way up (a spiral, the bottom of a loop), never upside down.
+            if (lSample.up.y < (lSample.localGravity ? 0.85f : 0.7f)) return false;
             float lHalf = field.HalfWidth(pS);
             if (Mathf.Abs(pLateral - field.CenterLateral(pS)) > lHalf * 0.75f) return false;
             if (TrackHoles.Count > 0 && TrackHoles.Inside(field.Point(pS, pLateral), 40f)) return false;

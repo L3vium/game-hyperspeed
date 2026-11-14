@@ -13,7 +13,9 @@ namespace Com.IsartDigital.Hyperspeed
         Kicker, DeckPad, DeckStrip,
         // 2026-11-12, side loops : an electric rope that winds into a vertical loop beside the line (size = radius,
         // length = advance per radian, width = lead on the ground at each end, value = sideways drift over the loop).
-        LoopRope
+        LoopRope,
+        // 2026-11-14 : a rock floating in the air (height above the line, or an absolute altitude when flag ; size ; variant).
+        FloatRock
     }
 
     // One piece of the racing line : it advances by `steps` samples of Spine.STEP metres while yaw, pitch and roll ease by
@@ -57,18 +59,20 @@ namespace Com.IsartDigital.Hyperspeed
         public float wallLean = 28f;
         public bool mountain;
         public int seed;
+        // Hills on the floor (metres, 0 = flat).
+        public float mounds;
 
         public TrackBlock ToBlock() => new TrackBlock
         {
             s0 = s0, s1 = s1, look = look, halfWidth = halfWidth, offset = offset, drop = drop, tilt = tilt, thickness = thickness,
-            wallLeft = wallLeft, wallRight = wallRight, wallLean = wallLean, mountain = mountain, seed = seed
+            wallLeft = wallLeft, wallRight = wallRight, wallLean = wallLean, mountain = mountain, seed = seed, mounds = mounds
         };
 
         public static BlockData From(TrackBlock pBlock) => new BlockData
         {
             s0 = pBlock.s0, s1 = pBlock.s1, look = pBlock.look, halfWidth = pBlock.halfWidth, offset = pBlock.offset, drop = pBlock.drop,
             tilt = pBlock.tilt, thickness = pBlock.thickness, wallLeft = pBlock.wallLeft, wallRight = pBlock.wallRight,
-            wallLean = pBlock.wallLean, mountain = pBlock.mountain, seed = pBlock.seed
+            wallLean = pBlock.wallLean, mountain = pBlock.mountain, seed = pBlock.seed, mounds = pBlock.mounds
         };
 
         public BlockData Clone() => (BlockData)MemberwiseClone();

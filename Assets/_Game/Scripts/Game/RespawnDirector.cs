@@ -67,10 +67,13 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lCamPosition = lCamera.position;
             Quaternion lCamRotation = lCamera.rotation;
             float lFov = _rig.Cam.fieldOfView;
-            // The camera was following the runner : it keeps that motion for a moment and eases to a stop.
-            Vector3 lCamVelocity = lVelocity;
+            // The camera was following the runner : it keeps that motion for a moment and eases to a stop (never faster
+            // than twice the cruise : a death at light speed still reads).
+            float lCruise = lLayout != null && lLayout.profile != null ? lLayout.profile.cruise : 200f;
+            Vector3 lCamVelocity = Vector3.ClampMagnitude(lVelocity, Mathf.Max(400f, lCruise * 2f));
             LastMaxStep = 0f;
             LastMaxTurn = 0f;
+            _hasLast = false;
 
             // 1. The fall, held for a glance : the runner keeps its momentum, the camera turns smoothly to watch it.
             AudioManager.Play("sfx_fall", 0.9f);

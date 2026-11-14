@@ -67,6 +67,8 @@ namespace Com.IsartDigital.Hyperspeed
         {
             float lLocal = pLateral - pBlock.offset;
             Vector3 lPoint = pSample.position + pSample.Right * (pBlock.offset + lLocal * pBlock.Cos) + pSample.up * (-pBlock.drop - lLocal * pBlock.Sin);
+            float lMound = pBlock.MoundAt(pSample.s, lLocal);
+            if (lMound > 0f) lPoint += (pSample.up * pBlock.Cos + pSample.Right * pBlock.Sin) * lMound;
             return lPoint.y;
         }
 
@@ -212,8 +214,45 @@ namespace Com.IsartDigital.Hyperspeed
                 case ItemKind.GravityGate:
                     GateKit.GravityHoop(pParent, pLayout, pItem.s, pTheme);
                     return null;
+                case ItemKind.FloatRock:
+                    return PlaceFloatRock(pItem, pLayout, pTheme, pParent);
             }
             return null;
+        }
+
+        // A toon rock floating in the air : solid (you can land on it or crash into it), outlined, in the colours of the place.
+        private static Object PlaceFloatRock(ItemData pItem, LevelLayout pLayout, Theme pTheme, Transform pParent)
+        {
+            SpineSample lSample = pLayout.spine.Evaluate(pItem.s);
+            Vector3 lPosition = pItem.flag ? SkyKit.Point(pLayout, pItem.s, pItem.lateral, pItem.height)
+                                           : lSample.position + lSample.Right * pItem.lateral + lSample.up * pItem.height;
+            GameObject lObject = new GameObject("FloatRock");
+            lObject.layer = Layers.SCENERY;
+            lObject.transform.SetParent(pParent, false);
+            float lSize = Mathf.Max(4f, pItem.size);
+            lObject.transform.SetPositionAndRotation(lPosition, Quaternion.Euler(pItem.jitter * 0.13f, pItem.jitter, pItem.jitter * 0.07f));
+            lObject.transform.localScale = new Vector3(lSize, lSize * 0.8f, lSize * 1.1f);
+            Mesh lMesh = RockSculptor.Boulder(pItem.variant);
+            lObject.AddComponent<MeshFilter>().sharedMesh = lMesh;
+            Color lColor = pItem.variant % 3 == 0 ? pTheme.decorA : pItem.variant % 3 == 1 ? pTheme.decorB : pTheme.decorC;
+            MeshRenderer lRenderer = lObject.AddComponent<MeshRenderer>();
+            lRenderer.sharedMaterial = FloatRockMaterial(lColor, pTheme);
+            lRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            MeshCollider lCollider = lObject.AddComponent<MeshCollider>();
+            lCollider.sharedMesh = lMesh;
+            lCollider.convex = true;
+            return lObject;
+        }
+
+        private static readonly System.Collections.Generic.Dictionary<Color, Material> _rockMaterials = new System.Collections.Generic.Dictionary<Color, Material>();
+
+        private static Material FloatRockMaterial(Color pColor, Theme pTheme)
+        {
+            Material lMaterial;
+            if (_rockMaterials.TryGetValue(pColor, out lMaterial) && lMaterial != null) return lMaterial;
+            lMaterial = Mats.Toon(pColor, pTheme.shade, 0.03f, 0.45f);
+            _rockMaterials[pColor] = lMaterial;
+            return lMaterial;
         }
 
         private static Object PlaceProp(ItemData pItem, LevelLayout pLayout, StageData pData, Theme pTheme, Transform pParent)
@@ -231,8 +270,8 @@ namespace Com.IsartDigital.Hyperspeed
             GameObject lObject = new GameObject("Rope");
             lObject.transform.SetParent(pParent, false);
             GrindRail lRail = lObject.AddComponent<GrindRail>();
-            // High and thick : caught from far around it.
-            lRail.catchRadius = 18f;
+            // High and thick : caught from far around it, further on the big fast stages.
+            lRail.catchRadius = 18f * Mathf.Sqrt(Mathf.Max(1f, pLayout.profile != null ? pLayout.profile.scale : 1f));
             float lStep = Mathf.Max(8f, 10f * pLayout.profile.k);
             float lSpan = Mathf.Max(1f, pItem.s1 - pItem.s);
             for (float lS = pItem.s; lS < pItem.s1; lS += lStep)

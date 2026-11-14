@@ -779,7 +779,8 @@ namespace Com.IsartDigital.Hyperspeed
         public bool HasRouteAhead { get; private set; }
 
         // How far past the stage's sides (and its sky routes) you may fly and still steer back.
-        private float SideMargin => SIDE_MARGIN * Mathf.Sqrt(Mathf.Max(1f, _profile.scale));
+        // At light speed that band is crossed in a blink : it is at least a third of a second of sideways flight wide.
+        private float SideMargin => Mathf.Max(SIDE_MARGIN * Mathf.Sqrt(Mathf.Max(1f, _profile.scale)), Mathf.Abs(LateralSpeed) * 0.35f);
 
         private void CheckFallOut()
         {

@@ -28,7 +28,14 @@ namespace Com.IsartDigital.Hyperspeed
         private const float MOUNTAIN_MAX = 210f;
         private const float MOUNTAIN_LEAN = 52f;
         // Hazards and props grow with the world, not as much as its width.
-        private const float PROP_SCALE = 3f;
+        private const float PROP_BASE = 3f;
+        private float PROP_SCALE => PROP_BASE * SizeRoot;
+        // 2026-11-14 : how much bigger this stage is than 1-1 (1 to 10, its speed ratio). Widths grow with it fully,
+        // heights and props with its square root (gravity and the jump do not scale), lengths through the cruise.
+        public float size = 1f;
+        private float SizeRoot => Mathf.Sqrt(Mathf.Max(1f, size));
+        // 0 on 1-1, 1 on the last stage : how hard this stage may be (hazards, sky levels, spirals).
+        public float difficulty;
 
         private struct StripDef { public float s, lateral, halfWidth, up; }
         private struct RopeDef { public float s0, s1, lateral, height0, height1; public bool sky; }
@@ -48,6 +55,9 @@ namespace Com.IsartDigital.Hyperspeed
         private struct PaneDef { public float s, lateral, width, height; public PaneKind kind; }
         private struct MoverDef { public float s, lateral, width, length, height, speed; }
         private struct BridgeDef { public float s0, s1, lateral, height, halfWidth; public bool sky; }
+        // A rock floating in the air (height above the line, or an absolute altitude when sky).
+        private struct FloatRockDef { public float s, lateral, height, size; public bool sky; }
+        private readonly List<FloatRockDef> _floatRocks = new List<FloatRockDef>();
 
         private readonly Transform _root;
         private readonly Theme _theme;
@@ -189,8 +199,9 @@ namespace Com.IsartDigital.Hyperspeed
                 else
                 {
                     lMountain = true;
-                    lLeft = Rand(MOUNTAIN_MIN, MOUNTAIN_MAX);
-                    lRight = Rand(MOUNTAIN_MIN, MOUNTAIN_MAX);
+                    float lMountainScale = Mathf.Pow(Mathf.Max(1f, size), 0.6f);
+                    lLeft = Rand(MOUNTAIN_MIN, MOUNTAIN_MAX) * lMountainScale;
+                    lRight = Rand(MOUNTAIN_MIN, MOUNTAIN_MAX) * lMountainScale;
                 }
             }
             _open = new TrackBlock
@@ -205,7 +216,7 @@ namespace Com.IsartDigital.Hyperspeed
                 offset = pOffset,
                 drop = pDrop,
                 tilt = pTilt,
-                thickness = pThickness > 0f ? pThickness : Rand(22f, 44f),
+                thickness = pThickness > 0f ? pThickness : Rand(22f, 44f) * SizeRoot,
                 seed = _blocks.Count
             };
             _blocks.Add(_open);
@@ -285,7 +296,9 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _module = "Hills";
             pSeconds *= pace;
-            Open(BlockLook.Ground, 7f);
+            TrackBlock lHillBlock = Open(BlockLook.Ground, 7f);
+            lHillBlock.mounds = Rand(14f, 26f) * SizeRoot;
+            AirRocks(_s, _s + M(pSeconds), 0.5f);
             int lHumps = Mathf.Max(1, Mathf.RoundToInt(pSeconds / 3.4f));
             float lLength = M(pSeconds) / lHumps;
             for (int i = 0; i < lHumps; i++)
@@ -471,7 +484,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _module = "Corridor";
             float lHalf = _halfWidth;
-            _halfWidth = Mathf.Min(_halfWidth, (26f + 4f * K) * 4f);
+            _halfWidth = Mathf.Min(_halfWidth, (26f + 4f * K) * 4f * SizeRoot);
             TrackBlock lBlock = Open(BlockLook.Pipe, pWall);
             lBlock.wallLean = pLean;
             Span(M(pSeconds * pace));
@@ -508,13 +521,15 @@ namespace Com.IsartDigital.Hyperspeed
                 lOffset = Mathf.Clamp(lOffset + Rand(-1f, 1f) * lHalf * 0.4f, -lHalf * 0.5f, lHalf * 0.5f);
                 bool lGap = Chance(0.3f);
                 // Always lower than the last one : you drop onto the next block, you never hit its side.
-                float lNext = lDrop + Rand(5f, 26f);
+                float lNext = lDrop + Rand(5f, 26f) * SizeRoot;
                 if (lGap)
                 {
                     float lGapLength = M(Rand(0.1f, 0.22f));
                     Act(_s - M(0.12f), RouteAction.Jump);
+                    float lGapS = _s;
                     Span(lGapLength);
                     NoPads(lS0 + lLength * 0.7f, _s + M(0.3f));
+                    GapRocks(lGapS, _s, lOffset, lNarrow, lDrop);
                 }
                 lDrop = lNext;
             }
@@ -530,6 +545,7 @@ namespace Com.IsartDigital.Hyperspeed
         public CourseBuilder Dive(float pDrop = 320f)
         {
             _module = "Dive";
+            pDrop *= SizeRoot;
             Open(BlockLook.Ground, 1f);
             Span(M(1.2f), 0f, 5f);
             Span(M(0.3f), 0f, -5f);
@@ -593,9 +609,9 @@ namespace Com.IsartDigital.Hyperspeed
         }
 
         // Ropes hang this high above the ground (start, end) ; the strip under their start launches you this fast.
-        private const float ROPE_HIGH = 36f;
-        private const float ROPE_LOW = 28f;
-        private const float ROPE_LAUNCH = 96f;
+        private float ROPE_HIGH => 36f * SizeRoot;
+        private float ROPE_LOW => 28f * SizeRoot;
+        private float ROPE_LAUNCH => Mathf.Sqrt(2f * Ballistics.G_RISE * (ROPE_HIGH + 6f));
 
         // Ramp : you climb it, top a crest and come down the far side with the speed. Up, then down : the rhythm of the
         // track. Missing nothing, falling nowhere.
@@ -658,7 +674,7 @@ namespace Com.IsartDigital.Hyperspeed
             for (int i = 0; i < pCount; i++)
             {
                 float lT = (i + 0.5f) / pCount;
-                _rings.Add(new RingDef { s = lS0 + M(0.5f + i * 0.34f), lateral = lLateral, height = 30f + Mathf.Sin(lT * Mathf.PI) * 34f, radius = 60f });
+                _rings.Add(new RingDef { s = lS0 + M(0.5f + i * 0.34f), lateral = lLateral, height = (30f + Mathf.Sin(lT * Mathf.PI) * 34f) * SizeRoot, radius = 60f * SizeRoot });
             }
             Route(lS0, _s, lLateral);
             NoPads(lS0, _s);
@@ -773,7 +789,7 @@ namespace Com.IsartDigital.Hyperspeed
             _module = "Tunnel";
             float lS0 = _s;
             float lHalf = _halfWidth;
-            _halfWidth = Mathf.Min(_halfWidth, (24f + 4f * K) * 4f);
+            _halfWidth = Mathf.Min(_halfWidth, (24f + 4f * K) * 4f * SizeRoot);
             TrackBlock lBlock = Open(BlockLook.Pipe, 30f);
             lBlock.wallLean = 16f;
             Span(M(pSeconds * pace));
@@ -804,7 +820,9 @@ namespace Com.IsartDigital.Hyperspeed
             }
             _module = "Meadow";
             pSeconds *= pace;
-            Open(BlockLook.Ground, 6f);
+            // Hills here and there, flat elsewhere (2026-11-14) : one meadow in three or so stays flat.
+            TrackBlock lMeadow = Open(BlockLook.Ground, 6f);
+            if (Chance(0.7f)) lMeadow.mounds = Rand(10f, 24f) * SizeRoot;
             float lEnd = _s + M(pSeconds);
             while (_s < lEnd)
             {
@@ -816,12 +834,12 @@ namespace Com.IsartDigital.Hyperspeed
                 Span(lLength * 0.5f, lYaw * 0.5f, lPitch, lRoll);
                 Span(lLength * 0.5f, lYaw * 0.5f, -lPitch, -lRoll);
                 // (The low floating islands are gone : the sky lanes are the routes above now, 2026-11-12.)
-                // Boulders and spurs at the edges : they rush past and show the speed.
-                if (Chance(0.6f))
+                // Rocks floating in the air over the edges (never on the ground) : they rush past and show the speed.
+                if (Chance(0.7f))
                 {
                     int lSide = Chance(0.5f) ? 1 : -1;
-                    float lSize = Rand(8f, 20f) * PROP_SCALE;
-                    _props.Add(new BlockDef { s = _s - lLength * Rand(0.2f, 0.8f), lateral = lSide * _halfWidth * Rand(0.72f, 0.92f), width = lSize, length = lSize * Rand(0.8f, 1.6f), height = lSize * Rand(0.6f, 1.4f), lean = Rand(-14f, 14f), palette = _random.Next(0, 3) });
+                    float lSize = Rand(8f, 20f) * PROP_SCALE * 0.6f;
+                    _floatRocks.Add(new FloatRockDef { s = _s - lLength * Rand(0.2f, 0.8f), lateral = lSide * _halfWidth * Rand(0.75f, 1.05f), height = Rand(28f, 90f) * SizeRoot, size = lSize });
                 }
             }
             _pitch = 0f;
@@ -861,12 +879,15 @@ namespace Com.IsartDigital.Hyperspeed
                 Close();
                 Route(lBlockS, _s, lOffset - Mathf.Sign(lTilt) * lNarrow * 0.2f);
                 lOffset = Mathf.Clamp(lOffset + Rand(-1f, 1f) * lHalf * 0.45f, -lHalf * 0.45f, lHalf * 0.45f);
-                float lNext = lDrop + Rand(8f, 28f);
+                float lNext = lDrop + Rand(8f, 28f) * SizeRoot;
                 if (Chance(0.35f))
                 {
                     Act(_s - M(0.12f), RouteAction.Jump);
+                    float lGapS = _s;
                     Span(M(Rand(0.1f, 0.2f)));
                     NoPads(lBlockS + lLength * 0.7f, _s + M(0.3f));
+                    // Rocks floating in the void between the platforms, beside the jump line.
+                    GapRocks(lGapS, _s, lOffset, lNarrow, lDrop);
                 }
                 lDrop = lNext;
             }
@@ -908,13 +929,152 @@ namespace Com.IsartDigital.Hyperspeed
             Open(BlockLook.Road, 4f);
             Span(M(pSeconds * pace + 1f));
             float lLateral = Rand(-0.45f, 0.45f) * _halfWidth;
-            float lHeight = 20f;
-            _strips.Add(new StripDef { s = lS0 + M(0.35f), lateral = lLateral, halfWidth = _halfWidth * 0.14f, up = 72f });
+            float lHeight = 20f * SizeRoot;
+            _strips.Add(new StripDef { s = lS0 + M(0.35f), lateral = lLateral, halfWidth = _halfWidth * 0.14f, up = Mathf.Sqrt(2f * Ballistics.G_RISE * (lHeight + 6f)) * 1.15f });
             BridgeDef lBridge = new BridgeDef { s0 = lS0 + M(0.8f), s1 = _s - M(0.2f), lateral = lLateral, height = lHeight, halfWidth = _halfWidth * 0.16f };
             _bridges.Add(lBridge);
             for (float lS = lBridge.s0 + M(0.4f); lS < lBridge.s1 - M(0.2f); lS += M(0.45f))
-                _rings.Add(new RingDef { s = lS, lateral = lLateral, height = lHeight + 20f, radius = 22f });
+                _rings.Add(new RingDef { s = lS, lateral = lLateral, height = lHeight + 20f * SizeRoot, radius = 22f * SizeRoot });
             NoPads(lS0, _s);
+            return this;
+        }
+
+        // ================================================================ 2026-11-14 : parallel routes, spirals, rocks
+
+        // Rocks floating in the void of a gap, beside the jump line, around the level of the platforms : nothing stands on
+        // the ground, everything hangs between the platforms or in the air.
+        private void GapRocks(float pS0, float pS1, float pOffset, float pHalf, float pDrop)
+        {
+            int lCount = 1 + _random.Next(0, 2 + Mathf.RoundToInt(difficulty * 2f));
+            for (int i = 0; i < lCount; i++)
+            {
+                float lSide = Chance(0.5f) ? 1f : -1f;
+                float lSize = Rand(14f, 36f) * SizeRoot;
+                _floatRocks.Add(new FloatRockDef
+                {
+                    s = Mathf.Lerp(pS0, pS1, Rand(0.1f, 0.9f)),
+                    lateral = pOffset + lSide * (pHalf * Rand(0.55f, 1.15f) + lSize),
+                    height = -pDrop + Rand(-90f, 25f) * SizeRoot,
+                    size = lSize
+                });
+            }
+        }
+
+        // Rocks in the air at both sides of a stretch, well above the edges : they rush past and show the speed.
+        private void AirRocks(float pS0, float pS1, float pDensity = 1f)
+        {
+            float lStep = M(Rand(0.7f, 1.2f)) / Mathf.Max(0.2f, pDensity);
+            for (float lS = pS0 + lStep * 0.5f; lS < pS1; lS += lStep * Rand(0.7f, 1.3f))
+            {
+                float lSide = Chance(0.5f) ? 1f : -1f;
+                float lSize = Rand(10f, 30f) * SizeRoot;
+                _floatRocks.Add(new FloatRockDef { s = lS, lateral = lSide * _halfWidth * Rand(0.8f, 1.25f), height = Rand(30f, 120f) * SizeRoot, size = lSize });
+            }
+        }
+
+        // Helter-skelter : the line winds down round a wide helix, banked inward, each round well under the last. A pipe
+        // with low rims, so nothing of one round ever reaches the round above.
+        public CourseBuilder Spiral(Side pSide = Side.Right, int pTurns = 1)
+        {
+            _module = "Spiral";
+            int lSide = (int)pSide;
+            float lHalf = _halfWidth;
+            _halfWidth = Mathf.Min(_halfWidth, Mathf.Max(110f, _p.cruise * 0.8f));
+            // About fifteen seconds a round at cruise, whatever the stage : a long, readable sweep.
+            float lRadius = Mathf.Max(_p.cruise * 2.2f, _halfWidth * 2f + 60f);
+            float lDegrees = 360f * Mathf.Max(1, pTurns);
+            float lLength = lRadius * lDegrees * Mathf.Deg2Rad;
+            float lDropPerTurn = Mathf.Max(330f * SizeRoot, _halfWidth * 0.8f);
+            float lPitch = -Mathf.Atan2(lDropPerTurn, lRadius * 2f * Mathf.PI) * Mathf.Rad2Deg;
+            float lBank = Cap(14f, 18f, 22f);
+            // Ground before it : whoever arrives in the air lands first, then enters.
+            Open(BlockLook.Road, 4f);
+            Span(M(1.2f));
+            // High rims (well under the next round) : the helix holds a runner at light speed.
+            Open(BlockLook.Pipe, 14f);
+            Span(M(0.8f));
+            // The helix carries you like a loop does : gravity follows its surface, so even at light speed it holds you.
+            GravityGate(_s - M(0.3f));
+            float lHelix0 = _s;
+            _localGravity = true;
+            Span(lLength * 0.08f, lSide * lDegrees * 0.02f, lPitch, lSide * lBank);
+            Span(lLength * 0.84f, lSide * lDegrees * 0.96f, 0f, 0f, default(Vector3), 1f);
+            Span(lLength * 0.08f, lSide * lDegrees * 0.02f, -lPitch, -lSide * lBank);
+            _localGravity = false;
+            NoPads(lHelix0, _s);
+            Route(lHelix0, _s, 0f);
+            // Whole turns : the heading comes back where it was, the stage carries on away from its past.
+            _yaw -= lSide * lDegrees;
+            _pitch = 0f;
+            _roll = 0f;
+            Span(M(0.8f));
+            _halfWidth = lHalf;
+            Open(BlockLook.Ground, 6f);
+            return this;
+        }
+
+        // Parallel routes at the same place (asked 2026-11-14) : a pad line on the ground, a rope high above that same line,
+        // ring chains in the air on the left and on the right, a launch strip under each. Take one, switch on the way.
+        public CourseBuilder Parallel(float pSeconds)
+        {
+            _module = "Parallel";
+            pSeconds *= pace;
+            float lS0 = _s;
+            Open(BlockLook.Road, 4f);
+            Span(M(0.9f));
+            float lStart = _s;
+            Span(M(pSeconds));
+            float lEnd = _s;
+            float lPadLateral = Rand(-0.15f, 0.15f) * _halfWidth;
+            for (float lS = lStart + M(0.15f); lS < lEnd - M(0.2f); lS += M(Mathf.Lerp(0.6f, 0.38f, difficulty)))
+                _pads.Add(new PadDef { s = lS, lateral = lPadLateral, width = _halfWidth * 0.26f, length = M(0.12f), boost = 0.35f });
+            // Above the pads : a rope over that same line, reached from a strip just before it.
+            float lRopeLateral = lPadLateral + (Chance(0.5f) ? 1f : -1f) * _halfWidth * 0.1f;
+            float lRopeHigh = ROPE_HIGH * 1.5f;
+            _strips.Add(new StripDef { s = lS0 + M(0.5f), lateral = lRopeLateral, halfWidth = _halfWidth * 0.14f, up = Mathf.Sqrt(2f * Ballistics.G_RISE * (lRopeHigh + 8f)) });
+            _ropes.Add(new RopeDef { s0 = lStart + M(0.05f), s1 = lEnd - M(0.1f), lateral = lRopeLateral, height0 = lRopeHigh, height1 = lRopeHigh * 0.85f });
+            // Left and right : rings in the air, nothing under them but the wide ground far below.
+            for (int lSide = -1; lSide <= 1; lSide += 2)
+            {
+                float lLateral = lSide * _halfWidth * Rand(0.55f, 0.72f);
+                float lHeight = Rand(38f, 60f) * SizeRoot;
+                _strips.Add(new StripDef { s = lS0 + M(0.55f), lateral = lLateral, halfWidth = _halfWidth * 0.13f, up = Mathf.Sqrt(2f * Ballistics.G_RISE * (lHeight + 10f)) });
+                int lCount = Mathf.Max(4, Mathf.RoundToInt((lEnd - lStart) / M(0.3f)));
+                for (int i = 0; i < lCount; i++)
+                {
+                    float lT = (i + 0.5f) / lCount;
+                    _rings.Add(new RingDef
+                    {
+                        s = Mathf.Lerp(lStart, lEnd - M(0.2f), lT),
+                        lateral = lLateral + Mathf.Sin(lT * Mathf.PI * 2f + lSide) * _halfWidth * 0.08f,
+                        height = lHeight + Mathf.Sin(lT * Mathf.PI) * 20f * SizeRoot,
+                        radius = 26f * SizeRoot
+                    });
+                }
+            }
+            AirRocks(lStart, lEnd, 0.6f);
+            Route(lS0, lEnd, lPadLateral);
+            NoPads(lS0, lEnd);
+            return this;
+        }
+
+        // The road rises at the end of a stretch and throws you into the next part : a launching pad.
+        public CourseBuilder LaunchRamp(float pSeconds = 1.6f, float pDegrees = 12f)
+        {
+            _module = "LaunchRamp";
+            float lLength = M(pSeconds);
+            Open(BlockLook.Road, 4f);
+            Span(lLength * 0.6f, 0f, Mathf.Min(pDegrees, Cap(10f, 12f, 14f)));
+            float lLip = _s + lLength * 0.4f;
+            Span(lLength * 0.4f);
+            _strips.Add(new StripDef { s = lLip - M(0.15f), lateral = 0f, halfWidth = _halfWidth * 0.6f, up = 80f * Mathf.Pow(Mathf.Max(1f, size), 0.25f) });
+            Act(lLip - M(0.1f), RouteAction.Jump);
+            NoPads(lLip - M(0.6f), lLip + M(0.6f));
+            _pitch = 0f;
+            // The ground after the lip is lower : you land, you never hit a face.
+            Close();
+            Span(M(0.25f), 0f, 0f, 0f, Vector3.down * 30f * SizeRoot);
+            Open(BlockLook.Ground, 6f);
             return this;
         }
 
@@ -938,7 +1098,7 @@ namespace Com.IsartDigital.Hyperspeed
         public CourseBuilder SideLoop(Side pSide = Side.Right)
         {
             _module = "SideLoop";
-            float lRadius = Mathf.Clamp(_p.cruise * 0.22f, 30f, 110f);
+            float lRadius = Mathf.Clamp(_p.cruise * 0.22f, 30f * SizeRoot, 110f * SizeRoot);
             float lAdvance = lRadius * 0.45f;
             float lLead = Mathf.Max(90f, _p.cruise * 0.4f);
             float lLoop = lAdvance * Mathf.PI * 2f;
@@ -978,7 +1138,7 @@ namespace Com.IsartDigital.Hyperspeed
         private float LaneHeight(int pLevel)
         {
             float[] lLevels = world <= 0 ? new[] { 70f, 120f } : world == 1 ? new[] { 150f, 280f, 400f } : new[] { 200f, 350f, 500f, 650f };
-            return lLevels[Mathf.Clamp(pLevel, 0, lLevels.Length - 1)];
+            return lLevels[Mathf.Clamp(pLevel, 0, lLevels.Length - 1)] * Mathf.Pow(Mathf.Max(1f, size), 0.35f);
         }
 
         // World altitude of the floor under the sky point (s, lateral) (lanes are level shelves : absolute heights).
@@ -1104,6 +1264,9 @@ namespace Com.IsartDigital.Hyperspeed
                     if (lNextH < 0f) break;
                     _ropes.Add(new RopeDef { s0 = lEnd - M(0.12f), s1 = lNext0 + M(0.15f), lateral = lLateral, height0 = lDeckH + 7f, height1 = lNextH + 6f, sky = true });
                     _laneRopes++;
+                    // Rocks hanging in the void beside the rope.
+                    for (int r = 0; r < 2; r++)
+                        _floatRocks.Add(new FloatRockDef { s = Mathf.Lerp(lEnd, lNext0, Rand(0.2f, 0.8f)), lateral = lLateral + (r == 0 ? 1f : -1f) * Rand(70f, 170f) * SizeRoot, height = Mathf.Lerp(lDeckH, lNextH, 0.5f) + Rand(-60f, 40f) * SizeRoot, size = Rand(16f, 40f) * SizeRoot, sky = true });
                     AddDeck(lNext0, lNextEnd, lLateral, lNextH, lNextHalf, false);
                     lEnd = lNextEnd;
                     lDeckH = lNextH;
@@ -1249,8 +1412,11 @@ namespace Com.IsartDigital.Hyperspeed
             Span(M(pSeconds * 0.5f), 0f, -10f);
             Span(M(pSeconds * 0.5f), 0f, 10f);
             _pitch = 0f;
-            for (float lT = 0.2f; lT < pSeconds; lT += 0.3f)
-                _pads.Add(new PadDef { s = lS0 + M(lT), lateral = Mathf.Sin(lT * 2.1f) * _halfWidth * 0.5f, width = _halfWidth * 0.8f, length = M(0.13f), boost = 0.25f });
+            // 2026-11-14 : the last straight is full of pads : one lane on the first stages, three lanes on the last ones.
+            int lLanes = difficulty < 0.3f ? 0 : 1;
+            for (float lT = 0.15f; lT < pSeconds; lT += Mathf.Lerp(0.32f, 0.2f, difficulty))
+                for (int lLane = -lLanes; lLane <= lLanes; lLane++)
+                    _pads.Add(new PadDef { s = lS0 + M(lT + (lLane + 1) * 0.07f), lateral = lLane * _halfWidth * 0.55f + Mathf.Sin(lT * 2.1f + lLane) * _halfWidth * 0.12f, width = _halfWidth * 0.42f, length = M(0.13f), boost = 0.25f });
             for (float lT = 0f; lT < pSeconds; lT += 0.5f) _arches.Add(new ArchDef { s = lS0 + M(lT), lit = true });
             _halfWidth = lHalf;
             NoPads(lS0, _s);
@@ -1323,6 +1489,7 @@ namespace Com.IsartDigital.Hyperspeed
                 foreach (PaneDef lPane in _panes) lItems.Add(new ItemData { kind = ItemKind.Pane, s = lPane.s, lateral = lPane.lateral, width = lPane.width, height = lPane.height, variant = (int)lPane.kind });
                 PlacePads(lItems);
                 foreach (MeteorDef lMeteor in _meteors) lItems.Add(new ItemData { kind = ItemKind.Meteor, s = lMeteor.s, lateral = lMeteor.lateral, size = lMeteor.radius, flag = lMeteor.fromSky });
+                foreach (FloatRockDef lRock in _floatRocks) lItems.Add(new ItemData { kind = ItemKind.FloatRock, s = lRock.s, lateral = lRock.lateral, height = lRock.height, size = lRock.size, flag = lRock.sky, variant = _random.Next(0, 6), jitter = Rand(0f, 360f) });
             }
             foreach (ArchDef lArch in _arches) lItems.Add(new ItemData { kind = ItemKind.Arch, s = lArch.s, flag = lArch.lit });
             foreach (float lGate in _gravityGates) lItems.Add(new ItemData { kind = ItemKind.GravityGate, s = lGate });

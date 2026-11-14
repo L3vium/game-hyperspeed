@@ -126,6 +126,13 @@ namespace Com.IsartDigital.Hyperspeed
         // Launch strip : a high jump. Your speed and your line stay yours.
         public void Launch(float pUp)
         {
+            // In light form the runner is a ball of light : a strip or a kicker built for cruise would throw it kilometres
+            // off the stage. It stays on the track and just flashes through.
+            if (LightForm)
+            {
+                HSJuice.Play(JuiceId.Launch, Jx(transform.position, 0.4f));
+                return;
+            }
             Vector3 lUp = OnSurface ? _up : _gravityUp;
             Vector3 lVelocity = OnSurface ? _moveDir * _speed + Vector3.Cross(_up, _moveDir).normalized * _slip : _velocity;
             _velocity = Vector3.ProjectOnPlane(lVelocity, lUp) + lUp * pUp;
@@ -143,7 +150,8 @@ namespace Com.IsartDigital.Hyperspeed
         {
             // Kicks are worth less up high : what takes you to light is your own dashes on top of them. A pad keeps
             // most of its punch at any speed : running over one must always be felt.
-            pBoost *= KickScale(pPad ? 0.85f : 0.3f);
+            if (pPad) pBoost *= _profile.PadPower;
+            pBoost *= KickScale(pPad ? _profile.PadFloor : 0.3f);
             if (OnSurface) _speed = Mathf.Min(_profile.SafetyMax, _speed + pBoost);
             else _velocity += pDirection.normalized * pBoost;
             if (pRefill) _dashEnergy = Mathf.Min(DASH_ENERGY, _dashEnergy + 0.7f);

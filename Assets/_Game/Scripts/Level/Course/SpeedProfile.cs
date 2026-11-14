@@ -25,6 +25,10 @@ namespace Com.IsartDigital.Hyperspeed
         public float k = 1f;
         // How much bigger and faster this stage is than the first one (1 to 10).
         public float scale = 1f;
+        // 0 on the first stage, 1 on the last : pads are softer early (calm first stages), full late (much faster).
+        public float difficulty;
+        public float PadPower => Mathf.Lerp(0.5f, 1.05f, difficulty);
+        public float PadFloor => Mathf.Lerp(0.3f, 0.85f, difficulty);
         // Late stages : the runner breaks blocks on contact and tears the ground open.
         public bool worldBreaker;
         // Kept for the systems that ask : hyper and light exist on every stage.

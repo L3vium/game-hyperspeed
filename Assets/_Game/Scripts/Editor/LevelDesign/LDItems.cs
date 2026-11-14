@@ -40,6 +40,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                 case ItemKind.Prop: return new Color(0.7f, 0.65f, 0.6f);
                 case ItemKind.Arch: return new Color(1f, 1f, 1f);
                 case ItemKind.GravityGate: return new Color(0.3f, 1f, 0.9f);
+                case ItemKind.FloatRock: return new Color(0.55f, 0.45f, 0.4f);
             }
             return Color.white;
         }
@@ -73,6 +74,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                     Add(lList, "variant", "Palette (0-2)", FieldType.Int); Add(lList, "jitter", "Yaw"); Add(lList, "rough", "Taper");
                     break;
                 case ItemKind.Arch: Add(lList, "flag", "Lit", FieldType.Bool); break;
+                case ItemKind.FloatRock: Add(lList, "height", "Height"); Add(lList, "size", "Size"); Add(lList, "variant", "Shape (0-5)", FieldType.Int); Add(lList, "flag", "Absolute altitude", FieldType.Bool); break;
             }
             lFields = lList.ToArray();
             _fields[pKind] = lFields;
@@ -105,6 +107,7 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
                 case ItemKind.Meteor: lItem.size = 50f; lItem.flag = true; break;
                 case ItemKind.Prop: lItem.width = 45f; lItem.length = 60f; lItem.height = 90f; lItem.rough = 0.2f; lItem.jitter = Random.Range(-14f, 14f); break;
                 case ItemKind.Arch: lItem.flag = true; break;
+                case ItemKind.FloatRock: lItem.height = 60f; lItem.size = 30f; lItem.variant = Random.Range(0, 6); lItem.jitter = Random.Range(0f, 360f); break;
             }
             return lItem;
         }

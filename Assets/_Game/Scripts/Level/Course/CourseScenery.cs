@@ -28,9 +28,11 @@ namespace Com.IsartDigital.Hyperspeed
                 Vector3 lOrigin = lSpine.Evaluate(lS0).position;
                 PropKit lKit = new PropKit(lData, lLit, pTheme, lRandom, lOrigin);
 
-                Layer(pLayout, lKit, lRandom, lS0, 7, 16f, 60f, 8f, 40f, Depth.Near);
-                Layer(pLayout, lKit, lRandom, lS0, 4, 70f, 180f, 60f, 200f, Depth.Middle);
-                Layer(pLayout, lKit, lRandom, lS0, 2, 300f, 700f, 300f, 1100f, Depth.Far);
+                // The world grows with the stage (2026-11-14 : the last stages are ten times bigger).
+                float lG = Mathf.Pow(Mathf.Max(1f, pLayout.profile != null ? pLayout.profile.scale : 1f), 0.6f);
+                Layer(pLayout, lKit, lRandom, lS0, 7, 16f * lG, 60f * lG, 8f * lG, 40f * lG, Depth.Near);
+                Layer(pLayout, lKit, lRandom, lS0, 4, 70f * lG, 180f * lG, 60f * lG, 200f * lG, Depth.Middle);
+                Layer(pLayout, lKit, lRandom, lS0, 2, 300f * lG, 700f * lG, 300f * lG, 1100f * lG, Depth.Far);
                 Clouds(pLayout, lKit, lRandom, lS0);
 
                 if (lData.Count == 0 && lLit.Count == 0) continue;
@@ -108,13 +110,21 @@ namespace Com.IsartDigital.Hyperspeed
         {
             if (!pKit.HasClouds) return;
             Spine lSpine = pLayout.spine;
+            float lRoot = Mathf.Sqrt(Mathf.Max(1f, pLayout.profile != null ? pLayout.profile.scale : 1f));
             for (int i = 0; i < 3; i++)
             {
                 float lS = pS0 + (float)pRandom.NextDouble() * CHUNK;
                 if (lS > lSpine.EndS) continue;
                 SpineSample lSample = lSpine.Evaluate(lS);
-                float lSize = Rand(pRandom, 60f, 240f);
-                Vector3 lPosition = lSample.position + new Vector3(Rand(pRandom, -520f, 520f), Rand(pRandom, -240f, -90f), Rand(pRandom, -520f, 520f));
+                float lSize = Rand(pRandom, 60f, 240f) * lRoot;
+                // Off to the sides and under the lowest track around : a cloud never sits between the eye and the road.
+                Vector3 lFlat = Vector3.ProjectOnPlane(lSample.forward, Vector3.up);
+                Vector3 lRight = lFlat.sqrMagnitude > 0.01f ? Vector3.Cross(Vector3.up, lFlat.normalized) : Vector3.right;
+                float lSide = pRandom.Next(0, 2) * 2 - 1;
+                float lOut = pLayout.field.TotalHalfWidth(lS) + lSize + Rand(pRandom, 150f, 800f) * lRoot;
+                float lLow = Mathf.Min(lSample.position.y, pLayout.LowestBetween(lS - 400f, lS + 4000f * lRoot));
+                Vector3 lPosition = lSample.position + lRight * lSide * lOut + lFlat.normalized * Rand(pRandom, -520f, 520f);
+                lPosition.y = lLow - Rand(pRandom, 90f, 300f) * lRoot;
                 if (!CourseValidator.IsClear(lPosition, lSize * 0.5f)) continue;
                 pKit.Cloud(lPosition, lSize);
             }
@@ -141,7 +151,8 @@ namespace Com.IsartDigital.Hyperspeed
             lObject.name = "GroundSheet";
             lObject.transform.SetParent(pParent, false);
             lObject.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
-            lObject.transform.localScale = Vector3.one * 30000f;
+            // Huge : with the whole stage drawn (far clip over the full length) its edge must never show.
+            lObject.transform.localScale = Vector3.one * 600000f;
             lObject.layer = Layers.DEBRIS;
             lObject.GetComponent<Renderer>().sharedMaterial = Mats.Flat(pTheme.shade, false, Color.Lerp(pTheme.groundC, pTheme.fog, 0.45f));
             lObject.GetComponent<Renderer>().shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
@@ -155,23 +166,30 @@ namespace Com.IsartDigital.Hyperspeed
             if (lPlayer == null) return;
             Vector3 lAt = lPlayer.transform.position;
             float lP = lPlayer.Progress;
-            float lTarget = _layout.LowestBetween(lP - BEHIND, lP + AHEAD) - UNDER;
+            float lScale = Mathf.Max(1f, _layout.profile != null ? _layout.profile.scale : 1f);
+            float lCruise = _layout.profile != null ? _layout.profile.cruise : 120f;
+            // Far enough ahead for the speed : what you will see in the next half minute is never under the sheet.
+            float lAhead = Mathf.Max(AHEAD, Mathf.Max(lPlayer.Speed, lCruise) * 30f);
+            float lTarget = _layout.LowestBetween(lP - BEHIND * lScale, lP + lAhead) - UNDER * Mathf.Sqrt(lScale);
             // Down at once (something low is coming), back up slowly (never a visible jump of the horizon).
             if (float.IsNaN(_y) || lTarget < _y) _y = lTarget;
-            else _y = Mathf.MoveTowards(_y, lTarget, 40f * Time.deltaTime);
+            else _y = Mathf.MoveTowards(_y, lTarget, 40f * lScale * Time.deltaTime);
             transform.position = new Vector3(lAt.x, _y, lAt.z);
         }
 
         public float Height => _y;
     }
 
-    // Invisible floor a little under the track, following the runner : falling is (almost) never the end. Touching it
-    // throws you back onto the track ahead (PlayerController.Recover).
+    // The kill plane : an invisible floor well under every surface the runner can still reach, following it. Touching it
+    // means the runner left the stage long ago (PlayerController : death, then the respawn flight). 2026-11-14 : it looks
+    // as far ahead as the runner flies in five seconds and sinks with the stage's size, so a dive or a run of platforms
+    // stepping down never lands on it.
     public class SafetyNet : MonoBehaviour
     {
-        private const float DEPTH = 190f;
+        private const float DEPTH = 260f;
 
         private LevelLayout _layout;
+        private bool _sized;
 
         public static void Create(Transform pParent, LevelLayout pLayout)
         {
@@ -191,11 +209,18 @@ namespace Com.IsartDigital.Hyperspeed
             if (lPlayer == null || _layout == null) return;
             Vector3 lAt = lPlayer.transform.position;
             float lS = lPlayer.Progress;
-            // Below the lowest of here and a bit ahead, so a dive onto a lower block is never caught early.
-            float lFloor = Mathf.Min(_layout.field.Point(lS, _layout.field.CenterLateral(lS)).y, _layout.field.Point(lS + 300f, _layout.field.CenterLateral(lS + 300f)).y);
+            float lScale = Mathf.Max(1f, _layout.profile != null ? _layout.profile.scale : 1f);
+            float lAhead = Mathf.Max(300f, Mathf.Max(lPlayer.Speed, _layout.profile != null ? _layout.profile.cruise : 120f) * 5f);
+            // Below the lowest of here and well ahead, so a dive onto a lower block is never caught early.
+            float lFloor = Mathf.Min(_layout.field.Point(lS, _layout.field.CenterLateral(lS)).y, _layout.field.Point(lS + lAhead, _layout.field.CenterLateral(lS + lAhead)).y);
             // Inside a loop or a twist, the bottom of the whole section counts : falling from its top is not a fall out.
-            lFloor = Mathf.Min(lFloor, _layout.LowestOfSection(lS), _layout.LowestBetween(lS - 50f, lS + 300f));
-            transform.position = new Vector3(lAt.x, lFloor - DEPTH, lAt.z);
+            lFloor = Mathf.Min(lFloor, _layout.LowestOfSection(lS), _layout.LowestBetween(lS - 50f, lS + lAhead));
+            transform.position = new Vector3(lAt.x, lFloor - DEPTH * Mathf.Sqrt(lScale), lAt.z);
+            if (!_sized)
+            {
+                _sized = true;
+                GetComponent<BoxCollider>().size = new Vector3(9000f * lScale, 20f, 9000f * lScale);
+            }
         }
     }
 
