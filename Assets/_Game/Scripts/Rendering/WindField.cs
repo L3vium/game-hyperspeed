@@ -78,7 +78,7 @@ namespace Com.IsartDigital.Hyperspeed
             EmitMotes(lRig.transform, lPlayer, lSpeed);
             if (lSpeed < 12f) return;
             float lLevel = Mathf.Clamp01(lPlayer.Speed01 * 1.2f + 0.12f);
-            _budget += Mathf.Lerp(24f, 400f, lLevel) * Time.deltaTime;
+            _budget += Mathf.Lerp(14f, 220f, lLevel) * Time.deltaTime;
             int lCount = Mathf.FloorToInt(_budget);
             if (lCount <= 0) return;
             _budget -= lCount;
@@ -92,7 +92,7 @@ namespace Com.IsartDigital.Hyperspeed
             for (int i = 0; i < lCount; i++)
             {
                 // A tube around the line of travel, with the middle left open.
-                Vector2 lRing = Random.insideUnitCircle.normalized * Random.Range(12f, 56f);
+                Vector2 lRing = Random.insideUnitCircle.normalized * Random.Range(22f, 75f);
                 float lAhead = Random.Range(0.1f, 0.9f) * Mathf.Max(60f, lSpeed * 0.45f);
                 lParams.position = lCamera.position + lDirection * lAhead + lSide * lRing.x + lOver * lRing.y;
                 lParams.velocity = -lDirection * lSpeed * Random.Range(0.25f, 0.6f);

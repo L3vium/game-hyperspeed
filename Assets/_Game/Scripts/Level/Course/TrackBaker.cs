@@ -52,7 +52,9 @@ namespace Com.IsartDigital.Hyperspeed
                 lSince += Spine.STEP;
                 SpineSample lNow = pSpine.Evaluate(lS);
                 float lAngle = Mathf.Max(Vector3.Angle(lLast.forward, lNow.forward), Vector3.Angle(lLast.up, lNow.up));
-                if (lS >= pBlock.s1 - 0.01f || lSince >= MAX_ROW || (lSince >= MIN_ROW && lAngle >= ROW_ANGLE))
+                // Wide light highways get long rows : 300 km of road stays a few dozen chunks.
+                float lMaxRow = Mathf.Clamp(pBlock.halfWidth * 0.12f, MAX_ROW, 260f);
+                if (lS >= pBlock.s1 - 0.01f || lSince >= lMaxRow || (lSince >= MIN_ROW && lAngle >= ROW_ANGLE))
                 {
                     lRows.Add(lS);
                     lLast = lNow;
@@ -211,10 +213,7 @@ namespace Com.IsartDigital.Hyperspeed
             lObject.transform.SetParent(pParent, false);
             lObject.transform.position = lOrigin;
             lObject.layer = Layers.DECK;
-            lObject.AddComponent<MeshFilter>().sharedMesh = lData.ToMesh("Track");
-            MeshRenderer lRenderer = lObject.AddComponent<MeshRenderer>();
-            lRenderer.sharedMaterial = pMaterial;
-            lRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            MeshCollider lCollider = lObject.AddComponent<MeshCollider>();
 
             // Collision : the same section as a welded grid, outward facing, with the end faces of the block.
             List<int> lIndices = new List<int>((lRowCount - 1) * lColumns * 6 + 12 * lColumns);
@@ -238,14 +237,58 @@ namespace Com.IsartDigital.Hyperspeed
                 lIndices.Add(lCollisionVertices.Count);
                 lCollisionVertices.Add(lPoint);
             }
+            // PhysX is unreliable on huge triangles (the underside and the end faces of wide blocks) : split them.
+            SubdivideLong(lCollisionVertices, lIndices, 380f);
             Mesh lCollision = new Mesh { name = "TrackCollision" };
             lCollision.indexFormat = lCollisionVertices.Count > 65000 ? UnityEngine.Rendering.IndexFormat.UInt32 : UnityEngine.Rendering.IndexFormat.UInt16;
             lCollision.SetVertices(lCollisionVertices);
             lCollision.triangles = lIndices.ToArray();
-            MeshCollider lCollider = lObject.AddComponent<MeshCollider>();
             lCollider.sharedMesh = lCollision;
+            lObject.AddComponent<MeshFilter>().sharedMesh = lData.ToMesh("Track");
+            MeshRenderer lRenderer = lObject.AddComponent<MeshRenderer>();
+            lRenderer.sharedMaterial = pMaterial;
+            lRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
 
             Chunks.Add(new TrackChunk { s0 = pRows[pFirst], s1 = pRows[pLast], gameObject = lObject, collider = lCollider, look = pBlock.look });
+        }
+
+        // Splits every triangle that has an edge longer than pMax into four, again and again, keeping its winding.
+        public static void SubdivideLong(List<Vector3> pVertices, List<int> pIndices, float pMax)
+        {
+            float lMaxSqr = pMax * pMax;
+            List<int> lOut = new List<int>(pIndices.Count);
+            Stack<int> lWork = new Stack<int>();
+            for (int i = 0; i < pIndices.Count; i += 3)
+            {
+                lWork.Push(pIndices[i]);
+                lWork.Push(pIndices[i + 1]);
+                lWork.Push(pIndices[i + 2]);
+                while (lWork.Count > 0)
+                {
+                    int lC = lWork.Pop();
+                    int lB = lWork.Pop();
+                    int lA = lWork.Pop();
+                    Vector3 lPa = pVertices[lA];
+                    Vector3 lPb = pVertices[lB];
+                    Vector3 lPc = pVertices[lC];
+                    if ((lPa - lPb).sqrMagnitude <= lMaxSqr && (lPb - lPc).sqrMagnitude <= lMaxSqr && (lPc - lPa).sqrMagnitude <= lMaxSqr)
+                    {
+                        lOut.Add(lA);
+                        lOut.Add(lB);
+                        lOut.Add(lC);
+                        continue;
+                    }
+                    int lAb = pVertices.Count;
+                    pVertices.Add((lPa + lPb) * 0.5f);
+                    int lBc = pVertices.Count;
+                    pVertices.Add((lPb + lPc) * 0.5f);
+                    int lCa = pVertices.Count;
+                    pVertices.Add((lPc + lPa) * 0.5f);
+                    foreach (int lIndex in new[] { lA, lAb, lCa, lAb, lB, lBc, lCa, lBc, lC, lAb, lBc, lCa }) lWork.Push(lIndex);
+                }
+            }
+            pIndices.Clear();
+            pIndices.AddRange(lOut);
         }
 
         // Triangle already wound the right way (see CapTriangles).

@@ -52,6 +52,8 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
             PlayerSettings.fullScreenMode = FullScreenMode.FullScreenWindow;
             PlayerSettings.defaultIsNativeResolution = true;
             PlayerSettings.runInBackground = true;
+            // Windowed mode is a real window : it can be resized.
+            PlayerSettings.resizableWindow = true;
             PlayerSettings.colorSpace = ColorSpace.Linear;
 
             TextureImporter lImporter = AssetImporter.GetAtPath(ICON) as TextureImporter;
@@ -263,22 +265,12 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
             AssetDatabase.SaveAssets();
         }
 
+        // The rules live in AudioImportRules (applied on every import) : this only re-imports every clip under them.
         [MenuItem("Hyperspeed/Configure Audio")]
         public static void ConfigureAudio()
         {
-            foreach (string lGuid in AssetDatabase.FindAssets("t:AudioClip", new[] { "Assets/_Game/Resources/Audio" }))
-            {
-                string lPath = AssetDatabase.GUIDToAssetPath(lGuid);
-                AudioImporter lImporter = (AudioImporter)AssetImporter.GetAtPath(lPath);
-                bool lMusic = Path.GetFileName(lPath).StartsWith("music_");
-                AudioImporterSampleSettings lSettings = lImporter.defaultSampleSettings;
-                lSettings.loadType = lMusic ? AudioClipLoadType.Streaming : AudioClipLoadType.DecompressOnLoad;
-                lSettings.compressionFormat = lMusic ? AudioCompressionFormat.Vorbis : AudioCompressionFormat.ADPCM;
-                lSettings.quality = 0.7f;
-                lImporter.defaultSampleSettings = lSettings;
-                lImporter.forceToMono = !lMusic;
-                lImporter.SaveAndReimport();
-            }
+            int lCount = AudioImportRules.ReimportAll();
+            Debug.Log("[Hyperspeed] Audio : " + lCount + " clips re-imported under the import rules.");
         }
 
         [MenuItem("Hyperspeed/Build Scenes")]

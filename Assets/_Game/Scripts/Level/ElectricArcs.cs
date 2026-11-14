@@ -2,11 +2,13 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // Lightning crawling along a rope, and bursting around the runner while it rides.
+    // Lightning crawling along a rope, seen from far away, and bursting around the runner while it rides. The arcs wander
+    // wider than the tube, so the electricity is never hidden inside it.
     public class ElectricArcs : MonoBehaviour
     {
         private const int POINTS = 9;
-        private const int ARCS = 3;
+        private const int ARCS = 12;
+        private const float SEEN_FROM = 3200f;
 
         private GrindRail _rail;
         private LineRenderer[] _lines;
@@ -17,15 +19,16 @@ namespace Com.IsartDigital.Hyperspeed
             ElectricArcs lArcs = pRail.gameObject.AddComponent<ElectricArcs>();
             lArcs._rail = pRail;
             lArcs._lines = new LineRenderer[ARCS];
-            Material lMaterial = Mats.Glow(Color.Lerp(pColor, Color.white, 0.5f) * 3f, true);
+            // Electric blue-white whatever the stage colour : it must read as current (2026-11-12).
+            Material lMaterial = Mats.Glow(Color.Lerp(Color.Lerp(pColor, new Color(0.45f, 0.85f, 1f), 0.7f), Color.white, 0.35f) * 3.2f, true);
             for (int i = 0; i < ARCS; i++)
             {
                 LineRenderer lLine = new GameObject("Arc" + i).AddComponent<LineRenderer>();
                 lLine.transform.SetParent(pRail.transform, false);
                 lLine.positionCount = POINTS;
                 lLine.sharedMaterial = lMaterial;
-                lLine.startWidth = 0.9f;
-                lLine.endWidth = 0.2f;
+                lLine.startWidth = 2.4f;
+                lLine.endWidth = 0.4f;
                 lLine.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
                 lLine.enabled = false;
                 lArcs._lines[i] = lLine;
@@ -35,27 +38,34 @@ namespace Com.IsartDigital.Hyperspeed
         private void Update()
         {
             PlayerController lPlayer = RaceContext.Player;
-            if (lPlayer == null) return;
+            if (lPlayer == null || _rail.Length < 1f) return;
             bool lRiding = lPlayer.CurrentRail == _rail;
-            float lDistance;
-            float lRailDistance;
-            bool lNear = _rail.FindNearest(lPlayer.transform.position, 300f, out lDistance, out lRailDistance);
+            bool lNear = lRiding || _rail.Area.SqrDistance(lPlayer.transform.position) < SEEN_FROM * SEEN_FROM;
             for (int i = 0; i < ARCS; i++) _lines[i].enabled = lNear;
             if (!lNear) return;
             _timer -= Time.deltaTime;
             if (_timer > 0f) return;
-            _timer = 0.04f;
-            float lLength = lRiding ? 26f : 40f;
+            _timer = 0.045f;
+            float lRider = 0f;
+            if (lRiding)
+            {
+                float lIgnored;
+                _rail.FindNearest(lPlayer.transform.position, 50f, out lIgnored, out lRider);
+            }
             for (int i = 0; i < ARCS; i++)
             {
-                float lCenter = lRailDistance + Random.Range(-1f, 3f) * lLength * (lRiding ? 0.3f : 1f);
+                // Riding : the current runs ahead of you along the wire, tight on it. Otherwise : crawling anywhere along
+                // the whole rope.
+                bool lAround = lRiding && i < 6;
+                float lLength = lAround ? 34f : 80f;
+                float lCenter = lAround ? lRider + Random.Range(0.2f, 2.4f) * lLength * 0.5f : Random.Range(0f, _rail.Length);
+                float lWander = lAround ? 4f : 7f;
                 for (int j = 0; j < POINTS; j++)
                 {
                     float lT = j / (float)(POINTS - 1);
                     Vector3 lPos, lTangent, lUp;
                     _rail.Evaluate(lCenter + (lT - 0.5f) * lLength, out lPos, out lTangent, out lUp);
-                    float lWander = Mathf.Sin(lT * Mathf.PI) * (lRiding ? 4.5f : 3f);
-                    _lines[i].SetPosition(j, lPos + Random.insideUnitSphere * lWander);
+                    _lines[i].SetPosition(j, lPos + Random.insideUnitSphere * Mathf.Sin(lT * Mathf.PI) * lWander);
                 }
             }
         }

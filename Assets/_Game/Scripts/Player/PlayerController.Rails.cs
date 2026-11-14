@@ -41,22 +41,18 @@ namespace Com.IsartDigital.Hyperspeed
             _railDirection = 1;
             _railBlend = 0.1f;
             _railFrom = transform.position;
-            _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, Mathf.Max(Speed, _profile.cruise * 0.85f) + _profile.cruise * 0.12f);
+            _speed = Mathf.Min(_profile.SafetyMax, Mathf.Max(Speed, _profile.cruise * 0.85f) + _profile.cruise * 0.12f);
             SetState(PlayerState.Grind);
             Diving = false;
             HasDoubleJump = true;
-            AudioManager.Play("sfx_grind_start", 0.8f);
-            FX.Sparks(pPoint, UIFactory.CYAN, 40, 34f);
-            FX.Shockwave(pPoint, _heading, UIFactory.CYAN, 18f, 0.3f);
-            Juice.Shake(0.25f);
-            Juice.FovKick(5f);
+            HSJuice.Play(JuiceId.RopeCatch, Jx(pPoint));
             AddCombo();
         }
 
         private void GrindStep(float pDt)
         {
             Vector3 lPos, lTangent, lUp;
-            _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + _profile.cruise * 0.14f * pDt);
+            _speed = Mathf.Min(_profile.SafetyMax, _speed + _profile.cruise * 0.14f * pDt);
             _railDistance += _railDirection * _speed * pDt;
             _rail.Evaluate(_railDistance, out lPos, out lTangent, out lUp);
             _up = lUp;
@@ -64,7 +60,8 @@ namespace Com.IsartDigital.Hyperspeed
             _heading = lTangent * _railDirection;
             _moveDir = _heading;
             _velocity = _heading * _speed;
-            Vector3 lTarget = lPos + lUp * 0.25f;
+            // Riding on top of the rope, not inside it.
+            Vector3 lTarget = lPos + lUp * 1.35f;
             if (_railBlend > 0f)
             {
                 _railBlend -= pDt;
@@ -76,13 +73,11 @@ namespace Com.IsartDigital.Hyperspeed
 
             if (_railDistance >= _rail.Length - 1f)
             {
-                _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + _profile.cruise * 0.2f);
+                _speed = Mathf.Min(_profile.SafetyMax, _speed + _profile.cruise * 0.2f);
                 _velocity = _heading * _speed + _up * 14f;
                 LeaveRail();
-                Juice.FovKick(6f);
-                Juice.Rollback(6f);
                 _boostTimer = Mathf.Max(_boostTimer, 0.8f);
-                AudioManager.Play("sfx_boost_small", 0.7f);
+                HSJuice.Play(JuiceId.RopeExit, Jx(transform.position));
             }
         }
 

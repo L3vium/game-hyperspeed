@@ -778,7 +778,143 @@ def make_sfx_v3():
     write("sfx_rumble_loop", loopable(drive(rumble, 1.5), 0.5), 0.75)
 
 
+# ============================================================================= v4 : 3D runner era, mixed to be heard
+
+def write_rms(name, x, rms_db=-14.0, peak=0.97):
+    """Loudness-matched write : scale to a target RMS, then a soft limiter keeps the peaks under pPeak. Every one-shot
+    ends up as present as the others instead of being judged by its loudest sample."""
+    x = np.asarray(x, dtype=np.float64)
+    rms = np.sqrt(np.mean(x * x)) + 1e-12
+    x = x * (10 ** (rms_db / 20.0)) / rms
+    x = np.tanh(x / peak) * peak
+    os.makedirs(OUT, exist_ok=True)
+    wavfile.write(os.path.join(OUT, name + ".wav"), SR, (x * 32767).astype(np.int16))
+    print("wrote", name, round(len(x) / SR, 2), "s", rms_db, "dB")
+
+
+def click(d=0.012, hp=2500):
+    return highpass(noise(d), hp) * env_exp(d, d * 0.25)
+
+
+def body(f0, f1, d, decay, amount=2.0):
+    return drive(sub(f0, f1, d, decay), amount)
+
+
+def crackle(duration, rate=60, lo=2500, hi=9000):
+    """Electric sparks : dense random clicks, bandpassed."""
+    out = np.zeros(int(SR * duration))
+    for _ in range(int(rate * duration)):
+        o = int(SR * rng.uniform(0, duration))
+        c = highpass(noise(0.006), 1500) * env_exp(0.006, 0.0015) * rng.uniform(0.3, 1.0)
+        out[o:o + len(c)] += c[:len(out) - o]
+    return bandpass(out, lo, hi)
+
+
+def make_sfx_v4():
+    # ---------------------------------------------------------------- body
+    foot = lambda: mix(lowpass(noise(0.05), 2200) * env_exp(0.05, 0.01) * 0.7, sub(150, 70, 0.07, 0.02) * 0.9, click(0.008, 4000) * 0.25)
+    write_rms("sfx_step", fade(foot()), -16)
+    jump = mix(click(0.015, 3000) * 0.7, body(170, 80, 0.14, 0.035, 2.5) * 0.9, whoosh(0.32, 700, 5200) * 1.1,
+               at(sine_sweep(380, 760, 0.16, 0.6) * env_exp(0.16, 0.05) * 0.18, 0.01))
+    write_rms("sfx_jump", fade(reverb(jump, 0.7, 0.18, 0.12)), -13)
+    dj = mix(click(0.012, 4000) * 0.6, whoosh(0.36, 1400, 8000) * 1.2, at(sine_sweep(600, 1500, 0.2, 0.6) * env_exp(0.2, 0.06) * 0.25, 0.01),
+             sparkle(0.3, 10, 4000, 10000) * 0.4, body(220, 110, 0.1, 0.03, 2) * 0.5)
+    write_rms("sfx_doublejump", fade(reverb(dj, 0.9, 0.25, 0.2)), -13)
+    land = mix(body(130, 45, 0.22, 0.06, 2.5) * 1.1, lowpass(noise(0.14), 1600) * env_exp(0.14, 0.025) * 0.7, foot() * 0.6)
+    write_rms("sfx_land", fade(land), -14)
+    heavy = mix(body(110, 30, 0.5, 0.12, 3.5) * 1.3, lowpass(noise(0.45), 1300) * env_exp(0.45, 0.08), click(0.03, 1500) * 0.8,
+                at(lowpass(noise(0.6), 500) * env_exp(0.6, 0.18) * 0.4, 0.03))
+    write_rms("sfx_land_heavy", fade(reverb(heavy, 1.2, 0.35, 0.2)), -11)
+
+    # ---------------------------------------------------------------- moves
+    swirl = whoosh(0.42, 8000, 500) * (1 + 0.35 * np.sin(2 * np.pi * 16 * t_axis(0.42)))
+    dash = mix(click(0.02, 2000) * 1.2, body(120, 40, 0.3, 0.07, 3) * 1.1, swirl * 1.3, at(sparkle(0.25, 8, 5000, 11000) * 0.3, 0.02))
+    write_rms("sfx_dash", fade(reverb(dash, 0.8, 0.22, 0.18)), -11.5)
+    # Dive : wind climbing to a whistle as you point down.
+    dive = mix(whoosh(0.6, 500, 6000) * 1.1, sine_sweep(600, 1900, 0.6, 0.8) * env_adsr(0.6, 0.15, 0.2, 0.6, 0.25) * 0.22)
+    write_rms("sfx_dive", fade(reverb(dive, 0.8, 0.25, 0.2)), -13)
+    dl = t_axis(3.0)
+    howl = mix(bandpass(noise(3.0), 600, 3200) * (0.7 + 0.3 * np.sin(2 * np.pi * 0.9 * dl)), lowpass(noise(3.0), 220) * 0.6,
+               np.sin(2 * np.pi * np.cumsum(1500 + 120 * np.sin(2 * np.pi * 0.6 * dl)) / SR) * 0.05)
+    write_rms("sfx_dive_loop", loopable(howl, 0.4), -16)
+    slide = mix(bandpass(noise(2.0), 900, 4000) * 0.6, lowpass(noise(2.0), 300) * 0.5)
+    write_rms("sfx_drift_loop", loopable(slide, 0.3), -16)
+    write_rms("sfx_drift_start", fade(mix(click(0.02, 1500), whoosh(0.3, 3000, 900) * 0.8, body(150, 70, 0.12, 0.04) * 0.5)), -14)
+
+    # ---------------------------------------------------------------- wind of speed : low roar + hiss, both looping
+    wt = t_axis(6.0)
+    gust = 0.75 + 0.25 * np.sin(2 * np.pi * 0.37 * wt) * np.sin(2 * np.pi * 0.11 * wt + 1.0)
+    wind = mix(lowpass(noise(6.0), 260) * 1.0 * gust, bandpass(noise(6.0), 700, 2600) * 0.5 * gust, highpass(noise(6.0), 5000) * 0.12)
+    write_rms("sfx_wind_loop", loopable(wind, 0.6), -15)
+
+    # ---------------------------------------------------------------- kicks and pads
+    boost = mix(click(0.02, 1800) * 1.0, body(95, 35, 0.6, 0.16, 3) * 1.2, whoosh(0.8, 400, 9500) * 1.3,
+                at(sine_sweep(300, 1400, 0.45, 0.5) * env_exp(0.45, 0.18) * 0.25, 0.02), at(sparkle(0.5, 14, 4000, 10000) * 0.5, 0.04))
+    write_rms("sfx_boost", fade(reverb(boost, 1.2, 0.35, 0.25)), -11)
+    spring = mix(sine_sweep(180, 620, 0.35, 0.5) * env_exp(0.35, 0.12) * 0.6, body(120, 60, 0.2, 0.05, 2) * 0.8, whoosh(0.6, 600, 7000) * 1.0)
+    write_rms("sfx_launch", fade(reverb(spring, 1.0, 0.3, 0.2)), -12)
+
+    # ---------------------------------------------------------------- rope : electric
+    zap = mix(click(0.01, 3000) * 1.0, crackle(0.35, 220) * 1.4, sine_sweep(2200, 600, 0.25, 0.4) * env_exp(0.25, 0.08) * 0.3, body(160, 80, 0.12, 0.04) * 0.4)
+    write_rms("sfx_grind_start", fade(reverb(zap, 0.6, 0.2, 0.15)), -12)
+    gl = t_axis(2.5)
+    buzz = mix(np.sign(np.sin(2 * np.pi * 100 * gl)) * 0.08 * (1 + 0.3 * np.sin(2 * np.pi * 7 * gl)), lowpass(saw(50, 2.5), 900) * 0.25,
+               crackle(2.5, 140) * 1.2, bandpass(noise(2.5), 2500, 7000) * 0.15)
+    write_rms("sfx_grind_loop", loopable(buzz, 0.3), -15)
+
+    # ---------------------------------------------------------------- breaks and hits
+    glass = mix(click(0.02, 3000) * 1.4, sparkle(0.5, 40, 3000, 12000) * 0.9, highpass(noise(0.4), 4000) * env_exp(0.4, 0.08) * 0.6, body(140, 50, 0.2, 0.05) * 0.6)
+    write_rms("sfx_shatter", fade(reverb(glass, 1.0, 0.3, 0.25, 9000)), -12)
+    rock = mix(body(100, 35, 0.45, 0.1, 3) * 1.2, lowpass(noise(0.4), 1400) * env_exp(0.4, 0.07) * 0.9, click(0.03, 1200) * 0.7)
+    write_rms("sfx_rock", fade(reverb(rock, 1.0, 0.3, 0.2)), -12)
+    crack = highpass(noise(0.06), 2500) * env_exp(0.06, 0.012)
+    hit = drive(mix(sub(110, 35, 0.5, 0.12) * 1.4, crack * 1.6, lowpass(noise(0.35), 1800) * env_exp(0.35, 0.05)), 3)
+    write_rms("sfx_punch_hit", fade(reverb(hit, 1.2, 0.3, 0.3)), -10.5)
+    write_rms("sfx_crash", fade(reverb(drive(mix(sub(130, 35, 0.45, 0.1) * 1.2, lowpass(noise(0.4), 1500) * env_exp(0.4, 0.07), crack), 2.2), 1.0, 0.3, 0.2)), -11)
+    clang = mix(chime([180, 452, 811, 1213], 1.2, 0.35) * 0.8, body(90, 35, 0.6, 0.15, 3) * 1.2, crack * 1.2)
+    write_rms("sfx_hammer_hit", fade(reverb(clang, 1.4, 0.45, 0.3)), -10)
+    boom = mix(body(70, 22, 1.6, 0.45, 4) * 1.4, lowpass(noise(1.6), 900) * env_exp(1.6, 0.35) * 1.1, crack * 1.5,
+               at(lowpass(noise(1.2), 2500) * env_exp(1.2, 0.2) * 0.4, 0.05), at(sparkle(0.8, 20, 1500, 6000) * 0.3, 0.1))
+    write_rms("sfx_explosion", fade(reverb(boom, 2.0, 0.6, 0.3)), -10)
+    thunder = mix(highpass(noise(0.12), 2000) * env_exp(0.12, 0.02) * 1.5, at(lowpass(noise(2.4), 400) * env_exp(2.4, 0.7) * 1.2, 0.05),
+                  at(lowpass(noise(1.0), 1500) * env_exp(1.0, 0.15) * 0.6, 0.02))
+    write_rms("sfx_thunder", fade(reverb(thunder, 2.0, 0.7, 0.35)), -12)
+
+    # ---------------------------------------------------------------- states
+    light = mix(riser(0.5, 400, 14000) * 0.9, at(body(60, 20, 1.6, 0.5, 4) * 1.4, 0.45), at(whoosh(1.0, 10000, 300) * 1.1, 0.45),
+                at(sparkle(1.2, 40, 3000, 13000) * 0.8, 0.45), at(chime([523, 784, 1047, 1568], 1.6, 0.6) * 0.3, 0.47))
+    write_rms("sfx_light", fade(reverb(light, 2.2, 0.7, 0.35, 10000)), -10)
+    lt = t_axis(3.0)
+    hum = mix(np.sin(2 * np.pi * 110 * lt) * 0.3, np.sin(2 * np.pi * 165 * lt) * 0.15, np.sin(2 * np.pi * 220 * lt * (1 + 0.002 * np.sin(2 * np.pi * 5 * lt))) * 0.2,
+              bandpass(noise(3.0), 3000, 9000) * 0.2 * (0.6 + 0.4 * np.sin(2 * np.pi * 11 * lt)), crackle(3.0, 40) * 0.6)
+    write_rms("sfx_light_loop", loopable(hum, 0.3), -16)
+    death = mix(body(140, 30, 0.6, 0.15, 4) * 1.3, crack * 1.5, at(sine_sweep(900, 80, 0.7, 0.6) * env_exp(0.7, 0.3) * 0.35, 0.03),
+                at(lowpass(noise(0.8), 1200) * env_exp(0.8, 0.2) * 0.6, 0.02))
+    write_rms("sfx_death", fade(reverb(death, 1.4, 0.45, 0.3)), -10.5)
+    resp = mix(whoosh(0.5, 400, 7000)[::-1] * 0.9, at(chime([880, 1320, 1760], 0.6, 0.2) * 0.45, 0.4), at(body(200, 100, 0.12, 0.04) * 0.5, 0.42))
+    write_rms("sfx_respawn", fade(reverb(resp, 1.0, 0.3, 0.25)), -13)
+    beep = lambda f: square(f, 0.13, 0.5) * env_adsr(0.13, 0.004, 0.03, 0.7, 0.04)
+    write_rms("sfx_wrong_way", fade(lowpass(mix(beep(520), at(beep(390), 0.17)), 3500)), -15)
+
+    # ---------------------------------------------------------------- countdown and UI, crisp and present
+    count = mix(click(0.01, 3000) * 0.6, np.sin(2 * np.pi * 880 * t_axis(0.25)) * env_exp(0.25, 0.08) * 0.8, body(220, 110, 0.12, 0.04) * 0.6)
+    write_rms("sfx_count", fade(reverb(count, 0.6, 0.2, 0.2)), -13)
+    go = mix(click(0.015, 2500) * 0.9, chime([1047, 1319, 1568, 2093], 0.9, 0.3) * 0.7, body(110, 40, 0.5, 0.14, 3) * 1.1, whoosh(0.6, 500, 9000) * 0.9)
+    write_rms("sfx_go", fade(reverb(go, 1.2, 0.4, 0.25)), -11)
+    write_rms("ui_move", fade(mix(click(0.012, 3500) * 0.8, np.sin(2 * np.pi * 1900 * t_axis(0.05)) * env_exp(0.05, 0.012) * 0.7)), -17)
+    write_rms("ui_select", fade(reverb(mix(arp([76, 83, 88], 0.04, 0.16, "square", 0.06) * 0.35, body(240, 100, 0.14, 0.04) * 0.8, whoosh(0.2, 2500, 8000) * 0.4, click(0.01) * 0.6), 0.6, 0.2, 0.18)), -14)
+    write_rms("ui_back", fade(mix(arp([83, 76], 0.05, 0.14, "square", 0.05) * 0.3, body(200, 90, 0.12, 0.04) * 0.6, whoosh(0.18, 6000, 1500) * 0.4)), -15)
+    write_rms("ui_hint", fade(reverb(mix(np.sin(2 * np.pi * 1320 * t_axis(0.18)) * env_exp(0.18, 0.06) * 0.6, np.sin(2 * np.pi * 1760 * t_axis(0.18)) * env_exp(0.18, 0.05) * 0.4, click(0.008) * 0.4), 0.6, 0.2, 0.2)), -16)
+    write_rms("ui_whoosh", fade(reverb(whoosh(0.5, 500, 9000) * 1.2, 0.8, 0.25, 0.2)), -14)
+    write_rms("ui_transition_in", fade(reverb(mix(whoosh(0.55, 300, 9500) * 1.2, body(120, 45, 0.35, 0.1, 2.5) * 0.7, click(0.015) * 0.5), 1.0, 0.3, 0.2)), -12.5)
+    write_rms("ui_transition_out", fade(reverb(mix(whoosh(0.5, 9000, 400) * 1.2, at(body(110, 40, 0.3, 0.1, 2.5) * 0.6, 0.35)), 0.9, 0.25, 0.2)), -13)
+
+
 if __name__ == "__main__":
+    import sys
+    if len(sys.argv) > 1 and sys.argv[1] == "v4":
+        make_sfx_v4()
+        sys.exit(0)
     make_sfx()
     make_sfx_v2()
     music_title()
@@ -788,3 +924,4 @@ if __name__ == "__main__":
     music_win()
     music_lose()
     make_sfx_v3()
+    make_sfx_v4()

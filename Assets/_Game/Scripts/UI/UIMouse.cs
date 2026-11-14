@@ -10,6 +10,9 @@ namespace Com.IsartDigital.Hyperspeed
         private static Vector2 _locked;
         private static int _frame = -1;
 
+        // Test hook : forces the raw mouse position (-1..1) to check every corner of the tilting screens.
+        public static Vector2? Override;
+
         public static Vector2 Tilt
         {
             get
@@ -17,7 +20,8 @@ namespace Com.IsartDigital.Hyperspeed
                 if (_frame == Time.frameCount) return _value;
                 _frame = Time.frameCount;
                 Vector2 lTarget;
-                if (Cursor.lockState == CursorLockMode.Locked)
+                if (Override.HasValue) lTarget = Override.Value;
+                else if (Cursor.lockState == CursorLockMode.Locked)
                 {
                     _locked += HSInput.MouseDelta * 0.004f;
                     _locked = Vector2.ClampMagnitude(_locked, 1f);

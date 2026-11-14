@@ -8,6 +8,7 @@ namespace Com.IsartDigital.Hyperspeed
         private const int CHEVRONS = 4;
         private const int SEGMENTS = 5;
         private const float LIFT = 0.28f;
+        public const float PAD_POWER = 2.8f;
 
         public float boost = 26f;
 
@@ -22,7 +23,8 @@ namespace Com.IsartDigital.Hyperspeed
             lObject.transform.SetPositionAndRotation(lPosition, Quaternion.LookRotation(Vector3.ProjectOnPlane(lForward, lNormal), lNormal));
             BoostPad lPad = lObject.AddComponent<BoostPad>();
             lPad.halfExtents = new Vector3(pWidth * 0.5f, 7f, pLength * 0.5f);
-            lPad.boost = pLayout.profile.cruise * pBoost;
+            // 2026-11-11 : pads kick almost three times harder than the stage data says (the run itself got calmer).
+            lPad.boost = pLayout.profile.cruise * pBoost * PAD_POWER;
             lPad.cooldown = 0.4f;
 
             // Short pieces following the same line as the track mesh : the pad lies on the real surface.
@@ -64,6 +66,8 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lD = pInverse * (pField.Point(pS + pV0 + pDepth, pLateral + pL0) + pField.Normal(pS + pV0 + pDepth) * pLift - pOrigin);
             pData.Quad(lA, lB, lC, lD, Vector3.up, pColor);
         }
+
+        public override bool Accepts(PlayerController pPlayer) => Along(pPlayer);
 
         protected override void OnTouch(PlayerController pPlayer)
         {

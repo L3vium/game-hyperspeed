@@ -19,6 +19,10 @@ namespace Com.IsartDigital.Hyperspeed
 
             for (float lS0 = lSpine.StartS; lS0 < lSpine.EndS; lS0 += CHUNK)
             {
+                // On light highways only one chunk in twelve gets scenery, and none of it is solid : at 20 km/s the road
+                // has its own dressing (HighwayDressing), and 300 km of colliders would never be touched.
+                bool lHighway = pLayout.InHighway(lS0);
+                if (lHighway && Mathf.RoundToInt(lS0 / CHUNK) % 12 != 0) continue;
                 MeshData lData = new MeshData();
                 MeshData lLit = new MeshData();
                 Vector3 lOrigin = lSpine.Evaluate(lS0).position;
@@ -30,8 +34,8 @@ namespace Com.IsartDigital.Hyperspeed
                 Clouds(pLayout, lKit, lRandom, lS0);
 
                 if (lData.Count == 0 && lLit.Count == 0) continue;
-                Spawn(lParent, lOrigin, lData, lMaterial, "Scenery");
-                if (lLit.Count > 0) Spawn(lParent, lOrigin, lLit, lGlow, "SceneryLit");
+                Spawn(lParent, lOrigin, lData, lMaterial, "Scenery", !lHighway);
+                if (lLit.Count > 0) Spawn(lParent, lOrigin, lLit, lGlow, "SceneryLit", !lHighway);
             }
             GroundSheet.Create(pRoot, pLayout, pTheme);
             SafetyNet.Create(pRoot, pLayout);
@@ -39,7 +43,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         private enum Depth { Near, Middle, Far }
 
-        private static void Spawn(Transform pParent, Vector3 pOrigin, MeshData pData, Material pMaterial, string pName)
+        private static void Spawn(Transform pParent, Vector3 pOrigin, MeshData pData, Material pMaterial, string pName, bool pSolid = true)
         {
             GameObject lObject = new GameObject(pName);
             lObject.transform.SetParent(pParent, false);
@@ -47,11 +51,26 @@ namespace Com.IsartDigital.Hyperspeed
             // Solid : anything you can see beside the track can catch you, and you bounce back from it.
             lObject.layer = Layers.SCENERY;
             Mesh lMesh = pData.ToMesh(pName);
+            if (!pSolid)
+            {
+                lObject.AddComponent<MeshFilter>().sharedMesh = lMesh;
+                lObject.AddComponent<MeshRenderer>().sharedMaterial = pMaterial;
+                return;
+            }
+            // Collider first (it would otherwise cook the render mesh too), from a copy whose huge triangles are split.
+            MeshCollider lCollider = lObject.AddComponent<MeshCollider>();
+            System.Collections.Generic.List<Vector3> lVertices = new System.Collections.Generic.List<Vector3>(lMesh.vertices);
+            System.Collections.Generic.List<int> lIndices = new System.Collections.Generic.List<int>(lMesh.triangles);
+            TrackBaker.SubdivideLong(lVertices, lIndices, 380f);
+            Mesh lCollision = new Mesh { name = pName + "Collision" };
+            lCollision.indexFormat = lVertices.Count > 65000 ? UnityEngine.Rendering.IndexFormat.UInt32 : UnityEngine.Rendering.IndexFormat.UInt16;
+            lCollision.SetVertices(lVertices);
+            lCollision.triangles = lIndices.ToArray();
+            lCollider.sharedMesh = lCollision;
             lObject.AddComponent<MeshFilter>().sharedMesh = lMesh;
             MeshRenderer lRenderer = lObject.AddComponent<MeshRenderer>();
             lRenderer.sharedMaterial = pMaterial;
             lRenderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-            lObject.AddComponent<MeshCollider>().sharedMesh = lMesh;
         }
 
         private static float Rand(System.Random pRandom, float pMin, float pMax) => pMin + (float)pRandom.NextDouble() * (pMax - pMin);
@@ -102,10 +121,17 @@ namespace Com.IsartDigital.Hyperspeed
         }
     }
 
-    // A huge flat sheet far under the track, following the runner : the floor of the world under its fog.
+    // A huge flat sheet far under the track, following the runner : the floor of the world under its fog. It always
+    // stays under the lowest piece of track around (behind and far ahead), so the bottom of a loop or a platform far
+    // below is never hidden by it.
     public class GroundSheet : MonoBehaviour
     {
+        public const float BEHIND = 600f;
+        public const float AHEAD = 9000f;
+        public const float UNDER = 620f;
+
         private LevelLayout _layout;
+        private float _y = float.NaN;
 
         public static void Create(Transform pParent, LevelLayout pLayout, Theme pTheme)
         {
@@ -128,9 +154,15 @@ namespace Com.IsartDigital.Hyperspeed
             PlayerController lPlayer = RaceContext.Player;
             if (lPlayer == null) return;
             Vector3 lAt = lPlayer.transform.position;
-            float lLowest = _layout.spine.Evaluate(lPlayer.Progress).position.y;
-            transform.position = new Vector3(lAt.x, lLowest - 620f, lAt.z);
+            float lP = lPlayer.Progress;
+            float lTarget = _layout.LowestBetween(lP - BEHIND, lP + AHEAD) - UNDER;
+            // Down at once (something low is coming), back up slowly (never a visible jump of the horizon).
+            if (float.IsNaN(_y) || lTarget < _y) _y = lTarget;
+            else _y = Mathf.MoveTowards(_y, lTarget, 40f * Time.deltaTime);
+            transform.position = new Vector3(lAt.x, _y, lAt.z);
         }
+
+        public float Height => _y;
     }
 
     // Invisible floor a little under the track, following the runner : falling is (almost) never the end. Touching it
@@ -161,6 +193,8 @@ namespace Com.IsartDigital.Hyperspeed
             float lS = lPlayer.Progress;
             // Below the lowest of here and a bit ahead, so a dive onto a lower block is never caught early.
             float lFloor = Mathf.Min(_layout.field.Point(lS, _layout.field.CenterLateral(lS)).y, _layout.field.Point(lS + 300f, _layout.field.CenterLateral(lS + 300f)).y);
+            // Inside a loop or a twist, the bottom of the whole section counts : falling from its top is not a fall out.
+            lFloor = Mathf.Min(lFloor, _layout.LowestOfSection(lS), _layout.LowestBetween(lS - 50f, lS + 300f));
             transform.position = new Vector3(lAt.x, lFloor - DEPTH, lAt.z);
         }
     }

@@ -7,10 +7,13 @@ using UnityEngine.UI;
 namespace Com.IsartDigital.Hyperspeed
 {
     // Race HUD, kept out of the way : speed on a plane tilted in perspective bottom left with the dash pips under it, the
-    // time and a thin progress line at the top, a pointer to the rival. Nothing in the middle of the screen.
+    // time at the top, the race on a vertical rail on the right edge (flag at the top, you and the rival by name, the gap),
+    // a pointer to the rival. Nothing in the middle of the screen.
     public class HUD : MonoBehaviour
     {
-        private const float RAIL_HALF = 230f;
+        private const float RAIL_HALF = 270f;
+        // Left margin of the result column, in canvas units from the left edge of the screen.
+        private const float SAFE_LEFT = 150f;
 
         private Canvas _canvas;
         private RectTransform _root;
@@ -23,6 +26,12 @@ namespace Com.IsartDigital.Hyperspeed
         private TextMeshProUGUI _speedUnit;
         private UIShape[] _dashPips;
         private TextMeshProUGUI _tag;
+        // The chain (pads, rings, ropes in a row) that lifts the speed ceiling, and the light charge where light exists.
+        private TextMeshProUGUI _chainText;
+        private UIShape _lightBack;
+        private UIShape _lightFill;
+        private int _shownChain;
+        private float _chainPop;
         private float _tagTimer;
         private UI3DText _countWord;
         private float _countTimer;
@@ -33,8 +42,23 @@ namespace Com.IsartDigital.Hyperspeed
         private RectTransform _playerMarker;
         private RectTransform _rivalMarker;
         private RectTransform _rivalPointer;
+        private TextMeshProUGUI _rivalName;
+        private TextMeshProUGUI _rivalGap;
+        private UIShape _rivalMark;
+        private RectTransform _flag;
+        private bool _rivalDone;
+        private float _rivalDoneTime;
         private UIBanner _notify;
         private UIBanner _hint;
+        private UIBanner _wrongWay;
+        private float _wrongWayTimer;
+        // Big chevrons under the WRONG WAY banner pointing the way to turn.
+        private RectTransform _turnArrows;
+        private UIShape[] _turnChevrons;
+        // A callout that must be read (PERFECT START) holds the top slot ; the next one waits its turn.
+        private float _notifyHold;
+        private string _pendingText;
+        private Color _pendingColor;
         private float _lastHyperNotice = -100f;
         private Canvas _endCanvas;
         private int _hintIndex;
@@ -56,7 +80,7 @@ namespace Com.IsartDigital.Hyperspeed
             lHud._level = pLevel;
             lHud.Build();
             Juice.OnPopup += lHud.ShowPopup;
-            pPlayer.OnPerfectStart += () => lHud.Notify("PERFECT START", UIKit.GOLD);
+            pPlayer.OnPerfectStart += () => lHud.Notify("PERFECT START", UIKit.GOLD, 1.6f);
             pPlayer.OnHyper += () =>
             {
                 if (Time.unscaledTime - lHud._lastHyperNotice < 8f) return;
@@ -82,13 +106,25 @@ namespace Com.IsartDigital.Hyperspeed
             lLines.material = _speedLinesMaterial;
             lLines.raycastTarget = false;
 
-            // Timer and a thin progress line (top center).
+            // Timer (top centre).
             _timerText = UIKit.Text(_root, "00:00.00", 38f, UIKit.WHITE, new Vector2(0.5f, 1f), new Vector2(0f, -40f), new Vector2(300f, 50f), UIKit.Font.Heavy);
             UIFactory.Outline(_timerText, UIKit.INK, 0.25f);
-            _rail = UIFactory.CreateRect(_root, "Rail", new Vector2(0.5f, 1f), new Vector2(0f, -74f), new Vector2(RAIL_HALF * 2f, 6f));
-            UIFactory.CreateImage(_rail, "Line", new Color(1f, 1f, 1f, 0.3f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(RAIL_HALF * 2f, 3f));
-            _rivalMarker = Marker("Rival", UIKit.RED);
-            _playerMarker = Marker("Player", UIKit.WHITE);
+
+            // The race, on the right edge : start at the bottom, the flag at the top, you and the rival by name.
+            _rail = UIFactory.CreateRect(_root, "Rail", new Vector2(1f, 0.5f), new Vector2(-70f, 10f), new Vector2(10f, RAIL_HALF * 2f));
+            UIKit.Tile(_rail, "Back", new Color(0f, 0f, 0f, 0.35f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(14f, RAIL_HALF * 2f + 8f), 0f);
+            UIFactory.CreateImage(_rail, "Line", new Color(1f, 1f, 1f, 0.55f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(4f, RAIL_HALF * 2f));
+            _flag = UIFactory.CreateRect(_rail, "Flag", new Vector2(0.5f, 0.5f), new Vector2(0f, RAIL_HALF + 34f), new Vector2(48f, 48f));
+            UIKit.Icon(_flag, "flag", UIKit.WHITE, new Vector2(0.5f, 0.5f), Vector2.zero, 46f);
+            _rivalMarker = Marker("Rival", UIKit.RED, out _rivalMark);
+            _rivalName = UIKit.Text(_rivalMarker, RivalShortName(), 26f, UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(-140f, 9f), new Vector2(220f, 34f), UIKit.Font.Heavy, TextAlignmentOptions.Right);
+            UIFactory.Outline(_rivalName, UIKit.INK, 0.3f);
+            _rivalGap = UIKit.Text(_rivalMarker, "", 22f, UIKit.RED, new Vector2(0.5f, 0.5f), new Vector2(-140f, -17f), new Vector2(220f, 28f), UIKit.Font.Heavy, TextAlignmentOptions.Right);
+            UIFactory.Outline(_rivalGap, UIKit.INK, 0.3f);
+            UIShape lYouMark;
+            _playerMarker = Marker("Player", UIKit.CYAN, out lYouMark);
+            TextMeshProUGUI lYou = UIKit.Text(_playerMarker, "YOU", 26f, UIKit.CYAN, new Vector2(0.5f, 0.5f), new Vector2(-80f, 0f), new Vector2(100f, 34f), UIKit.Font.Heavy, TextAlignmentOptions.Right);
+            UIFactory.Outline(lYou, UIKit.INK, 0.3f);
 
             BuildGauges();
 
@@ -120,6 +156,12 @@ namespace Com.IsartDigital.Hyperspeed
                 _dashPips[i] = UIKit.Tile(_speedo, "Pip" + i, UIKit.CYAN, new Vector2(0f, 0.5f), new Vector2(66f + i * 98f, -94f), new Vector2(90f, 14f), 0.6f);
             _tag = UIKit.Text(_speedo, "", 30f, UIKit.WHITE, new Vector2(0f, 0.5f), new Vector2(330f, -94f), new Vector2(300f, 36f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
             UIFactory.Outline(_tag, UIKit.INK, 0.25f);
+            _chainText = UIKit.Text(_speedo, "", 44f, UIKit.GOLD, new Vector2(0f, 0.5f), new Vector2(200f, 118f), new Vector2(420f, 56f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
+            UIFactory.Outline(_chainText, UIKit.INK, 0.25f);
+            _lightBack = UIKit.Tile(_speedo, "LightBack", new Color(0f, 0f, 0f, 0.42f), new Vector2(0f, 0.5f), new Vector2(290f, -128f), new Vector2(500f, 12f), 0.6f);
+            _lightFill = UIKit.Tile(_speedo, "LightFill", UIKit.WHITE, new Vector2(0f, 0.5f), new Vector2(45f, -128f), new Vector2(10f, 12f), 0.6f);
+            _lightBack.gameObject.SetActive(false);
+            _lightFill.gameObject.SetActive(false);
 
             _countWord = UI3DText.Create(lRoot3D, " ", 300f, new Vector2(0.5f, 0.5f), new Vector2(0f, 200f), new Vector2(900f, 320f), UIKit.WHITE, UIKit.RED_DARK, 22, 5f);
             _countWord.gameObject.SetActive(false);
@@ -127,6 +169,15 @@ namespace Com.IsartDigital.Hyperspeed
             // Big callouts at the top centre, instructions at the bottom : anime style, in 3D.
             _notify = UIBanner.Create(lRoot3D, "Notify", new Vector2(0.5f, 1f), new Vector2(0f, -190f), new Vector2(900f, 120f), 96f);
             _hint = UIBanner.Create(lRoot3D, "Hint", new Vector2(0.5f, 0f), new Vector2(260f, 330f), new Vector2(900f, 80f), 50f);
+            _wrongWay = UIBanner.Create(lRoot3D, "WrongWay", new Vector2(0.5f, 0.5f), new Vector2(0f, 120f), new Vector2(900f, 120f), 90f);
+            _turnArrows = UIFactory.CreateRect(lRoot3D, "TurnAround", new Vector2(0.5f, 0.5f), new Vector2(0f, -10f), new Vector2(520f, 140f));
+            _turnChevrons = new UIShape[3];
+            for (int i = 0; i < 3; i++)
+            {
+                _turnChevrons[i] = UIFactory.CreateShape(_turnArrows, "Chevron" + i, UIShape.ShapeKind.Chevron, UIKit.RED, new Vector2(0.5f, 0.5f), new Vector2((i - 1) * 150f, 0f), new Vector2(120f, 130f));
+                _turnChevrons[i].skew = 0.45f;
+            }
+            _turnArrows.gameObject.SetActive(false);
         }
 
         private string RivalShortName()
@@ -135,17 +186,35 @@ namespace Com.IsartDigital.Hyperspeed
             return RivalFactory.DisplayName(_rival.kind).Replace("THE ", "").Replace("A ", "");
         }
 
-        private RectTransform Marker(string pName, Color pColor)
+        private RectTransform Marker(string pName, Color pColor, out UIShape pMark)
         {
-            RectTransform lMarker = UIFactory.CreateRect(_rail, pName, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(16f, 16f));
-            UIFactory.CreateShape(lMarker, "Mark", UIShape.ShapeKind.Parallelogram, pColor, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(8f, 16f)).skew = 0.4f;
+            RectTransform lMarker = UIFactory.CreateRect(_rail, pName, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(30f, 30f));
+            // A chevron pointing at the rail from the left, and a tick across it.
+            pMark = UIFactory.CreateShape(lMarker, "Mark", UIShape.ShapeKind.Triangle, pColor, new Vector2(0.5f, 0.5f), new Vector2(-22f, 0f), new Vector2(26f, 22f), -90f);
+            UIFactory.CreateImage(lMarker, "Tick", pColor, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(24f, 5f));
             return lMarker;
         }
 
-        private float RailX(float pDistance)
+        private float RailY(float pDistance)
         {
             float lFinish = Mathf.Max(1f, _path.finishS);
             return Mathf.Lerp(-RAIL_HALF, RAIL_HALF, Mathf.Clamp01(pDistance / lFinish));
+        }
+
+        // The rival crossed the line before you : said by name, loud, and its marker burns on the flag.
+        public void RivalFinished()
+        {
+            _rivalDone = true;
+            _rivalDoneTime = Time.unscaledTime;
+            string lName = _rival != null ? RivalFactory.DisplayName(_rival.kind) : "THE RIVAL";
+            _notifyHold = 0f;
+            _pendingText = null;
+            Notify(lName + " CROSSED THE LINE", UIKit.RED, 2.6f);
+            if (_rivalGap != null)
+            {
+                _rivalGap.text = "FINISHED";
+                _rivalGap.color = UIKit.RED;
+            }
         }
 
         public void SetRaceTime(float pTime)
@@ -155,28 +224,43 @@ namespace Com.IsartDigital.Hyperspeed
 
         private float _lineBurst;
         private float _lastBoost;
+        private static float _externalBurst;
+
+        // Juice events snap the screen speed lines toward the centre (they ease back out by themselves).
+        public static void LinesBurst(float pAmount) => _externalBurst = Mathf.Max(_externalBurst, Mathf.Clamp01(pAmount));
+
+        private float _lineLight;
 
         private void Update()
         {
             float lDt = Time.unscaledDeltaTime;
             if (_player != null)
             {
-                float lTarget = 0.12f + Mathf.Pow(_player.Speed01, 0.8f) * 0.88f + (_player.LightForm ? 0.2f : 0f) + (_player.Dashing ? 0.16f : 0f) + _player.BoostAmount * 0.14f + _player.Dive01 * 0.25f;
+                // A calm base that grows with speed (the wide view must stay readable) ; the kicks snap them in hard.
+                float lTarget = 0.05f + Mathf.Pow(_player.Speed01, 1.3f) * 0.45f + (_player.LightForm ? 0.35f : 0f) + (_player.Dashing ? 0.1f : 0f) + _player.BoostAmount * 0.1f + _player.Dive01 * 0.2f
+                                + (_player.Hyper ? HSSpeedStateLook.Get(SpeedState.Hyper).speedLines : 0f) + (_player.LightForm ? HSSpeedStateLook.Get(SpeedState.Light).speedLines : 0f);
                 _lineIntensity = Mathf.Lerp(_lineIntensity, Mathf.Clamp01(lTarget), 1f - Mathf.Exp(-7f * lDt));
                 // Every new kick : the streaks snap toward the centre, then ease back out over 0.4 s.
                 float lBoost = _player.BoostAmount;
                 if (lBoost > _lastBoost + 0.05f) _lineBurst = 1f;
                 _lastBoost = lBoost;
+                _lineBurst = Mathf.Max(_lineBurst, _externalBurst);
+                _externalBurst = 0f;
                 _lineBurst = Mathf.MoveTowards(_lineBurst, 0f, lDt / 0.4f);
                 _speedLinesMaterial.SetFloat("_Intensity", _player.State == PlayerState.Frozen ? 0f : _lineIntensity);
                 _speedLinesMaterial.SetFloat("_Boost", lBoost);
                 _speedLinesMaterial.SetFloat("_Burst", _lineBurst * _lineBurst);
                 _speedLinesMaterial.SetColor("_LineColor", new Color(0.9f, 0.95f, 1f, 0.95f));
+                _lineLight = Mathf.MoveTowards(_lineLight, _player.LightForm ? 1f : 0f, lDt * 1.5f);
+                _speedLinesMaterial.SetFloat("_Light", _lineLight);
+                if (RaceContext.Theme != null) _speedLinesMaterial.SetColor("_Accent", RaceContext.Theme.accent);
                 UpdateRail();
                 UpdateRivalPointer();
                 UpdateHints(lDt);
                 UpdateSpeedo(lDt);
+                UpdateWrongWay(lDt);
             }
+            UpdateNotify(lDt);
             UpdateCount(lDt);
             if (_tagTimer > 0f)
             {
@@ -199,6 +283,8 @@ namespace Com.IsartDigital.Hyperspeed
             _speedFill.rectTransform.anchoredPosition = new Vector2(40f + _speedFill.rectTransform.sizeDelta.x * 0.5f + 25f, -46f);
             _speedFill.color = _player.LightForm ? UIKit.WHITE : _player.Hyper ? UIKit.CYAN : UIKit.GOLD;
 
+            UpdateChain(pDt);
+
             for (int i = 0; i < _dashPips.Length; i++)
             {
                 float lCharge = Mathf.Clamp01(_player.DashEnergy - i);
@@ -213,12 +299,47 @@ namespace Com.IsartDigital.Hyperspeed
             _speedo.anchoredPosition = new Vector2(390f, 160f) + (_player.Hyper ? Random.insideUnitCircle * 3f * lShake : Vector2.zero);
         }
 
+        // 2026-11-14 : no tier chain and no light charge any more (base movement) : nothing to show here, the HUD
+        // stays minimal (speed bottom left).
+        private void UpdateChain(float pDt)
+        {
+            if (_chainText.text.Length > 0) _chainText.text = "";
+            if (_lightBack.gameObject.activeSelf)
+            {
+                _lightBack.gameObject.SetActive(false);
+                _lightFill.gameObject.SetActive(false);
+            }
+        }
+
         private void UpdateRail()
         {
             if (_path == null || _path.finishS <= 0f) return;
-            _playerMarker.anchoredPosition = new Vector2(RailX(_player.Progress), 0f);
-            if (_rival == null) return;
-            _rivalMarker.anchoredPosition = new Vector2(RailX(Mathf.Max(0f, _rival.distance)), 0f);
+            _playerMarker.anchoredPosition = new Vector2(0f, RailY(_player.Progress));
+            if (_rival == null)
+            {
+                _rivalMarker.gameObject.SetActive(false);
+                return;
+            }
+            _rivalMarker.anchoredPosition = new Vector2(0f, RailY(Mathf.Max(0f, _rival.distance)));
+            // Close to you on the rail : its name moves out of the way of YOU.
+            float lApart = _rivalMarker.anchoredPosition.y - _playerMarker.anchoredPosition.y;
+            float lShift = Mathf.Abs(lApart) < 46f ? (lApart >= 0f ? 1f : -1f) * (46f - Mathf.Abs(lApart)) : 0f;
+            _rivalName.rectTransform.anchoredPosition = new Vector2(-140f, 9f + lShift);
+            _rivalGap.rectTransform.anchoredPosition = new Vector2(-140f, -17f + lShift);
+            if (_rivalDone)
+            {
+                // Burning on the flag.
+                float lBlink = Mathf.Repeat((Time.unscaledTime - _rivalDoneTime) * 3f, 1f) < 0.5f ? 1f : 0.35f;
+                _rivalMark.color = new Color(UIKit.RED.r, UIKit.RED.g, UIKit.RED.b, lBlink);
+                _rivalMarker.localScale = Vector3.one * (1.15f + Mathf.Sin(Time.unscaledTime * 12f) * 0.1f);
+            }
+            else
+            {
+                // Ahead of you : + in red ; behind : - in cyan.
+                float lGap = _rival.distance - _player.Progress;
+                _rivalGap.text = (lGap >= 0f ? "+" : "-") + Mathf.RoundToInt(Mathf.Abs(lGap)) + " m";
+                _rivalGap.color = lGap >= 0f ? UIKit.RED : UIKit.CYAN;
+            }
             // A chaser right behind you : the edges of the screen say it, no words needed.
             if (_rival.chaser && RaceContext.Running && _player.Progress - _rival.distance < _player.Profile.cruise * 1.2f) Juice.Vignette(UIKit.RED, 0.6f);
         }
@@ -229,7 +350,8 @@ namespace Com.IsartDigital.Hyperspeed
             Camera lCamera = CameraRig.Instance != null ? CameraRig.Instance.Cam : null;
             if (_rival == null || lCamera == null || (!_rival.chaser && _rival.distance < _player.Progress)) { _rivalPointer.gameObject.SetActive(false); return; }
             _rivalPointer.gameObject.SetActive(true);
-            Vector3 lScreen = lCamera.WorldToScreenPoint(_rival.transform.position + Vector3.up * 6f);
+            Vector3 lScreen;
+            lScreen = lCamera.WorldToScreenPoint(_rival.transform.position + Vector3.up * 6f);
             float lScale = _canvas.scaleFactor;
             Vector2 lSize = new Vector2(Screen.width, Screen.height);
             bool lBehind = lScreen.z < 0f;
@@ -257,16 +379,69 @@ namespace Com.IsartDigital.Hyperspeed
                 _hintIndex++;
                 if (string.IsNullOrEmpty(lHint)) return;
                 _hint.Show(lHint, UIKit.CYAN, 3.4f);
-                AudioManager.Play("ui_hint", 0.5f);
+                HSJuice.Play(JuiceId.Hint, _player.transform.position);
             }
         }
 
-        // Top centre, big, in 3D : the moments that matter.
-        public void Notify(string pText, Color pColor)
+        // Top centre, big, in 3D : the moments that matter. pHold keeps it on screen : later callouts queue behind it.
+        public void Notify(string pText, Color pColor, float pHold = 0f)
         {
             if (_notify == null) return;
-            _notify.Show(pText, pColor, 1.3f);
+            if (_notifyHold > 0f && pHold <= 0f)
+            {
+                _pendingText = pText;
+                _pendingColor = pColor;
+                return;
+            }
+            _notify.Show(pText, pColor, Mathf.Max(1.3f, pHold));
+            _notifyHold = pHold;
             AudioManager.Play("ui_hint", 0.7f, 1.2f);
+        }
+
+        private void UpdateNotify(float pDt)
+        {
+            if (_notifyHold <= 0f) return;
+            _notifyHold -= pDt;
+            if (_notifyHold > 0f || _pendingText == null) return;
+            string lText = _pendingText;
+            _pendingText = null;
+            Notify(lText, _pendingColor);
+        }
+
+        // Running against the track : a red callout in the middle, repeated while it lasts, and a beep.
+        private void UpdateWrongWay(float pDt)
+        {
+            // The red vignette closes in softly while you run the wrong way.
+            if (PostFX.Instance != null) PostFX.Instance.wrongWay = _player.WrongWay ? 1f : 0f;
+            bool lArrows = _player.WrongWay;
+            if (_turnArrows.gameObject.activeSelf != lArrows) _turnArrows.gameObject.SetActive(lArrows);
+            if (lArrows)
+            {
+                // Which way to turn : toward the track's direction. The chevrons light one after the other that way.
+                Vector3 lFlow = _path.Flow(_player.Progress);
+                float lSide = Vector3.Dot(Vector3.Cross(_player.Heading, lFlow), _player.Up) >= 0f ? 1f : -1f;
+                float lPhase = Time.unscaledTime * 4f;
+                for (int i = 0; i < _turnChevrons.Length; i++)
+                {
+                    int lOrder = lSide > 0f ? i : _turnChevrons.Length - 1 - i;
+                    float lLit = Mathf.Clamp01(1f - Mathf.Repeat(lPhase - lOrder * 0.33f, 1f) * 1.6f);
+                    _turnChevrons[i].color = new Color(1f, Mathf.Lerp(0.05f, 0.85f, lLit), Mathf.Lerp(0.1f, 0.8f, lLit), Mathf.Lerp(0.35f, 1f, lLit));
+                    _turnChevrons[i].rectTransform.localRotation = Quaternion.Euler(0f, 0f, lSide > 0f ? 0f : 180f);
+                    _turnChevrons[i].rectTransform.localScale = Vector3.one * (1f + lLit * 0.25f);
+                }
+            }
+            _wrongWayTimer -= pDt;
+            if (!_player.WrongWay || _wrongWayTimer > 0f) return;
+            _wrongWayTimer = 1.2f;
+            _wrongWay.Show("WRONG WAY - TURN AROUND", UIKit.RED, 1.1f);
+            HSJuice.Play(JuiceId.WrongWay, _player.transform.position);
+        }
+
+        // Paused : the race HUD steps aside so nothing covers the pause menu.
+        public void SetPaused(bool pPaused)
+        {
+            if (_canvas != null) _canvas.gameObject.SetActive(!pPaused);
+            if (_canvas3D != null) _canvas3D.gameObject.SetActive(!pPaused);
         }
 
         // A rare word, small, next to the speed.
@@ -314,22 +489,6 @@ namespace Com.IsartDigital.Hyperspeed
             return lHolder;
         }
 
-        private RectTransform EndPanel(string pName, string pWord, Color pWordColor)
-        {
-            RectTransform lPanel = UIFactory.Stretch(UIFactory.CreateRect(TiltRoot("End3D", 30), pName, new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
-            UIKit.FullScreen(lPanel, "Dim", new Color(0f, 0f, 0f, 0.35f));
-            UIShape lRed = UIKit.Tile(lPanel, "Red", UIKit.RED, new Vector2(0.5f, 0.5f), new Vector2(-470f, 0f), new Vector2(1300f, 1300f), 0.15f);
-            UIKit.Chevrons(lRed.transform, "Chevrons", UIKit.RED, new Color(0.8f, 0.04f, 0.09f), 60f);
-            lRed.gameObject.AddComponent<Mask>().showMaskGraphic = true;
-            TextMeshProUGUI lWord = UIKit.Text(lPanel, pWord, 200f, pWordColor, new Vector2(0.5f, 1f), new Vector2(-340f, -150f), new Vector2(1100f, 220f), UIKit.Font.Heavy);
-            lWord.enableAutoSizing = true;
-            lWord.fontSizeMin = 60f;
-            lWord.fontSizeMax = 200f;
-            UIKit.Checker(lPanel, "Checker", new Vector2(0.5f, 0f), new Vector2(0f, 22f), new Vector2(2200f, 44f), UIKit.WHITE, UIKit.RED_DARK, 40f);
-            lPanel.gameObject.AddComponent<UISlideIn>();
-            return lPanel;
-        }
-
         private NavTile Button(Transform pParent, string pLabel, Vector2 pPosition, Vector2 pSize, Color pNormal, Color pText) => Button(pParent, pLabel, new Vector2(0.5f, 0.5f), pPosition, pSize, pNormal, pText);
 
         private NavTile Button(Transform pParent, string pLabel, Vector2 pAnchor, Vector2 pPosition, Vector2 pSize, Color pNormal, Color pText)
@@ -350,50 +509,122 @@ namespace Com.IsartDigital.Hyperspeed
             return lTile;
         }
 
+        // Results (2026-11-12) : the show is the runner still running the stage behind them, so the results stay small, in
+        // a corner : a compact card (time, best, margin, buttons) at the bottom left, and the rank letter big and centred
+        // at the top, under the cinema bars. No dim, no slab across the screen.
         public void ShowResult(bool pWin, string pHeadline, float pTime, int pRank, bool pRecord, float pBest, bool pHasNext,
-                               System.Action pNext, System.Action pRetry, System.Action pMenu)
+                               System.Action pNext, System.Action pRetry, System.Action pMenu, string pMargin = null, string pNextLabel = "NEXT STAGE")
         {
-            RectTransform lPanel = EndPanel("Result", pWin ? "VICTORY" : pHeadline, pWin ? UIKit.WHITE : UIKit.GOLD);
-            UIShape lTimeTile = UIKit.Tile(lPanel, "Time", UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(-560f, 120f), new Vector2(720f, 110f), 0.3f);
-            UIKit.Text(lTimeTile.transform, "TIME   " + GameSession.FormatTime(pTime), 56f, UIKit.INK, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(700f, 110f), UIKit.Font.Thin);
+            // The race HUD leaves : only the results and the runner remain.
+            SetPaused(true);
+            RectTransform lTilt = TiltRoot("End3D", 30);
+            PerspectivePanel lSwing = lTilt.GetComponent<PerspectivePanel>();
+            lSwing.amountX = 1.2f;
+            lSwing.amountY = 0.9f;
+            lSwing.slide = new Vector2(4f, 3f);
+            RectTransform lRoot = UIFactory.Stretch(UIFactory.CreateRect(lTilt, "Result", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
+
+            // ---- the card, bottom left, about a quarter of the width
+            const float CARD_W = 520f;
+            const float CARD_H = 470f;
+            RectTransform lCard = UIFactory.CreateRect(lRoot, "Card", new Vector2(0f, 0f), new Vector2(SAFE_LEFT + CARD_W * 0.5f - 40f, 200f + CARD_H * 0.5f), new Vector2(CARD_W, CARD_H));
+            UIShape lBack = UIKit.Tile(lCard, "Back", new Color(UIKit.INK.r, UIKit.INK.g, UIKit.INK.b, 0.82f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(CARD_W, CARD_H), 0.08f);
+            lBack.raycastTarget = false;
+            UIKit.Tile(lCard, "Edge", pWin ? UIKit.GOLD : UIKit.RED, new Vector2(0.5f, 1f), new Vector2(0f, -6f), new Vector2(CARD_W, 12f), 0.08f);
+            TextMeshProUGUI lWord = UIKit.Text(lCard, pWin ? "VICTORY" : pHeadline, 64f, pWin ? UIKit.WHITE : UIKit.GOLD, new Vector2(0.5f, 1f), new Vector2(0f, -58f), new Vector2(CARD_W - 50f, 74f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
+            lWord.enableAutoSizing = true;
+            lWord.fontSizeMin = 28f;
+            lWord.fontSizeMax = 64f;
+            UIKit.Text(lCard, "TIME  " + GameSession.FormatTime(pTime), 40f, UIKit.WHITE, new Vector2(0.5f, 1f), new Vector2(0f, -120f), new Vector2(CARD_W - 50f, 48f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
             string lBestLine = pRecord ? "NEW RECORD!" : "BEST  " + GameSession.FormatTime(pBest);
-            UIKit.Text(lPanel, lBestLine, 36f, pRecord ? UIKit.GOLD : UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(-560f, 40f), new Vector2(700f, 50f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
+            UIKit.Text(lCard, lBestLine, 28f, pRecord ? UIKit.GOLD : new Color(1f, 1f, 1f, 0.75f), new Vector2(0.5f, 1f), new Vector2(0f, -162f), new Vector2(CARD_W - 50f, 36f), UIKit.Font.Bold, TextAlignmentOptions.Left);
+            if (!string.IsNullOrEmpty(pMargin))
+                UIKit.Text(lCard, pMargin, 28f, pWin ? UIKit.CYAN : UIKit.RED, new Vector2(0.5f, 1f), new Vector2(0f, -198f), new Vector2(CARD_W - 50f, 36f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
 
-            if (pWin)
-            {
-                RectTransform lRank = UIFactory.CreateRect(lPanel, "Rank", new Vector2(0.5f, 0.5f), new Vector2(520f, 40f), new Vector2(500f, 500f));
-                UIShape lCard = UIFactory.CreateShape(lRank, "Card", UIShape.ShapeKind.Chevron, UIKit.WHITE, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(520f, 380f));
-                lCard.skew = 0.4f;
-                UIKit.Icon(lRank, "trophy", UIKit.GOLD, new Vector2(0.5f, 0.5f), new Vector2(-150f, 30f), 160f);
-                // The letter in real 3D : it drops from the sky, crushes on the card, the screen shakes.
-                UI3DText lLetter = UI3DText.Create(lRank, GameSession.RankLetter(pRank), 380f, new Vector2(0.5f, 0.5f), new Vector2(90f, 20f), new Vector2(360f, 420f), pRank >= 4 ? UIKit.GOLD : UIKit.RED, UIKit.RED_DARK, 24, 5f);
-                lLetter.tiltX = 14f;
-                lLetter.tiltY = 10f;
-                lLetter.gameObject.AddComponent<UIRankDrop>().letter = lLetter;
-                UIKit.Text(lRank, "RANK", 40f, UIKit.INK, new Vector2(0.5f, 0.5f), new Vector2(0f, -140f), new Vector2(300f, 50f), UIKit.Font.Heavy);
-            }
-
-            UINav lNav = UINav.Create(lPanel.gameObject);
-            float lY = -110f;
+            UINav lNav = UINav.Create(lCard.gameObject);
+            float lY = -60f;
+            Vector2 lCenter = new Vector2(0.5f, 0.5f);
             if (pWin && pHasNext)
             {
-                NavTile lNext = Button(lPanel, "NEXT STAGE", new Vector2(-600f, lY), new Vector2(560f, 100f), UIKit.WHITE, UIKit.INK);
+                NavTile lNext = Button(lCard, pNextLabel, lCenter, new Vector2(0f, lY), new Vector2(CARD_W - 70f, 62f), UIKit.WHITE, UIKit.INK);
+                lNext.label.fontSize = 36f;
                 lNav.Add((RectTransform)lNext.transform, new Vector2(0f, lY), pNext, lNext.SetSelected);
-                lY -= 125f;
+                lY -= 76f;
             }
-            NavTile lRetry = Button(lPanel, "RETRY", new Vector2(-620f, lY), new Vector2(520f, 100f), UIKit.WHITE, UIKit.INK);
+            NavTile lRetry = Button(lCard, "RETRY", lCenter, new Vector2(0f, lY), new Vector2(CARD_W - 70f, 62f), UIKit.WHITE, UIKit.INK);
+            lRetry.label.fontSize = 36f;
             lNav.Add((RectTransform)lRetry.transform, new Vector2(0f, lY), pRetry, lRetry.SetSelected);
-            lY -= 125f;
-            NavTile lMenu = Button(lPanel, "STAGE SELECT", new Vector2(-640f, lY), new Vector2(520f, 100f), new Color(0.3f, 0.3f, 0.32f), UIKit.WHITE);
+            lY -= 76f;
+            NavTile lMenu = Button(lCard, "STAGE SELECT", lCenter, new Vector2(0f, lY), new Vector2(CARD_W - 70f, 62f), new Color(0.3f, 0.3f, 0.32f), UIKit.WHITE);
+            lMenu.label.fontSize = 36f;
             lNav.Add((RectTransform)lMenu.transform, new Vector2(0f, lY), pMenu, lMenu.SetSelected);
             lNav.Select(0);
+            lCard.gameObject.AddComponent<UISlideIn>();
+
+            if (!pWin) return;
+            // ---- the rank, big and centred at the top, under the bar
+            // High in the frame : the runner, in the middle of the frame, stays in the clear under it.
+            RectTransform lRank = UIFactory.CreateRect(lRoot, "Rank", new Vector2(0.5f, 1f), new Vector2(0f, -330f), new Vector2(520f, 400f));
+            UI3DText lLetter = UI3DText.Create(lRank, GameSession.RankLetter(pRank), 400f, new Vector2(0.5f, 0.5f), new Vector2(0f, 10f), new Vector2(420f, 420f), pRank >= 4 ? UIKit.GOLD : UIKit.RED, UIKit.RED_DARK, 26, 7f);
+            lLetter.tiltX = 10f;
+            lLetter.tiltY = 8f;
+            UIRankDrop lDrop = lLetter.gameObject.AddComponent<UIRankDrop>();
+            lDrop.letter = lLetter;
+            lDrop.rank = pRank;
+            TextMeshProUGUI lRankWord = UIKit.Text(lRank, "RANK", 40f, UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(330f, -60f), new Vector2(200f, 50f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
+            UIFactory.Outline(lRankWord, UIKit.INK, 0.25f);
+        }
+
+        // The ending (2026-11-12) : after the last stage, the runner keeps running the supernova behind a card that says
+        // it is over, every stage's rank and time, and the credits rolling up. Any confirm goes back to the stages.
+        public void ShowEnding(System.Action pDone)
+        {
+            if (_endCanvas != null) Destroy(_endCanvas.gameObject);
+            RectTransform lTilt = TiltRoot("Ending3D", 40);
+            RectTransform lRoot = UIFactory.Stretch(UIFactory.CreateRect(lTilt, "Ending", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
+            TextMeshProUGUI lEnd = UIKit.Text(lRoot, "THE END", 150f, UIKit.GOLD, new Vector2(0.5f, 1f), new Vector2(0f, -280f), new Vector2(1400f, 170f), UIKit.Font.Heavy);
+            UIFactory.Outline(lEnd, UIKit.INK, 0.25f);
+            UIKit.Text(lRoot, "You outran everything. Even the end of the world.", 40f, UIKit.WHITE, new Vector2(0.5f, 1f), new Vector2(0f, -390f), new Vector2(1400f, 50f), UIKit.Font.Bold);
+
+            // Every stage : code, name, rank, best time ; the total at the bottom.
+            RectTransform lTable = UIFactory.CreateRect(lRoot, "Ranks", new Vector2(0f, 0.5f), new Vector2(SAFE_LEFT + 330f, -40f), new Vector2(640f, 760f));
+            UIKit.Tile(lTable, "Back", new Color(UIKit.INK.r, UIKit.INK.g, UIKit.INK.b, 0.8f), new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(640f, 760f), 0.06f).raycastTarget = false;
+            float lTotal = 0f;
+            bool lAll = true;
+            for (int i = 0; i < LevelDatabase.Count; i++)
+            {
+                float lY = 350f - i * 38f;
+                float lBest = GameSession.GetBestTime(i);
+                if (lBest > 0f) lTotal += lBest; else lAll = false;
+                int lRank = GameSession.GetRank(i);
+                UIKit.Text(lTable, LevelDatabase.Code(i), 24f, UIKit.GOLD, new Vector2(0.5f, 0.5f), new Vector2(-260f, lY), new Vector2(80f, 34f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
+                UIKit.Text(lTable, LevelDatabase.Get(i).title, 24f, UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(-40f, lY), new Vector2(360f, 34f), UIKit.Font.Bold, TextAlignmentOptions.Left);
+                UIKit.Text(lTable, GameSession.RankLetter(lRank), 28f, lRank >= 4 ? UIKit.GOLD : UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(170f, lY), new Vector2(50f, 34f), UIKit.Font.Heavy);
+                UIKit.Text(lTable, GameSession.FormatTime(lBest), 22f, new Color(1f, 1f, 1f, 0.8f), new Vector2(0.5f, 0.5f), new Vector2(255f, lY), new Vector2(130f, 34f), UIKit.Font.Bold, TextAlignmentOptions.Right);
+            }
+            UIKit.Text(lTable, (lAll ? "TOTAL  " : "TOTAL (so far)  ") + GameSession.FormatTime(lTotal), 32f, UIKit.CYAN, new Vector2(0.5f, 0.5f), new Vector2(0f, -345f), new Vector2(600f, 44f), UIKit.Font.Heavy);
+
+            // The credits roll on the right.
+            TextAsset lCredits = Resources.Load<TextAsset>("Credits");
+            RectTransform lRollMask = UIFactory.CreateRect(lRoot, "CreditsMask", new Vector2(1f, 0.5f), new Vector2(-SAFE_LEFT - 330f, -40f), new Vector2(660f, 640f));
+            lRollMask.gameObject.AddComponent<RectMask2D>();
+            TextMeshProUGUI lRoll = UIKit.Text(lRollMask, lCredits != null ? lCredits.text : "Thanks for playing.", 26f, UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(0f, -900f), new Vector2(640f, 1400f), UIKit.Font.Bold, TextAlignmentOptions.Top, false);
+            lRoll.richText = true;
+            lRoll.gameObject.AddComponent<UICreditsRoll>();
+
+            UINav lNav = UINav.Create(lRoot.gameObject);
+            NavTile lBack = Button(lRoot, "BACK TO THE STAGES", new Vector2(0.5f, 0f), new Vector2(0f, 230f), new Vector2(620f, 80f), UIKit.WHITE, UIKit.INK);
+            lBack.label.fontSize = 40f;
+            lNav.Add((RectTransform)lBack.transform, Vector2.zero, pDone, lBack.SetSelected);
+            lNav.Select(0);
+            AudioManager.PlayMusic(AudioManager.HasClip("music_ending") ? "music_ending" : "music_win", 0.55f);
         }
 
         public GameObject ShowPause(System.Action pResume, System.Action pRetry, System.Action pMenu)
         {
             RectTransform lTilt = TiltRoot("Pause3D", 500);
             RectTransform lPanel = UIFactory.Stretch(UIFactory.CreateRect(lTilt, "Pause", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
-            UIKit.FullScreen(lPanel, "Dim", new Color(0f, 0f, 0f, 0.25f)).rectTransform.localScale = Vector3.one * 1.3f;
+            UIKit.FullScreen(lPanel, "Dim", new Color(0f, 0f, 0f, 0.25f)).rectTransform.localScale = new Vector3(2.4f, 2.4f, 1f);
             UIKit.Tile(lPanel, "Strip", new Color(UIKit.RED.r, UIKit.RED.g, UIKit.RED.b, 0.88f), new Vector2(0f, 0.5f), new Vector2(330f, 0f), new Vector2(620f, 1400f), 0.12f);
             UIKit.Text(lPanel, "PAUSE", 170f, UIKit.WHITE, new Vector2(0f, 0.5f), new Vector2(340f, 330f), new Vector2(620f, 200f), UIKit.Font.Heavy);
             // Where you are : stage code and name.
@@ -407,14 +638,30 @@ namespace Com.IsartDigital.Hyperspeed
             
             NavTile lResume = Button(lPanel, "RESUME", new Vector2(0f, 0.5f), new Vector2(320f, 80f), new Vector2(480f, 96f), UIKit.WHITE, UIKit.INK);
             NavTile lRetry = Button(lPanel, "RESTART", new Vector2(0f, 0.5f), new Vector2(305f, -40f), new Vector2(480f, 96f), UIKit.WHITE, UIKit.INK);
-            NavTile lMenu = Button(lPanel, "STAGE SELECT", new Vector2(0f, 0.5f), new Vector2(290f, -160f), new Vector2(480f, 96f), new Color(0.3f, 0.3f, 0.32f), UIKit.WHITE);
+            NavTile lSettings = Button(lPanel, "SETTINGS", new Vector2(0f, 0.5f), new Vector2(290f, -160f), new Vector2(480f, 96f), UIKit.WHITE, UIKit.INK);
+            NavTile lMenu = Button(lPanel, "STAGE SELECT", new Vector2(0f, 0.5f), new Vector2(275f, -280f), new Vector2(480f, 96f), new Color(0.3f, 0.3f, 0.32f), UIKit.WHITE);
             UINav lNav = UINav.Create(lPanel.gameObject);
+            // Start resumes : it never also presses the highlighted button.
+            lNav.startSubmits = false;
+            Canvas lCanvas = lTilt.GetComponentInParent<Canvas>();
+            SettingsMenu lMenuSettings = SettingsMenu.Create(lCanvas.transform, false, () =>
+            {
+                lPanel.gameObject.SetActive(true);
+                lNav.active = true;
+                lNav.Select(2);
+            });
             lNav.Add((RectTransform)lResume.transform, new Vector2(0f, 1f), pResume, lResume.SetSelected);
             lNav.Add((RectTransform)lRetry.transform, new Vector2(0f, 0f), pRetry, lRetry.SetSelected);
-            lNav.Add((RectTransform)lMenu.transform, new Vector2(0f, -1f), pMenu, lMenu.SetSelected);
+            lNav.Add((RectTransform)lSettings.transform, new Vector2(0f, -1f), () =>
+            {
+                lNav.active = false;
+                lPanel.gameObject.SetActive(false);
+                lMenuSettings.Open();
+            }, lSettings.SetSelected);
+            lNav.Add((RectTransform)lMenu.transform, new Vector2(0f, -2f), pMenu, lMenu.SetSelected);
             lNav.onBack = pResume;
             lNav.Select(0);
-            return lTilt.GetComponentInParent<Canvas>().gameObject;
+            return lCanvas.gameObject;
         }
     }
 
@@ -496,6 +743,7 @@ namespace Com.IsartDigital.Hyperspeed
     public class UIRankDrop : MonoBehaviour
     {
         public UI3DText letter;
+        public int rank = 4;
         private float _time;
         private bool _landed;
         private Vector2 _home;
@@ -525,24 +773,42 @@ namespace Com.IsartDigital.Hyperspeed
                 _landed = true;
                 letter.Kick(-9f);
                 letter.punch = 0.5f;
-                Juice.Shake(0.8f);
-                Juice.Pulse(1.4f);
-                Juice.Flash(Color.white, 0.25f);
-                AudioManager.Play("sfx_rank", 1f, 0.8f);
+                HSJuice.Play(JuiceId.RankReveal, new JuiceContext { intensity = rank / 4f, label = GameSession.RankLetter(rank).ToLowerInvariant(), size = 1f });
             }
             if (_landed) lRect.anchoredPosition = _home + new Vector2(0f, Mathf.Sin(_time * 2.2f) * 6f);
+        }
+    }
+
+    // Credits rolling up, slowly, over and over.
+    public class UICreditsRoll : MonoBehaviour
+    {
+        private void Update()
+        {
+            RectTransform lRect = (RectTransform)transform;
+            Vector2 lPosition = lRect.anchoredPosition + new Vector2(0f, Time.unscaledDeltaTime * 42f);
+            if (lPosition.y > 1200f) lPosition.y = -900f;
+            lRect.anchoredPosition = lPosition;
         }
     }
 
     public class UISlideIn : MonoBehaviour
     {
         private float _time;
+        private Vector2 _home;
+        private bool _init;
 
         private void Update()
         {
+            RectTransform lRect = (RectTransform)transform;
+            if (!_init)
+            {
+                // Slides in from the left onto wherever it was placed.
+                _home = lRect.anchoredPosition;
+                _init = true;
+            }
             _time += Time.unscaledDeltaTime;
             float lT = 1f - Mathf.Pow(1f - Mathf.Clamp01(_time / 0.35f), 3f);
-            ((RectTransform)transform).anchoredPosition = new Vector2(Mathf.Lerp(-1920f, 0f, lT), 0f);
+            lRect.anchoredPosition = _home + new Vector2(Mathf.Lerp(-1920f, 0f, lT), 0f);
             if (lT >= 1f) enabled = false;
         }
     }

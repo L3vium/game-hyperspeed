@@ -3,12 +3,20 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    // Quick death : a glance at the fall, then the runner is rewound along the path it ran back to safe ground,
-    // the world is restored, and control comes back. Never a long wait.
+    // Death, then back in the race fast and readable : a short hold on the fall (the runner bursts into light), then the
+    // camera flies over the track from where you died to where you come back, and the runner rematerialises there in a
+    // flash. You always see where you are taken. Never a long wait, never a black screen.
+    //
+    // 2026-11-14 : the whole move is one continuous curve, with no cut and no snap. The camera coasts out of its last
+    // motion while it turns to the fall, flies an eased arc (zero speed and acceleration at both ends), looks at a point
+    // gliding from the fall to the place you come back to, and lands exactly on the race camera's own pose there.
     public class RespawnDirector : MonoBehaviour
     {
-        private const float FALL_VIEW = 0.25f;
-        private const float REWIND = 0.5f;
+        private const float FALL_VIEW = 0.35f;
+        private const float TRAVEL_MIN = 0.9f;
+        private const float TRAVEL_MAX = 1.6f;
+        // Metres of flight per extra second of travel.
+        private const float TRAVEL_PER_SECOND = 5000f;
         private const float SETTLE = 0.2f;
 
         private PlayerController _player;
@@ -19,6 +27,9 @@ namespace Com.IsartDigital.Hyperspeed
         private float _graceUntil = -1f;
         // While the runner is being brought back, and a moment after, nothing behind it may give way.
         public static bool HoldWorld => Instance != null && (Instance.Busy || Time.time < Instance._graceUntil);
+        // Largest per-frame camera move of the last flight (Dev log : the flight must never jump).
+        public static float LastMaxStep { get; private set; }
+        public static float LastMaxTurn { get; private set; }
 
         private void OnDestroy()
         {
@@ -40,77 +51,134 @@ namespace Com.IsartDigital.Hyperspeed
             if (!Busy) StartCoroutine(Sequence());
         }
 
+        private static float Smoother(float pT)
+        {
+            pT = Mathf.Clamp01(pT);
+            return pT * pT * pT * (pT * (pT * 6f - 15f) + 10f);
+        }
+
         private IEnumerator Sequence()
         {
             Busy = true;
             Breadcrumb lSafe = _player.PickRespawn();
-            Breadcrumbs lCrumbs = _player.Crumbs;
+            LevelLayout lLayout = RaceContext.Layout;
             Vector3 lVelocity = _player.Velocity;
-            Vector3 lHold = _rig.transform.position;
+            Transform lCamera = _rig.transform;
+            Vector3 lCamPosition = lCamera.position;
+            Quaternion lCamRotation = lCamera.rotation;
+            float lFov = _rig.Cam.fieldOfView;
+            // The camera was following the runner : it keeps that motion for a moment and eases to a stop.
+            Vector3 lCamVelocity = lVelocity;
+            LastMaxStep = 0f;
+            LastMaxTurn = 0f;
 
-            Juice.Flash(UIFactory.RED, 0.25f);
-            // A clear death : the screen drops to black, then the rewind comes up out of it.
-            if (PostFX.Instance != null) PostFX.Instance.fade = 1f;
+            // 1. The fall, held for a glance : the runner keeps its momentum, the camera turns smoothly to watch it.
             AudioManager.Play("sfx_fall", 0.9f);
+            Vector3 lFallUp = lLayout != null ? lLayout.GravityUp(_player.Progress) : Vector3.up;
             for (float lTime = 0f; lTime < FALL_VIEW; lTime += Time.unscaledDeltaTime)
             {
-                lVelocity.y -= Ballistics.G_FALL * Time.unscaledDeltaTime;
-                _player.transform.position += lVelocity * Time.unscaledDeltaTime;
-                _rig.SetOverride(lHold, _player.FocusPosition);
+                float lDt = Time.unscaledDeltaTime;
+                lVelocity -= lFallUp * Ballistics.G_FALL * lDt;
+                _player.transform.position += lVelocity * lDt;
+                lCamPosition += lCamVelocity * lDt;
+                lCamVelocity *= Mathf.Exp(-7f * lDt);
+                Vector3 lToRunner = _player.FocusPosition - lCamPosition;
+                if (lToRunner.sqrMagnitude > 1f)
+                    lCamRotation = Quaternion.Slerp(lCamRotation, Quaternion.LookRotation(lToRunner, lCamRotation * Vector3.up), 1f - Mathf.Exp(-6f * lDt));
+                Place(lCamPosition, lCamRotation, lFov);
                 yield return null;
             }
+            Vector3 lGone = _player.FocusPosition;
+            FX.Burst(lGone, lVelocity.sqrMagnitude > 1f ? lVelocity.normalized : Vector3.up, Color.white, 30f);
+            FX.Sparks(lGone, new Color(0.6f, 0.9f, 1f), 90, 60f, 0.6f, 0.6f);
+            FX.Shockwave(lGone, (lCamPosition - lGone).normalized, Color.white, 26f, 0.3f);
+            SetRunnerVisible(false);
 
-            // Rewind along the crumbs (newest first) down to the safe one.
-            int lSafeIndex = 0;
-            for (int i = 0; i < lCrumbs.Count; i++)
-            {
-                if (lCrumbs.Get(i).s <= lSafe.s + 0.5f) { lSafeIndex = i; break; }
-                lSafeIndex = i;
-            }
+            // The world behind the safe point is put back as it was.
             if (CourseBreak.Instance != null) CourseBreak.Instance.RewindTo(lSafe.s);
             if (ChaosDirector.Instance != null) ChaosDirector.Instance.RewindTo(lSafe.s);
-            yield return new WaitForSecondsRealtime(0.12f);
-            if (PostFX.Instance != null) { PostFX.Instance.rewind = 1f; PostFX.Instance.fade = 0f; }
+
+            // 2. The flight, onto the exact pose the race camera will have behind the runner at the safe point.
+            Vector3 lFocus, lUp, lLook;
+            float lSpeed, lSpeed01;
+            _player.PreviewRespawn(lSafe, out lFocus, out lUp, out lLook, out lSpeed, out lSpeed01);
+            Vector3 lEnd, lEndLook;
+            float lEndFov;
+            _rig.GameplayPose(lFocus, lUp, lLook, lSpeed, lSpeed01, out lEnd, out lEndLook, out lEndFov);
+
+            Vector3 lStart = lCamPosition;
+            Vector3 lStartUp = lCamRotation * Vector3.up;
+            // What the camera looked at when the flight starts : a point along its view, at the fall's distance.
+            Vector3 lStartLook = lStart + lCamRotation * Vector3.forward * Mathf.Max(10f, Vector3.Distance(lStart, lGone));
+            float lDistance = Vector3.Distance(lStart, lEnd);
+            float lTravel = Mathf.Clamp(TRAVEL_MIN + lDistance / TRAVEL_PER_SECOND, TRAVEL_MIN, TRAVEL_MAX);
+            float lArc = Mathf.Clamp(lDistance * 0.3f, 25f, 500f);
+            Vector3 lWorldUp = Vector3.up;
+            Vector3 lA = lStart + lWorldUp * lArc;
+            Vector3 lB = lEnd + lWorldUp * lArc - lLook * lArc * 0.35f;
+
+            if (PostFX.Instance != null) PostFX.Instance.rewind = 0.4f;
             AudioManager.Play("sfx_rewind", 0.8f);
-            Vector3 lStart = _player.transform.position;
-            for (float lTime = 0f; lTime < REWIND; lTime += Time.unscaledDeltaTime)
+            for (float lTime = 0f; lTime < lTravel; lTime += Time.unscaledDeltaTime)
             {
-                float lT = HSMath.Smooth(Mathf.Clamp01(lTime / REWIND));
-                Vector3 lPosition;
-                Vector3 lForward;
-                if (lCrumbs.Count == 0 || lSafeIndex == 0)
-                {
-                    lPosition = Vector3.Lerp(lStart, lSafe.position, lT);
-                    lForward = lSafe.heading.sqrMagnitude > 0.1f ? lSafe.heading : Vector3.forward;
-                }
-                else
-                {
-                    float lF = lT * lSafeIndex;
-                    int lA = Mathf.Min(Mathf.FloorToInt(lF), lSafeIndex);
-                    int lB = Mathf.Min(lA + 1, lSafeIndex);
-                    Breadcrumb lCa = lCrumbs.Get(lA);
-                    Breadcrumb lCb = lCrumbs.Get(lB);
-                    lPosition = Vector3.Lerp(lCa.position, lCb.position, lF - lA);
-                    if (lT < 0.15f) lPosition = Vector3.Lerp(lStart, lPosition, lT / 0.15f);
-                    lForward = lCa.heading.sqrMagnitude > 0.1f ? lCa.heading : Vector3.forward;
-                }
-                _player.transform.position = lPosition;
-                Vector3 lFlat = Vector3.ProjectOnPlane(lForward, Vector3.up).normalized;
-                _rig.SetOverride(lPosition + Vector3.up * 6f - lFlat * 14f, lPosition + Vector3.up * 1.2f + lFlat * 6f);
+                float lRaw = Mathf.Clamp01(lTime / lTravel);
+                float lT = Smoother(lRaw);
+                Vector3 lPosition = Bezier(lStart, lA, lB, lEnd, lT);
+                // The look glides from where you fell to where you come back : the way back reads at a glance.
+                Vector3 lTarget = Vector3.Lerp(lStartLook, lEndLook, Smoother(lRaw * 1.15f - 0.05f));
+                Vector3 lFrameUp = Vector3.Slerp(lStartUp, lUp, lT);
+                Vector3 lDirection = lTarget - lPosition;
+                Quaternion lRotation = lDirection.sqrMagnitude > 0.01f ? Quaternion.LookRotation(lDirection, lFrameUp) : lCamRotation;
+                Place(lPosition, lRotation, Mathf.Lerp(lFov, lEndFov, lT));
+                if (PostFX.Instance != null) PostFX.Instance.speed01 = Mathf.Sin(lRaw * Mathf.PI) * 0.6f;
+                HUD.LinesBurst(Mathf.Sin(lRaw * Mathf.PI) * 0.4f);
                 yield return null;
             }
+            Place(lEnd, Quaternion.LookRotation(lEndLook - lEnd, lUp), lEndFov);
 
+            // 3. Back : the runner appears in a flash of light where the camera landed, the race camera takes over in place.
             _player.RespawnAt(lSafe);
-            // Restore again now that progress is back at the safe point : nothing restored can sink again.
             if (CourseBreak.Instance != null) CourseBreak.Instance.RewindTo(lSafe.s);
             if (ChaosDirector.Instance != null) ChaosDirector.Instance.RewindTo(lSafe.s);
             _graceUntil = Time.time + 2.5f;
-            _rig.Snap();
+            SetRunnerVisible(true);
             if (PostFX.Instance != null) PostFX.Instance.rewind = 0f;
+            _rig.Snap();
             _rig.ClearOverride(SETTLE);
-            AudioManager.Play("sfx_respawn", 0.8f);
+            HSJuice.Play(JuiceId.Respawn, new JuiceContext { position = _player.FocusPosition, direction = lLook, normal = lUp, intensity = 1f, size = 1f });
+            if (Autopilot.Enabled || Debug.isDebugBuild)
+                Debug.Log("[HS-CAM] respawn flight " + lDistance.ToString("F0") + " m in " + lTravel.ToString("F2") + " s, max step " + LastMaxStep.ToString("F1") + " m, max turn " + LastMaxTurn.ToString("F1") + " deg");
             yield return new WaitForSecondsRealtime(SETTLE);
             Busy = false;
+        }
+
+        private Vector3 _lastPosition;
+        private Quaternion _lastRotation;
+        private bool _hasLast;
+
+        // One frame of the shot, with the per-frame move logged.
+        private void Place(Vector3 pPosition, Quaternion pRotation, float pFov)
+        {
+            if (_hasLast && Busy)
+            {
+                LastMaxStep = Mathf.Max(LastMaxStep, Vector3.Distance(pPosition, _lastPosition));
+                LastMaxTurn = Mathf.Max(LastMaxTurn, Quaternion.Angle(pRotation, _lastRotation));
+            }
+            _lastPosition = pPosition;
+            _lastRotation = pRotation;
+            _hasLast = true;
+            _rig.CutTo(pPosition, pRotation, pFov);
+        }
+
+        private void SetRunnerVisible(bool pVisible)
+        {
+            if (_player.Visual != null && _player.Visual.Root != null) _player.Visual.Root.gameObject.SetActive(pVisible);
+        }
+
+        private static Vector3 Bezier(Vector3 pA, Vector3 pB, Vector3 pC, Vector3 pD, float pT)
+        {
+            float lU = 1f - pT;
+            return lU * lU * lU * pA + 3f * lU * lU * pT * pB + 3f * lU * pT * pT * pC + pT * pT * pT * pD;
         }
     }
 }

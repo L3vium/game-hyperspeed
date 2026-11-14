@@ -46,6 +46,8 @@ namespace Com.IsartDigital.Hyperspeed
             lMat.SetColor(BASE_COLOR, lColor);
             lMat.SetColor("_ShadeColor", pShade);
             lMat.SetFloat("_RoadStreaks", pStreaks ? 1f : 0f);
+            // The track's floor (the only user of the streaks) opens where a hole was punched.
+            lMat.SetFloat("_Holes", pStreaks ? 1f : 0f);
             lMat.enableInstancing = true;
             _cache[lKey] = lMat;
             return lMat;

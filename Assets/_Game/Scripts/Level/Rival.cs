@@ -33,6 +33,8 @@ namespace Com.IsartDigital.Hyperspeed
 
         public bool Finished { get; private set; }
         public float Gap => RaceContext.PlayerProgress - distance;
+        // What it really runs at right now (its base speed bent by the race).
+        public float CurrentRate => Finished ? speed : _rate;
         public Transform Model => _model;
         // Going past you on purpose : being overtaken this way is not being caught.
         public bool Passing { get; private set; }
@@ -48,8 +50,9 @@ namespace Com.IsartDigital.Hyperspeed
             lRival.distance = pStartDistance;
             lRival._model = RivalFactory.Build(pKind, lRival.transform);
             lRival._wobble = RivalWobble.Attach(lRival._model, pKind);
+            RivalLife.Attach(lRival, lRival._model, pKind);
             if (pKind != RivalKind.Plane && pKind != RivalKind.Supernova && pKind != RivalKind.Time) RivalBeacon.Attach(lRival.transform, lRival._model);
-            AudioManager.CreateLoop3D(RivalFactory.EngineSound(pKind), lRival.transform, 1f);
+            AudioManager.CreateLoop3D(RivalFactory.EngineSound(pKind), lRival.transform, 0.55f);
             lRival._placement = RivalFactory.GetPlacement(pKind);
             lRival._lateral = lRival._placement.lateral;
             lRival._rate = pSpeed;
@@ -75,8 +78,7 @@ namespace Com.IsartDigital.Hyperspeed
                 bool lPlayerAhead = RaceContext.PlayerProgress > distance;
                 if (!chaser && lPlayerAhead && !_playerWasAhead && _elapsed > startDelay + 0.5f)
                 {
-                    AudioManager.Play("sfx_pass", 1f);
-                    Juice.Rollback(6f);
+                    HSJuice.Play(JuiceId.Overtake, transform.position);
                     // Overtaken : it flails.
                     if (_wobble != null) _wobble.Hiccup(1f);
                 }
@@ -108,19 +110,23 @@ namespace Com.IsartDigital.Hyperspeed
             float lTarget = chaser ? lCruise * 0.9f : lCruise * 0.07f * lSwap;
             // Before the last straight it pulls level and stays there ; in the very last metres it is yours to take.
             if (lClimax && !chaser) lTarget = lLastMeters ? lCruise * 0.18f : -lCruise * 0.03f;
-            float lWanted = speed * Mathf.Clamp(1f + (lGap - lTarget) / (lCruise * 1.2f), 0.8f, chaser ? 1.35f : 1.6f);
-            // Far behind after a big mistake of yours : it keeps its lead and does not run away. Far behind because you
-            // are much faster : it only gains a little, never teleports.
-            if (lGap > lCruise * 2.5f) lWanted = Mathf.Min(lWanted, speed * 1.3f);
-            // Base pace follows the runner, so "faster" and "slower" mean against you, not against a fixed number.
-            float lPace = Mathf.Max(speed, RaceContext.Player != null ? RaceContext.Player.Speed * 0.97f : speed);
-            if (lGap > lCruise * 2.5f) lPace = speed;
-            lWanted *= lPace / speed;
-            // Ahead of you after a mistake : it waits, a little, so the fight comes back to you. A huge mistake costs more.
-            if (!chaser && lGap < -lCruise * 0.3f && RaceContext.Player != null)
-                lWanted = Mathf.Max(speed * 0.6f, RaceContext.Player.Speed * (lGap < -lCruise * 4f ? 0.95f : 0.82f));
+            // Its own pace, only gently bent by the race : a little quicker when you are far ahead (it stays in the
+            // fight), a little slower when it leads. It never copies your speed and never waits for you : beating it
+            // by a lot really means you were much faster, and that is what the rank reads.
+            // On a light highway the rival runs at the highway's pace : Light itself at 85 % of light speed ; the chasers just under
+            // the highway's stream (40 %), so whoever missed the light is not caught for it, only left without a lead.
+            float lBase = speed;
+            float lHighwayEnd = pLayout.profile.LightEnabled ? pLayout.HighwayEnd(distance) : -1f;
+            if (lHighwayEnd > 0f)
+            {
+                // Brakes over the highway's last 1.5 s of light, like the runner.
+                float lBrake = pLayout.profile.lightSpeed * 1.5f;
+                float lHigh = pLayout.profile.lightSpeed * (chaser ? 0.36f : 0.85f);
+                lBase = Mathf.Lerp(Mathf.Max(speed, pLayout.profile.hyperEnter * 1.2f), lHigh, HSMath.Smooth(Mathf.Clamp01((lHighwayEnd - distance) / lBrake)));
+            }
+            float lWanted = lBase * Mathf.Clamp(1f + (lGap - lTarget) / (lCruise * 2.4f), chaser ? 0.85f : 0.88f, chaser ? 1.3f : 1.08f);
             float lBefore = _rate;
-            _rate = Mathf.MoveTowards(_rate, lWanted, lCruise * 2.2f * pDt);
+            _rate = Mathf.MoveTowards(_rate, lWanted, Mathf.Max(lCruise * 2.2f, Mathf.Abs(lWanted - _rate) * 1.5f) * pDt);
             if (_wobble != null) _wobble.Accelerate((_rate - lBefore) / Mathf.Max(0.0001f, pDt) / lCruise);
             distance += _rate * pDt;
 
@@ -159,21 +165,26 @@ namespace Com.IsartDigital.Hyperspeed
             float lStart = Mathf.Clamp(_placement.lateral * 4f, -lHalf * 0.7f, lHalf * 0.7f);
             float lRoute = lLayout.RouteLateral(lS) + Mathf.Clamp(_placement.lateral * 1.6f + Mathf.Sin(lS * 0.0031f) * lHalf * 0.25f, -lHalf * 0.6f, lHalf * 0.6f);
             float lLateralTarget = lS < lLayout.startLineS + 40f ? lStart : Mathf.Clamp(lRoute, lCenter - lHalf * 0.85f, lCenter + lHalf * 0.85f);
-            // Close to you : it comes alongside, at arm's length, on its own side.
-            if (Mathf.Abs(Gap) < lLayout.profile.cruise * 0.8f && RaceContext.Player != null && !_placement.flying)
+            // Its own lane : a vehicle keeps to its side of the track, slowly following the clear line, never cutting across.
+            if (lS >= lLayout.startLineS + 40f && !_placement.flying)
             {
                 float lSide = _placement.lateral >= 0f ? 1f : -1f;
-                lLateralTarget = Mathf.Clamp(RaceContext.Player.Lateral + lSide * Mathf.Max(14f, lHalf * 0.07f), lCenter - lHalf * 0.85f, lCenter + lHalf * 0.85f);
+                lLateralTarget = Mathf.Clamp(lCenter + lSide * lHalf * 0.38f + Mathf.Sin(lS * 0.0013f) * lHalf * 0.06f, lCenter - lHalf * 0.8f, lCenter + lHalf * 0.8f);
             }
-            // The airliner flies : wide sweeps from one side of the valley to the other.
-            if (kind == RivalKind.Plane) lLateralTarget = lCenter + Mathf.Sin(_bobTime * 0.25f) * lHalf * 0.6f;
-            if (pDt > 0f) _lateral = Mathf.MoveTowards(_lateral, lLateralTarget, Mathf.Max(speed * 0.5f, 30f) * pDt);
+            // The airliner is far up in the sky, well ahead and off to one side : a huge shape to chase, never on top of you.
+            if (kind == RivalKind.Plane) lLateralTarget = lCenter + (lHalf + 260f) * (_placement.lateral >= 0f ? 1f : -1f) + Mathf.Sin(_bobTime * 0.12f) * 80f;
+            if (pDt > 0f) _lateral = Mathf.MoveTowards(_lateral, lLateralTarget, Mathf.Max(speed * 0.25f, 20f) * pDt);
 
             _bobTime += pDt;
             float lBob = Mathf.Sin(_bobTime * 2.3f) * _placement.bob;
             float lHeight = (_placement.height + lBob + (_placement.flying && _placement.fromSky ? 18f : 0f)) * RivalFactory.GROW;
-            // Climbs and dives over the track.
-            if (kind == RivalKind.Plane) lHeight += Mathf.Sin(_bobTime * 0.33f) * 120f + Mathf.Sin(_bobTime * 0.9f) * 25f;
+            if (kind == RivalKind.Plane)
+            {
+                // Shown 300 m ahead of where it really is in the race, 420 m up, gently rising and sinking.
+                lHeight = 420f + Mathf.Sin(_bobTime * 0.2f) * 50f;
+                lS = Mathf.Clamp(distance + 300f, lLayout.spine.StartS, lLayout.spine.EndS);
+                lUp = Vector3.up;
+            }
             Vector3 lPosition = lLayout.field.Point(lS, _lateral) + lUp * lHeight;
             if (distance < lLayout.spine.StartS) lPosition -= lForward * (lLayout.spine.StartS - distance);
             if (distance > lLayout.spine.EndS) lPosition += lForward * (distance - lLayout.spine.EndS);
@@ -183,7 +194,7 @@ namespace Com.IsartDigital.Hyperspeed
             if (pDt > 0f) _bank = Mathf.Lerp(_bank, Mathf.Clamp(-lYaw * 0.6f, -35f, 35f), pDt * 3f);
             if (_wobble != null && pDt > 0f) _wobble.Turn(lYaw);
             float lBankScale = _placement.flying || kind == RivalKind.Moto ? 1f : 0.15f;
-            if (kind == RivalKind.Plane) _bank = Mathf.Lerp(_bank, -Mathf.Cos(_bobTime * 0.25f) * 40f, pDt * 2f);
+            if (kind == RivalKind.Plane) _bank = Mathf.Lerp(_bank, Mathf.Clamp(-lYaw * 0.3f, -12f, 12f), pDt * 1.5f);
             Vector3 lFlat = Vector3.ProjectOnPlane(lForward, lUp);
             transform.SetPositionAndRotation(lPosition, Quaternion.LookRotation(lFlat.sqrMagnitude > 0.001f ? lFlat : lForward, lUp) * Quaternion.Euler(0f, 0f, _bank * lBankScale));
         }
@@ -196,7 +207,7 @@ namespace Com.IsartDigital.Hyperspeed
                 float lPulse = 1f + Mathf.Sin(Time.time * 9f) * 0.06f + Mathf.Sin(Time.time * 23f) * 0.03f;
                 _model.localScale = Vector3.one * lPulse;
             }
-            else if (kind == RivalKind.Light || kind == RivalKind.Bullet)
+            else if (kind == RivalKind.Light)
             {
                 _model.localRotation = Quaternion.Euler(0f, 0f, Time.time * 720f);
             }

@@ -9,6 +9,7 @@ Shader "Hyperspeed/Flat"
         _ShadeStep ("Shade Step", Range(0,1)) = 0.42
         _Flash ("Flash", Range(0,1)) = 0
         _RoadStreaks ("Ground Speed Lines", Range(0,1)) = 0
+        _Holes ("Cut By Track Holes", Range(0,1)) = 0
     }
 
     SubShader
@@ -24,10 +25,26 @@ Shader "Hyperspeed/Flat"
             half _ShadeStep;
             half _Flash;
             half _RoadStreaks;
+            half _Holes;
         CBUFFER_END
 
         float _HS_RoadScroll;
         float _HS_RoadSpeed;
+
+        // Holes punched through the track (TrackHoles.cs) : xyz centre, w radius.
+        float4 _HS_Holes[24];
+        float _HS_HoleCount;
+
+        void ClipHoles(float3 pPositionWS)
+        {
+            if (_Holes < 0.5) return;
+            int lCount = (int)_HS_HoleCount;
+            for (int i = 0; i < lCount; i++)
+            {
+                float3 lD = pPositionWS - _HS_Holes[i].xyz;
+                if (dot(lD, lD) < _HS_Holes[i].w * _HS_Holes[i].w) discard;
+            }
+        }
 
         float HashF(float2 pP) { return frac(sin(dot(pP, float2(127.1, 311.7))) * 43758.5453); }
 
@@ -90,13 +107,14 @@ Shader "Hyperspeed/Flat"
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 output.color = input.color;
                 output.uv = input.uv;
-                output.fogFactor = ComputeFogFactor(lPos.positionCS.z);
+                output.fogFactor = ComputeFogFactorZ0ToFar(distance(lPos.positionWS, GetCameraPositionWS()));
                 return output;
             }
 
             half4 Frag(Varyings input) : SV_Target
             {
                 UNITY_SETUP_INSTANCE_ID(input);
+                ClipHoles(input.positionWS);
                 float3 lNormal = normalize(input.normalWS);
                 Light lLight = GetMainLight(TransformWorldToShadowCoord(input.positionWS));
                 half lNdl = dot(lNormal, lLight.direction) * 0.5 + 0.5;
@@ -109,7 +127,7 @@ Shader "Hyperspeed/Flat"
                 // two tones, and mown chevrons pointing the way, like a well kept lawn. Flat colours, no grain, no tiles.
                 if (_RoadStreaks > 0 && (abs(input.uv.x + 1.0) + abs(input.uv.y)) > 0.001)
                 {
-                    float lFade = saturate(1.0 - distance(input.positionWS, GetCameraPositionWS()) / 900.0);
+                    float lFade = saturate(1.0 - (distance(input.positionWS, GetCameraPositionWS()) - 600.0) / 2400.0);
                     float2 lP = input.uv / float2(70.0, 110.0);
                     float lN = SmoothNoise(lP) * 0.65 + SmoothNoise(lP * 2.3 + 17.0) * 0.35;
                     float lEdge = max(fwidth(lN) * 1.5, 0.004);
@@ -127,16 +145,24 @@ Shader "Hyperspeed/Flat"
                     lColor = lerp(lColor, lColor * 1.13 + 0.03, lMark * lFade * 0.8);
                 }
 
-                // Thin lines rushing along the route, denser with speed. Fade with distance : a texture-free ground.
+                // Wind combing the ground : thin zigzag threads drifting along the route, broken into gusts, a little
+                // brighter than the grass. Never straight speed lines : only a hint of motion that grows with speed.
                 if (_RoadStreaks > 0 && _HS_RoadSpeed > 0.01)
                 {
-                    float lColumn = floor(input.uv.x * 0.11);
-                    float lRnd = frac(sin(lColumn * 91.17) * 4375.85);
-                    float lThin = step(frac(input.uv.x * 0.11), 0.09);
-                    float lDash = frac(input.uv.y * (0.002 + lRnd * 0.003) + _HS_RoadScroll * (0.0012 + lRnd * 0.0012) + lRnd * 7.0);
-                    float lStreak = step(0.72 - _HS_RoadSpeed * 0.4, lDash) * lThin * step(0.4 - _HS_RoadSpeed * 0.3, lRnd);
-                    float lNear = saturate(1.0 - distance(input.positionWS, GetCameraPositionWS()) * 0.002);
-                    lColor = lerp(lColor, half3(1, 1, 1), lStreak * _HS_RoadSpeed * 0.85 * lNear);
+                    const float SPACING = 34.0;
+                    float lLane = input.uv.x / SPACING;
+                    float lId = floor(lLane);
+                    float lRnd = frac(sin(lId * 91.17) * 4375.85);
+                    float lY = input.uv.y + _HS_RoadScroll * (0.18 + lRnd * 0.22) + lRnd * 300.0;
+                    float lPeriod = 18.0 + lRnd * 14.0;
+                    float lZig = (abs(frac(lY / lPeriod) - 0.5) * 2.0 - 0.5) * (5.0 + lRnd * 4.0);
+                    float lAcross = abs((frac(lLane) - 0.5) * SPACING - lZig);
+                    float lW = max(fwidth(lAcross) * 1.2, 0.05);
+                    float lThread = 1.0 - smoothstep(0.35, 0.35 + lW, lAcross);
+                    float lGust = frac(lY * (0.0035 + lRnd * 0.002));
+                    float lOn = smoothstep(0.0, 0.06, lGust) * (1.0 - smoothstep(0.3 + _HS_RoadSpeed * 0.25, 0.36 + _HS_RoadSpeed * 0.25, lGust));
+                    float lNear = saturate(1.0 - distance(input.positionWS, GetCameraPositionWS()) / 450.0);
+                    lColor = lerp(lColor, lColor * 1.25 + 0.06, lThread * lOn * step(0.3, lRnd) * _HS_RoadSpeed * 0.6 * lNear);
                 }
 
                 lColor = lerp(lColor, half3(1, 1, 1) * 1.5, _Flash);
@@ -173,9 +199,16 @@ Shader "Hyperspeed/Flat"
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
-            float4 Vert(Attributes input) : SV_POSITION
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float3 positionWS : TEXCOORD0;
+            };
+
+            Varyings Vert(Attributes input)
             {
                 UNITY_SETUP_INSTANCE_ID(input);
+                Varyings output;
                 float3 lWorld = TransformObjectToWorld(input.positionOS.xyz);
                 float3 lNormal = TransformObjectToWorldNormal(input.normalOS);
                 float4 lClip = TransformWorldToHClip(ApplyShadowBias(lWorld, lNormal, _LightDirection));
@@ -184,10 +217,16 @@ Shader "Hyperspeed/Flat"
                 #else
                     lClip.z = max(lClip.z, lClip.w * UNITY_NEAR_CLIP_VALUE);
                 #endif
-                return lClip;
+                output.positionCS = lClip;
+                output.positionWS = lWorld;
+                return output;
             }
 
-            half4 Frag() : SV_Target { return 0; }
+            half4 Frag(Varyings input) : SV_Target
+            {
+                ClipHoles(input.positionWS);
+                return 0;
+            }
             ENDHLSL
         }
 
@@ -210,13 +249,26 @@ Shader "Hyperspeed/Flat"
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
-            float4 Vert(Attributes input) : SV_POSITION
+            struct Varyings
+            {
+                float4 positionCS : SV_POSITION;
+                float3 positionWS : TEXCOORD0;
+            };
+
+            Varyings Vert(Attributes input)
             {
                 UNITY_SETUP_INSTANCE_ID(input);
-                return TransformObjectToHClip(input.positionOS.xyz);
+                Varyings output;
+                output.positionWS = TransformObjectToWorld(input.positionOS.xyz);
+                output.positionCS = TransformWorldToHClip(output.positionWS);
+                return output;
             }
 
-            half4 Frag() : SV_Target { return 0; }
+            half4 Frag(Varyings input) : SV_Target
+            {
+                ClipHoles(input.positionWS);
+                return 0;
+            }
             ENDHLSL
         }
     }

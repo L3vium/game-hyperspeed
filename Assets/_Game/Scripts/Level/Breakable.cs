@@ -9,6 +9,8 @@ namespace Com.IsartDigital.Hyperspeed
         public static readonly List<Breakable> All = new List<Breakable>();
 
         public float radius = 16f;
+        // What it is made of, for its sound (sfx_break_<material>) : glass, ice, door, crate, rock.
+        public virtual string Material => "rock";
         public Color color = Color.white;
         // Worth the big reaction (impact frame) when it bursts.
         public bool big;

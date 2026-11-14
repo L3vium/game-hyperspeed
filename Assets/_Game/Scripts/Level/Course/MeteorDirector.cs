@@ -90,9 +90,11 @@ namespace Com.IsartDigital.Hyperspeed
             lObject.transform.position = lFrom;
             lMeteor._velocity = (lHit - lFrom) / lTime;
             lMeteor._spin = Random.onUnitSphere * 160f;
+            // A red circle where it will land, closing until the impact (2026-11-12).
+            TelegraphRing.Create(pLayout.GroundPoint(pS, lAim), lUp, pRadius * 1.6f, lTime, true);
             BuildVisual(lObject.transform, pRadius, pTheme, (int)pS);
             lMeteor._trail = FX.FireTrail(lObject.transform, pRadius);
-            AudioManager.Play("sfx_meteor_warning", 0.7f);
+            AudioManager.Play("sfx_meteor_warn", 0.7f);
             return lMeteor;
         }
 
@@ -121,18 +123,30 @@ namespace Com.IsartDigital.Hyperspeed
             if (_groundCheck > 0f || _layout == null) return;
             _groundCheck = 0.05f;
             RaycastHit lHit;
-            if (Physics.Raycast(transform.position, _velocity.normalized, out lHit, _velocity.magnitude * 0.06f + radius, 1 << Layers.DECK, QueryTriggerInteraction.Ignore)) Land();
+            if (Physics.Raycast(transform.position, _velocity.normalized, out lHit, _velocity.magnitude * 0.06f + radius, (1 << Layers.DECK) | (1 << Layers.SCENERY) | (1 << Layers.PROP), QueryTriggerInteraction.Ignore)) Land();
+            // Missed everything (over a gap) : it burns out far below instead of falling for ever.
+            else if (RaceContext.Player != null && transform.position.y < RaceContext.Player.transform.position.y - 1500f) Destroy(gameObject);
         }
 
+        // It hits the ground and explodes : fire ring, rock flying everywhere, a boom you feel if you are close. Under
+        // it is a crash.
         private void Land()
         {
             _landed = true;
-            FX.Shockwave(transform.position - Vector3.up * radius * 0.7f, Vector3.up, new Color(1f, 0.45f, 0.1f), radius * 3.2f, 0.5f);
+            Vector3 lAt = transform.position - Vector3.up * radius * 0.7f;
+            Color lFire = new Color(1f, 0.45f, 0.1f);
+            FX.Shockwave(lAt, Vector3.up, lFire, radius * 4f, 0.55f);
+            FX.Shockwave(lAt + Vector3.up, Vector3.up, Color.white, radius * 2.2f, 0.3f);
+            FX.Burst(transform.position, Vector3.up, lFire, radius * 2.5f);
+            FX.Sparks(transform.position, lFire, 60, radius * 3f, 1.2f, 0.8f);
+            FX.Puff(lAt, new Color(0.25f, 0.2f, 0.2f), 18, radius * 0.9f, radius * 1.2f);
             if (_trail != null) Destroy(_trail.gameObject);
-            float lDistance = RaceContext.Player != null ? Vector3.Distance(RaceContext.Player.transform.position, transform.position) : 999f;
-            if (lDistance < 500f) Juice.Shake(Mathf.Clamp01(0.5f - lDistance / 1000f));
-            AudioManager.Play("sfx_rock", 0.7f, 0.7f);
-            Destroy(gameObject, 8f);
+            TrackHoles.Punch(lAt, Mathf.Clamp(radius * 1.2f, 14f, 40f));
+            PlayerController lPlayer = RaceContext.Player;
+            float lDistance = lPlayer != null ? Vector3.Distance(lPlayer.transform.position, transform.position) : 999f;
+            if (lPlayer != null && lDistance < radius * 1.6f && !lPlayer.Dashing && !lPlayer.LightForm) lPlayer.Crash(transform.position);
+            HSJuice.Play(JuiceId.MeteorNear, transform.position, Mathf.Clamp01(1f - lDistance / 1200f));
+            Smash(Vector3.up, radius * 6f);
         }
     }
 }

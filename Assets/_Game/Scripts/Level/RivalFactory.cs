@@ -2,7 +2,8 @@ using UnityEngine;
 
 namespace Com.IsartDigital.Hyperspeed
 {
-    public enum RivalKind { Moto, Bus, SportsCar, RaceCar, Train, Birds, Plane, FighterJet, Bullet, Rockets, Spaceship, Light, Time, TRex, Death, Supernova }
+    // Appended only : the models in GameAssets.rivalModels are indexed by this enum.
+    public enum RivalKind { Moto, Bus, SportsCar, RaceCar, Train, Birds, Plane, FighterJet, Bullet, Rockets, Spaceship, Light, Time, TRex, Death, Supernova, Dogs }
 
     // Rival identities (names, sounds, models) and how they sit in the world. Models are real assets wired in GameAssets,
     // scaled up because everything here is enormous. Light, Time, Death and the Supernova are effects, built in code.
@@ -34,13 +35,15 @@ namespace Com.IsartDigital.Hyperspeed
                 case RivalKind.Plane: return new Placement { flying = true, fromSky = true, lateral = 40f, height = 70f, bob = 3f };
                 case RivalKind.FighterJet: return new Placement { flying = true, fromSky = true, lateral = -30f, height = 22f, bob = 2f };
                 case RivalKind.Bullet: return new Placement { flying = true, lateral = 16f, height = 8f, bob = 0.2f };
-                case RivalKind.Rockets: return new Placement { flying = true, fromSky = true, lateral = 0f, height = 14f, bob = 2f };
+                // High and to one side : over the track, never through the pillars or the pipe walls.
+                case RivalKind.Rockets: return new Placement { flying = true, fromSky = true, lateral = 60f, height = 30f, bob = 3f };
                 case RivalKind.Spaceship: return new Placement { flying = true, fromSky = true, lateral = -26f, height = 12f, bob = 3f };
                 case RivalKind.Light: return new Placement { flying = true, lateral = 14f, height = 8f, bob = 0.5f };
                 case RivalKind.Time: return new Placement { flying = true, fromSky = true, lateral = 0f, height = 40f, bob = 1f };
                 case RivalKind.TRex: return new Placement { lateral = 0f };
                 case RivalKind.Death: return new Placement { flying = true, lateral = 0f, height = 12f, bob = 2f };
                 case RivalKind.Supernova: return new Placement { flying = true, lateral = 0f, height = 0f };
+                case RivalKind.Dogs: return new Placement { lateral = 18f };
             }
             return new Placement();
         }
@@ -54,11 +57,13 @@ namespace Com.IsartDigital.Hyperspeed
                 case RivalKind.RaceCar: return "sfx_engine_car";
                 case RivalKind.Bus:
                 case RivalKind.Train: return "sfx_engine_heavy";
+                case RivalKind.Rockets: return "sfx_engine_rocket";
+                case RivalKind.Birds: return "sfx_engine_birds";
                 case RivalKind.Plane:
                 case RivalKind.FighterJet:
-                case RivalKind.Rockets:
                 case RivalKind.Spaceship: return "sfx_engine_jet";
                 case RivalKind.Time: return "sfx_engine_tick";
+                case RivalKind.Dogs: return "sfx_dog_pack_loop";
                 case RivalKind.TRex:
                 case RivalKind.Death:
                 case RivalKind.Supernova: return "sfx_engine_dread";
@@ -86,6 +91,7 @@ namespace Com.IsartDigital.Hyperspeed
                 case RivalKind.TRex: return "THE T-REX";
                 case RivalKind.Death: return "DEATH";
                 case RivalKind.Supernova: return "A SUPERNOVA";
+                case RivalKind.Dogs: return "THE DOGS";
             }
             return "???";
         }
@@ -136,15 +142,33 @@ namespace Com.IsartDigital.Hyperspeed
                 case RivalKind.Time: BuildClock(lRoot); lRoot.localScale = Vector3.one * GROW; return lRoot;
                 case RivalKind.Death: BuildReaper(lRoot); lRoot.localScale = Vector3.one * GROW; return lRoot;
                 case RivalKind.Supernova: BuildStar(lRoot); return lRoot;
+                case RivalKind.Dogs: DogPack.Build(lRoot); return lRoot;
             }
             GameObject lPrefab = Model(pKind);
             if (pKind == RivalKind.Birds)
             {
-                Vector3[] lFlock =
+                // A real flock (boids) : each bird in its own slot (the jelly shakes the slots, the flock flies the birds).
+                const int BIRDS = 16;
+                Transform[] lBirds = new Transform[BIRDS];
+                for (int i = 0; i < BIRDS; i++)
                 {
-                    Vector3.zero, new Vector3(-9f, 2f, -8f), new Vector3(9f, -1f, -9f), new Vector3(-17f, 4f, -18f), new Vector3(16f, 1f, -19f)
-                };
-                foreach (Vector3 lOffset in lFlock) Instance(lPrefab, pKind, lRoot, lOffset * 2f * GROW);
+                    Transform lSlot = new GameObject("BirdSlot" + i).transform;
+                    lSlot.SetParent(lRoot, false);
+                    Instance(lPrefab, pKind, lSlot, Vector3.zero);
+                    lBirds[i] = lSlot.childCount > 0 ? lSlot.GetChild(0) : lSlot;
+                    Animation lAnimation = lBirds[i].GetComponentInChildren<Animation>();
+                    if (lAnimation != null && lAnimation.clip != null)
+                    {
+                        // Each bird flaps on its own beat.
+                        AnimationState lState = lAnimation[lAnimation.clip.name];
+                        if (lState != null)
+                        {
+                            lState.time = Random.value * lState.length;
+                            lState.speed = Random.Range(0.85f, 1.25f);
+                        }
+                    }
+                }
+                BirdFlock.Attach(lRoot, lBirds);
                 return lRoot;
             }
             Instance(lPrefab, pKind, lRoot, Vector3.zero);
@@ -177,7 +201,7 @@ namespace Com.IsartDigital.Hyperspeed
             lObject.transform.localRotation = Quaternion.identity;
             lObject.transform.localScale = Vector3.one * lScale;
             // Toon with a strong rim : the rival's silhouette catches the light and reads against any ground.
-            Material lMaterial = Mats.Toon(new Color(0.95f, 0.9f, 1f), new Color(0.55f, 0.48f, 0.78f), 0f, 0.75f);
+            Material lMaterial = Mats.Flat(new Color(0.62f, 0.58f, 0.78f), false);
             foreach (Renderer lRenderer in lObject.GetComponentsInChildren<Renderer>())
             {
                 Material[] lMaterials = new Material[lRenderer.sharedMaterials.Length];

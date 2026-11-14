@@ -45,23 +45,154 @@ namespace Com.IsartDigital.Hyperspeed
             }
         }
 
+        // ---------------- other saved settings (cached floats)
+        private static readonly System.Collections.Generic.Dictionary<string, float> _floats = new System.Collections.Generic.Dictionary<string, float>();
+
+        public static float GetSetting(string pKey, float pDefault)
+        {
+            float lValue;
+            if (!_floats.TryGetValue(pKey, out lValue))
+            {
+                lValue = PlayerPrefs.GetFloat(pKey, pDefault);
+                _floats[pKey] = lValue;
+            }
+            return lValue;
+        }
+
+        public static void SetSetting(string pKey, float pValue)
+        {
+            _floats[pKey] = pValue;
+            PlayerPrefs.SetFloat(pKey, pValue);
+            PlayerPrefs.Save();
+        }
+
+        // Right stick speed, horizontal and vertical, 0.3 to 2.5.
+        public static float PadSensitivityX { get => GetSetting("hs_pad_x", 1f); set => SetSetting("hs_pad_x", Mathf.Clamp(value, 0.3f, 2.5f)); }
+        public static float PadSensitivityY { get => GetSetting("hs_pad_y", 1f); set => SetSetting("hs_pad_y", Mathf.Clamp(value, 0.3f, 2.5f)); }
+        // Field of view scale, 70 % to 140 % (the classic camera reads it as an offset in degrees).
+        public static float FovScale { get => GetSetting("hs_fov_scale", 1f); set => SetSetting("hs_fov_scale", Mathf.Clamp(value, 0.7f, 1.4f)); }
+        public static float FovOffset => (FovScale - 1f) * 40f;
+        // Wide angle view past 180 degrees (six cameras recomposed) ; off = the classic perspective camera.
+        public static bool WideAngle { get => GetSetting("hs_wide", 1f) > 0.5f; set => SetSetting("hs_wide", value ? 1f : 0f); }
+        // Wide angle resolution : 0 low, 1 medium, 2 high.
+        public static int PanoramaQuality { get => Mathf.Clamp(Mathf.RoundToInt(GetSetting("hs_wide_q", 1f)), 0, 2); set => SetSetting("hs_wide_q", Mathf.Clamp(value, 0, 2)); }
+        // Camera distance scale, 0.7 to 1.5.
+        public static float CameraDistance { get => GetSetting("hs_cam_dist", 1f); set => SetSetting("hs_cam_dist", Mathf.Clamp(value, 0.7f, 1.5f)); }
+        // Screen shake, chromatic aberration and flashes, 0 to 1.
+        public static float ShakeAmount { get => GetSetting("hs_shake", 1f); set => SetSetting("hs_shake", Mathf.Clamp01(value)); }
+        public static float AberrationAmount { get => GetSetting("hs_aberration", 1f); set => SetSetting("hs_aberration", Mathf.Clamp01(value)); }
+        public static float FlashAmount { get => GetSetting("hs_flash", 1f); set => SetSetting("hs_flash", Mathf.Clamp01(value)); }
+        public static bool Vibration { get => GetSetting("hs_vibration", 1f) > 0.5f; set => SetSetting("hs_vibration", value ? 1f : 0f); }
+        public static bool VSync { get => GetSetting("hs_vsync", 1f) > 0.5f; set { SetSetting("hs_vsync", value ? 1f : 0f); ApplyDisplay(); } }
+        public static int Quality
+        {
+            get => Mathf.Clamp(Mathf.RoundToInt(GetSetting("hs_quality", QualitySettings.GetQualityLevel())), 0, QualitySettings.names.Length - 1);
+            set { SetSetting("hs_quality", Mathf.Clamp(value, 0, QualitySettings.names.Length - 1)); ApplyDisplay(); }
+        }
+
+        // Saved display options that Unity does not keep by itself (resolution and window mode it does).
+        public static void ApplyDisplay()
+        {
+            if (QualitySettings.GetQualityLevel() != Quality) QualitySettings.SetQualityLevel(Quality, true);
+            QualitySettings.vSyncCount = VSync ? 1 : 0;
+            Application.targetFrameRate = VSync ? -1 : 240;
+        }
+
 #if HS_CHEATS
         public static bool CheatsEnabled = true;
 #else
         public static bool CheatsEnabled = false;
 #endif
 
-        public static int UnlockedCount => Mathf.Max(1, PlayerPrefs.GetInt(UNLOCKED_KEY, 1));
+        public static int UnlockedCount
+        {
+            get
+            {
+                MigrateSave();
+                return Mathf.Max(1, PlayerPrefs.GetInt(UNLOCKED_KEY, 1));
+            }
+        }
+
+        // ---------------- save migration
+        // Version 2 (2026-11-12) : the dogs open the game at index 0 and "Light itself" moved to 3-5. Saved times, ranks,
+        // unlocks and the last stage played keep pointing at the same stages.
+        private const string SAVE_VERSION_KEY = "hs_save_version";
+        private const int SAVE_VERSION = 2;
+        // Old index (16 stages) -> new index (17 stages).
+        private static readonly int[] V1_TO_V2 = { 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 12, 13, 14, 16 };
+        private static bool _migrated;
+
+        public static void MigrateSave()
+        {
+            if (_migrated) return;
+            _migrated = true;
+            if (PlayerPrefs.GetInt(SAVE_VERSION_KEY, 1) >= SAVE_VERSION) return;
+            bool lHasSave = PlayerPrefs.HasKey(UNLOCKED_KEY) || PlayerPrefs.HasKey(LAST_STAGE_KEY);
+            if (lHasSave)
+            {
+                float[] lBest = new float[V1_TO_V2.Length];
+                int[] lRank = new int[V1_TO_V2.Length];
+                for (int i = 0; i < V1_TO_V2.Length; i++)
+                {
+                    lBest[i] = PlayerPrefs.GetFloat(BEST_KEY + i, -1f);
+                    lRank[i] = PlayerPrefs.GetInt(RANK_KEY + i, 0);
+                    PlayerPrefs.DeleteKey(BEST_KEY + i);
+                    PlayerPrefs.DeleteKey(RANK_KEY + i);
+                }
+                for (int i = 0; i < V1_TO_V2.Length; i++)
+                {
+                    if (lBest[i] >= 0f) PlayerPrefs.SetFloat(BEST_KEY + V1_TO_V2[i], lBest[i]);
+                    if (lRank[i] > 0) PlayerPrefs.SetInt(RANK_KEY + V1_TO_V2[i], lRank[i]);
+                }
+                if (PlayerPrefs.HasKey(UNLOCKED_KEY)) PlayerPrefs.SetInt(UNLOCKED_KEY, Mathf.Min(PlayerPrefs.GetInt(UNLOCKED_KEY, 1) + 1, 17));
+                int lLast = PlayerPrefs.GetInt(LAST_STAGE_KEY, -1);
+                if (lLast >= 0 && lLast < V1_TO_V2.Length) PlayerPrefs.SetInt(LAST_STAGE_KEY, V1_TO_V2[lLast]);
+            }
+            PlayerPrefs.SetInt(SAVE_VERSION_KEY, SAVE_VERSION);
+            PlayerPrefs.Save();
+        }
+
+        // The stage the carousel opens on : the last one played ; on a fresh save, the last one unlocked (2026-11-12).
+        private const string LAST_STAGE_KEY = "hs_last_stage";
+
+        public static int StageToShow
+        {
+            get
+            {
+                MigrateSave();
+                int lLast = PlayerPrefs.GetInt(LAST_STAGE_KEY, -1);
+                int lIndex = lLast >= 0 ? lLast : UnlockedCount - 1;
+                return Mathf.Clamp(lIndex, 0, LevelDatabase.Count - 1);
+            }
+        }
+
+        public static void RememberStage(int pIndex)
+        {
+            MigrateSave();
+            SelectedLevel = pIndex;
+            if (PlayerPrefs.GetInt(LAST_STAGE_KEY, -1) == pIndex) return;
+            PlayerPrefs.SetInt(LAST_STAGE_KEY, pIndex);
+            PlayerPrefs.Save();
+        }
 
         public static bool IsUnlocked(int pIndex) => CheatsEnabled || pIndex < UnlockedCount;
 
-        public static float GetBestTime(int pIndex) => PlayerPrefs.GetFloat(BEST_KEY + pIndex, -1f);
+        public static float GetBestTime(int pIndex)
+        {
+            MigrateSave();
+            return PlayerPrefs.GetFloat(BEST_KEY + pIndex, -1f);
+        }
 
         // 0 = none, 1 = C, 2 = B, 3 = A, 4 = S
-        public static int GetRank(int pIndex) => PlayerPrefs.GetInt(RANK_KEY + pIndex, 0);
+        public static int GetRank(int pIndex)
+        {
+            MigrateSave();
+            return PlayerPrefs.GetInt(RANK_KEY + pIndex, 0);
+        }
 
         public static bool RegisterWin(int pIndex, float pTime, int pRank)
         {
+            MigrateSave();
             bool lRecord = false;
             float lBest = GetBestTime(pIndex);
             if (lBest < 0f || pTime < lBest)

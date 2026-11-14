@@ -89,12 +89,15 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
             AnimatorState lReady = AddState(lMachine, "Ready", First("idle_ready", "look_around", "idle"), new Vector3(300f, -120f));
             AnimatorState lTaunt = AddState(lMachine, "Taunt", First("taunt", "idle_ready"), new Vector3(520f, -120f));
 
-            BlendTree lAirTree;
-            AnimatorState lAir = lController.CreateBlendTreeInController("Air", out lAirTree, 0);
-            lAirTree.blendType = BlendTreeType.Simple1D;
-            lAirTree.blendParameter = "Vertical";
-            AddMotion(lAirTree, First("fall", "jump"), -12f);
-            AddMotion(lAirTree, First("jump", "fall"), 10f);
+            // Air : one clean falling loop. The jump clip is a whole jump (take off, flight, landing) : only its take-off
+            // part is played, on the Jump trigger, then the fall loop takes over. Never a landing pose in the air.
+            AnimatorState lAir = AddState(lMachine, "Air", First("fall", "glide"), new Vector3(300f, 80f));
+            AnimatorState lJumpStart = AddState(lMachine, "JumpStart", First("jump", "fall"), new Vector3(300f, 0f));
+            if (lJumpStart != null)
+            {
+                lJumpStart.speed = 1.5f;
+                lJumpStart.cycleOffset = 0.1f;
+            }
 
             AnimatorState lGlide = AddState(lMachine, "Glide", First("glide", "fall"), new Vector3(560f, 80f));
             AnimatorState lDive = AddState(lMachine, "Dive", First("dive", "fall"), new Vector3(560f, 160f));
@@ -130,16 +133,35 @@ namespace Com.IsartDigital.Hyperspeed.EditorTools
             if (lSpin != null) AnyTrigger(lMachine, lSpin, "Spin", 0.06f);
             if (lTaunt != null) AnyTrigger(lMachine, lTaunt, "Taunt", 0.2f);
 
-            // Air from anything grounded / special once those flags drop.
+            // A jump : the take-off part of the jump clip, then the fall loop (or straight back to the run on a short hop).
+            foreach (AnimatorState lFrom in new[] { lLoco, lReady, lSlide, lGrind, lWall })
+            {
+                if (lFrom == null || lJumpStart == null) continue;
+                TriggerTo(lFrom, lJumpStart, "Jump", 0.06f);
+            }
+            if (lJumpStart != null)
+            {
+                AnimatorStateTransition lToAir = lJumpStart.AddTransition(lAir);
+                lToAir.hasExitTime = true;
+                lToAir.exitTime = 0.45f;
+                lToAir.duration = 0.2f;
+                AnimatorStateTransition lHop = lJumpStart.AddTransition(lLoco);
+                lHop.hasExitTime = true;
+                lHop.exitTime = 0.3f;
+                lHop.duration = 0.1f;
+                lHop.AddCondition(AnimatorConditionMode.If, 0f, "Grounded");
+            }
+            // Air from anything grounded / special once those flags drop (running off an edge).
             foreach (AnimatorState lFrom in new[] { lLoco, lReady, lSlide, lGrind, lHang, lWall, lGlide, lDive })
             {
                 if (lFrom == null) continue;
-                To(lFrom, lAir, 0.12f, Cond("Grounded", false), Cond("Glide", false), Cond("Dive", false), Cond("Grind", false), Cond("Hang", false), Cond("WallRun", false), Cond("WallClimb", false), Cond("WallSlide", false));
+                To(lFrom, lAir, 0.15f, Cond("Grounded", false), Cond("Glide", false), Cond("Dive", false), Cond("Grind", false), Cond("Hang", false), Cond("WallRun", false), Cond("WallClimb", false), Cond("WallSlide", false));
             }
-            To(lAir, lLoco, 0.1f, Cond("Grounded", true));
+            // Landing triggers are checked before the plain "grounded" exit : they are always used when they are set.
             if (lLandSoft != null) TriggerTo(lAir, lLandSoft, "Land", 0.05f);
             if (lLandHard != null) TriggerTo(lAir, lLandHard, "LandHard", 0.04f);
             if (lLandRoll != null) TriggerTo(lAir, lLandRoll, "LandRoll", 0.04f);
+            To(lAir, lLoco, 0.1f, Cond("Grounded", true));
             foreach (AnimatorState lFrom in new[] { lGlide, lDive })
             {
                 if (lFrom == null) continue;

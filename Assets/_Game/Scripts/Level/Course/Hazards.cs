@@ -8,14 +8,14 @@ namespace Com.IsartDigital.Hyperspeed
         private float _radius;
         private Transform _visual;
 
-        public static Ring Create(Transform pParent, LevelLayout pLayout, float pS, float pLateral, float pHeight, float pRadius, Color pColor)
+        public static Ring Create(Transform pParent, LevelLayout pLayout, float pS, float pLateral, float pHeight, float pRadius, Color pColor, bool pInLineFrame = false)
         {
             SpineSample lSample = pLayout.spine.Evaluate(pS);
-            Vector3 lUp = pLayout.field.Normal(pS);
-            Vector3 lPosition = pLayout.field.Point(pS, pLateral) + lUp * pHeight;
+            Vector3 lUp = pInLineFrame ? Vector3.up : pLayout.field.Normal(pS);
+            Vector3 lPosition = pInLineFrame ? SkyKit.Point(pLayout, pS, pLateral, pHeight) : pLayout.field.Point(pS, pLateral) + lUp * pHeight;
             GameObject lObject = new GameObject("Ring");
             lObject.transform.SetParent(pParent, false);
-            lObject.transform.SetPositionAndRotation(lPosition, Quaternion.LookRotation(lSample.forward, lUp));
+            lObject.transform.SetPositionAndRotation(lPosition, pInLineFrame ? SkyKit.Frame(pLayout, pS) : Quaternion.LookRotation(lSample.forward, lUp));
             Ring lRing = lObject.AddComponent<Ring>();
             lRing._radius = pRadius;
             lRing.halfExtents = new Vector3(pRadius, pRadius, Mathf.Max(5f, pLayout.profile.cruise * 0.04f));
@@ -53,9 +53,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             Vector3 lLocal = transform.InverseTransformPoint(pPlayer.transform.position);
             if (new Vector2(lLocal.x, lLocal.y).magnitude > _radius + 2f) return;
-            pPlayer.ApplyBoost(pPlayer.Profile.cruise * 0.26f, transform.forward, 0f, null, true);
-            FX.Shockwave(transform.position, transform.forward, Color.white, _radius * 2.6f, 0.3f);
-            AudioManager.Play("sfx_ring", 0.9f, 1f + Random.Range(-0.05f, 0.1f));
+            pPlayer.ApplyBoost(pPlayer.Profile.cruise * 0.7f, transform.forward, 0f, null, true, false, JuiceId.Ring);
             if (_visual != null) _visual.gameObject.SetActive(false);
             Destroy(gameObject, 0.6f);
         }
@@ -64,6 +62,8 @@ namespace Com.IsartDigital.Hyperspeed
     // Giant crate : dash through it and it bursts into burning pieces, throwing you forward. Run into it and it stops you.
     public class Crate : Breakable
     {
+        public override string Material => "crate";
+
         private LevelLayout _layout;
         private float _s;
         private float _lateral;
@@ -220,6 +220,9 @@ namespace Com.IsartDigital.Hyperspeed
     public class Pane : Breakable
     {
         private Vector3 _half;
+        private PaneKind _kind;
+
+        public override string Material => _kind == PaneKind.Ice ? "ice" : _kind == PaneKind.Door ? "door" : "glass";
 
         public override bool Overlaps(Vector3 pPosition, float pRadius)
         {
@@ -236,6 +239,7 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lUp = pLayout.field.Normal(pS);
             lObject.transform.SetPositionAndRotation(pLayout.field.Point(pS, pLateral) + lUp * pHeight * 0.5f, Quaternion.LookRotation(pLayout.spine.Forward(pS), lUp));
             Pane lPane = lObject.AddComponent<Pane>();
+            lPane._kind = pKind;
             lPane._half = new Vector3(pWidth * 0.5f, pHeight * 0.5f, lDepth * 0.5f);
             lPane.radius = Mathf.Min(pWidth, pHeight) * 0.5f;
             lPane.big = true;
@@ -340,6 +344,19 @@ namespace Com.IsartDigital.Hyperspeed
             lHead.transform.SetParent(lHammer._pivot, false);
             lHead.AddComponent<MeshFilter>().sharedMesh = lSwing.ToMesh("Hammer");
             lHead.AddComponent<MeshRenderer>().sharedMaterial = Mats.Flat(pTheme.shade, false);
+            // Solid : the head and the posts block you like any wall (Default layer, so the camera ignores them).
+            BoxCollider lHeadCollider = lHead.AddComponent<BoxCollider>();
+            lHeadCollider.center = new Vector3(0f, -ARM, 0f);
+            lHeadCollider.size = new Vector3(90f, 70f, 70f);
+            Rigidbody lBody = lHammer._pivot.gameObject.AddComponent<Rigidbody>();
+            lBody.isKinematic = true;
+            lBody.interpolation = RigidbodyInterpolation.None;
+            BoxCollider lPostL = lBeam.AddComponent<BoxCollider>();
+            lPostL.center = new Vector3(-lHalf - 6f, -ARM * 0.5f - 3f, 0f);
+            lPostL.size = new Vector3(14f, ARM + 30f, 14f);
+            BoxCollider lPostR = lBeam.AddComponent<BoxCollider>();
+            lPostR.center = new Vector3(lHalf + 6f, -ARM * 0.5f - 3f, 0f);
+            lPostR.size = new Vector3(14f, ARM + 30f, 14f);
             return lHammer;
         }
 
@@ -348,20 +365,25 @@ namespace Com.IsartDigital.Hyperspeed
             if (_pivot != null) _pivot.localRotation = Quaternion.Euler(0f, 0f, Mathf.Sin(Time.time * 2.1f + _phase) * 62f);
         }
 
-        protected override void OnTouch(PlayerController pPlayer)
+        // The hit matches what you see : the whole head block and the arm holding it. Tested every frame while you
+        // are near ; only a real hit starts the cooldown.
+        public override bool Accepts(PlayerController pPlayer)
         {
-            if (pPlayer.LightForm) return;
-            // The hit matches what you see : the whole head block and the arm holding it.
-            Vector3 lCenter = pPlayer.transform.position + pPlayer.Up;
-            Vector3 lLocal = _pivot.InverseTransformPoint(lCenter);
-            const float PAD = 3f;
+            if (pPlayer.LightForm || _pivot == null) return false;
+            Vector3 lLocal = _pivot.InverseTransformPoint(pPlayer.transform.position + pPlayer.Up);
+            const float PAD = 4f;
             bool lHead = Mathf.Abs(lLocal.x) <= 48f + PAD && Mathf.Abs(lLocal.y + ARM) <= 35f + PAD && Mathf.Abs(lLocal.z) <= 39f + PAD;
             bool lArm = Mathf.Abs(lLocal.x) <= 5f + PAD && Mathf.Abs(lLocal.z) <= 5f + PAD && lLocal.y <= 0f && lLocal.y >= -ARM;
-            if (!lHead && !lArm) return;
+            return lHead || lArm;
+        }
+
+        protected override void OnTouch(PlayerController pPlayer)
+        {
+            Vector3 lCenter = pPlayer.transform.position + pPlayer.Up;
             Vector3 lPush = _pivot.TransformDirection(Vector3.right) * Mathf.Sign(Mathf.Cos(Time.time * 2.1f + _phase));
             pPlayer.Crash(_pivot.TransformPoint(new Vector3(0f, -ARM, 0f)));
             FX.Shockwave(lCenter, lPush, Color.white, 30f, 0.3f);
-            Juice.Shake(0.8f);
+            HSJuice.Play(JuiceId.HazardHit, lCenter);
         }
     }
 }

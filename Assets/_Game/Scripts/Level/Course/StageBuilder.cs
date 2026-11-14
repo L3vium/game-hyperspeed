@@ -22,6 +22,7 @@ namespace Com.IsartDigital.Hyperspeed
             lLayout.spawnS = pData.spawnS;
             lLayout.finishS = pData.finishS;
             lLayout.climaxS = pData.climaxS;
+            if (pData.highways != null) lLayout.highways.AddRange(pData.highways);
             foreach (RouteData lNode in pData.route) lLayout.route.Add(new RouteNode { s0 = lNode.s0, s1 = lNode.s1, lateral = lNode.lateral });
             foreach (ActData lAct in pData.acts) lLayout.acts.Add(new RouteAct { s = lAct.s, action = lAct.action });
             foreach (HintData lHint in pData.hints) lLayout.hints.Add(new KeyValuePair<float, string>(lHint.s, lHint.text));
@@ -29,6 +30,44 @@ namespace Com.IsartDigital.Hyperspeed
             lLayout.acts.Sort((pA, pB) => pA.s.CompareTo(pB.s));
             lLayout.hints.Sort((pA, pB) => pA.Key.CompareTo(pB.Key));
             return lLayout;
+        }
+
+        // Every place where the next block starts higher than the one before ends (walls you would run into). The level
+        // rule is that the track only ever steps down. Returns one line per rise above pTolerance metres.
+        public static List<string> FindRises(LevelLayout pLayout, float pTolerance = 2f)
+        {
+            List<string> lRises = new List<string>();
+            List<TrackBlock> lBlocks = new List<TrackBlock>(pLayout.field.blocks);
+            lBlocks.Sort((pA, pB) => pA.s0.CompareTo(pB.s0));
+            for (int i = 1; i < lBlocks.Count; i++)
+            {
+                TrackBlock lA = lBlocks[i - 1];
+                TrackBlock lB = lBlocks[i];
+                if (lB.look == BlockLook.Plaza || lA.look == BlockLook.Plaza) continue;
+                if (lB.s0 - lA.s1 > 400f) continue;
+                SpineSample lEndA = pLayout.spine.Evaluate(lA.s1);
+                SpineSample lStartB = pLayout.spine.Evaluate(lB.s0);
+                if (lEndA.localGravity || lStartB.localGravity) continue;
+                float lWorst = float.MinValue;
+                float lFrom = Mathf.Max(lA.offset - lA.halfWidth, lB.offset - lB.halfWidth);
+                float lTo = Mathf.Min(lA.offset + lA.halfWidth, lB.offset + lB.halfWidth);
+                for (int k = 0; k <= 4; k++)
+                {
+                    float lX = Mathf.Lerp(lFrom, lTo, k / 4f);
+                    float lHeightA = FloorY(lEndA, lA, lX);
+                    float lHeightB = FloorY(lStartB, lB, lX);
+                    lWorst = Mathf.Max(lWorst, lHeightB - lHeightA);
+                }
+                if (lWorst > pTolerance) lRises.Add("rise " + lWorst.ToString("F0") + " m at s=" + lB.s0.ToString("F0") + " (" + lA.look + " -> " + lB.look + ")");
+            }
+            return lRises;
+        }
+
+        public static float FloorY(SpineSample pSample, TrackBlock pBlock, float pLateral)
+        {
+            float lLocal = pLateral - pBlock.offset;
+            Vector3 lPoint = pSample.position + pSample.Right * (pBlock.offset + lLocal * pBlock.Cos) + pSample.up * (-pBlock.drop - lLocal * pBlock.Sin);
+            return lPoint.y;
         }
 
         public static void ReplaySpine(StageData pData, Spine pSpine)
@@ -109,9 +148,11 @@ namespace Com.IsartDigital.Hyperspeed
             MeteorDirector lDirector = new GameObject("Meteors").AddComponent<MeteorDirector>();
             lDirector.transform.SetParent(lProps, false);
             int lCount = 0;
+            SkyRoute.Clear();
             foreach (ItemData lItem in pData.items)
             {
                 if (pNoItems && lItem.kind != ItemKind.Arch && lItem.kind != ItemKind.GravityGate) continue;
+                SkyRoute.Add(lItem);
                 if (Place(lItem, lLayout, pData, pTheme, lProps, lDirector) != null) lCount++;
             }
             lDirector.Init(lLayout, pTheme);
@@ -136,7 +177,14 @@ namespace Com.IsartDigital.Hyperspeed
                 case ItemKind.Strip:
                     return JumpStrip.Create(pParent, pLayout, pItem.s, pItem.lateral, pItem.width, pItem.value, pTheme.roadEdge);
                 case ItemKind.Ring:
-                    return Ring.Create(pParent, pLayout, pItem.s, pItem.lateral, pItem.height, pItem.size, pTheme.accent);
+                    // flag : a ring of a sky lane, placed in the line's frame (nothing under it but the far ground).
+                    return Ring.Create(pParent, pLayout, pItem.s, pItem.lateral, pItem.height, pItem.size, pTheme.accent, pItem.flag);
+                case ItemKind.Kicker:
+                    return SkyKit.Kicker(pParent, pLayout, pItem.s, pItem.s1, pItem.lateral, pItem.width, pItem.height, pItem.value, pTheme);
+                case ItemKind.DeckPad:
+                    return SkyKit.DeckPad(pParent, pLayout, pItem.s, pItem.lateral, pItem.height, pItem.width, pItem.length, pTheme.accent, pItem.value);
+                case ItemKind.DeckStrip:
+                    return SkyKit.DeckStrip(pParent, pLayout, pItem.s, pItem.lateral, pItem.height, pItem.width, pItem.value, pTheme.roadEdge);
                 case ItemKind.Crate:
                     return Crate.Create(pParent, pLayout, pItem.s, pItem.lateral, pItem.size, pItem.flag, pTheme);
                 case ItemKind.Laser:
@@ -147,6 +195,8 @@ namespace Com.IsartDigital.Hyperspeed
                     return Pane.Create(pParent, pLayout, pItem.s, pItem.lateral, pItem.width, pItem.height, (PaneKind)Mathf.Clamp(pItem.variant, 0, 2), pTheme);
                 case ItemKind.Rope:
                     return PlaceRope(pItem, pLayout, pTheme, pParent);
+                case ItemKind.LoopRope:
+                    return PlaceLoopRope(pItem, pLayout, pTheme, pParent);
                 case ItemKind.Mover:
                     return MovingPlatform.Create(pParent, pLayout, pItem.s, pItem.lateral, pItem.width, pItem.length, pItem.height, pItem.value, pTheme);
                 case ItemKind.Bridge:
@@ -181,7 +231,8 @@ namespace Com.IsartDigital.Hyperspeed
             GameObject lObject = new GameObject("Rope");
             lObject.transform.SetParent(pParent, false);
             GrindRail lRail = lObject.AddComponent<GrindRail>();
-            lRail.catchRadius = 14f;
+            // High and thick : caught from far around it.
+            lRail.catchRadius = 18f;
             float lStep = Mathf.Max(8f, 10f * pLayout.profile.k);
             float lSpan = Mathf.Max(1f, pItem.s1 - pItem.s);
             for (float lS = pItem.s; lS < pItem.s1; lS += lStep)
@@ -189,11 +240,111 @@ namespace Com.IsartDigital.Hyperspeed
                 float lT = (lS - pItem.s) / lSpan;
                 SpineSample lSample = pLayout.spine.Evaluate(lS);
                 float lHeight = Mathf.Lerp(pItem.height, pItem.height1, lT);
-                lRail.AddPoint(lSample.position + lSample.Right * pItem.lateral + lSample.up * lHeight, lSample.up, lS);
+                // flag : a rope of a sky lane, at an absolute altitude with a slight sag between its two decks.
+                if (pItem.flag) lRail.AddPoint(SkyKit.Point(pLayout, lS, pItem.lateral, lHeight - Mathf.Sin(lT * Mathf.PI) * lSpan * 0.012f), Vector3.up, lS);
+                else lRail.AddPoint(lSample.position + lSample.Right * pItem.lateral + lSample.up * lHeight, lSample.up, lS);
             }
-            lRail.Finish(pTheme.accent, 4f);
+            lRail.Finish(pTheme.accent, 3.2f);
             pLayout.rails.Add(lRail);
+            // 2026-11-12 : ropes hang in the void, tied to the decks : no pylon holds them up any more.
+            if (pItem.flag)
+            {
+                SkyKit.Anchor(lObject.transform, SkyKit.Point(pLayout, pItem.s, pItem.lateral, pItem.height), Vector3.up, pTheme.accent);
+                SkyKit.Anchor(lObject.transform, SkyKit.Point(pLayout, pItem.s1, pItem.lateral, pItem.height1), Vector3.up, pTheme.accent);
+            }
             return lObject;
+        }
+
+        // Side loop rope (2026-11-12) : along the ground, up into a vertical loop (its up points to the loop's centre : you
+        // ride the inside, upside down at the top), back down along the ground further on and a little to the side.
+        private static Object PlaceLoopRope(ItemData pItem, LevelLayout pLayout, Theme pTheme, Transform pParent)
+        {
+            const float RIDE = 1.8f;
+            const float STEP = 8f;
+            GameObject lObject = new GameObject("LoopRope");
+            lObject.transform.SetParent(pParent, false);
+            GrindRail lRail = lObject.AddComponent<GrindRail>();
+            lRail.catchRadius = 24f;
+            lRail.loop = true;
+            float lRadius = pItem.size, lAdvance = pItem.length, lLead = pItem.width, lDrift = pItem.value;
+            float lLoopS = pItem.s + lLead;
+            for (float lS = pItem.s; lS < lLoopS - 0.5f; lS += STEP)
+                lRail.AddPoint(pLayout.GroundPoint(lS, pItem.lateral) + pLayout.field.Normal(lS) * RIDE, pLayout.field.Normal(lS), lS);
+            SpineSample lFrame = pLayout.spine.Evaluate(lLoopS);
+            Vector3 lUp = pLayout.field.Normal(lLoopS);
+            Vector3 lForward = Vector3.ProjectOnPlane(lFrame.forward, lUp).normalized;
+            Vector3 lRight = Vector3.Cross(lUp, lForward);
+            Vector3 lBase = pLayout.GroundPoint(lLoopS, pItem.lateral) + lUp * RIDE;
+            const int COUNT = 72;
+            for (int i = 0; i <= COUNT; i++)
+            {
+                float lA = i * Mathf.PI * 2f / COUNT;
+                Vector3 lPoint = lBase + lForward * (lRadius * Mathf.Sin(lA) + lAdvance * lA) + lUp * (lRadius * (1f - Mathf.Cos(lA)))
+                                 + lRight * (lDrift * lA / (Mathf.PI * 2f));
+                Vector3 lInside = (-lForward * Mathf.Sin(lA) + lUp * Mathf.Cos(lA)).normalized;
+                lRail.AddPoint(lPoint, lInside, lLoopS + Vector3.Dot(lPoint - lBase, lForward));
+            }
+            float lOutS = lLoopS + lAdvance * Mathf.PI * 2f;
+            for (float lS = lOutS + STEP; lS <= pItem.s1; lS += STEP)
+                lRail.AddPoint(pLayout.GroundPoint(lS, pItem.lateral + lDrift) + pLayout.field.Normal(lS) * RIDE, pLayout.field.Normal(lS), lS);
+            lRail.Finish(pTheme.accent, 3.2f);
+            pLayout.rails.Add(lRail);
+            SkyKit.Anchor(lObject.transform, pLayout.GroundPoint(pItem.s, pItem.lateral), pLayout.field.Normal(pItem.s), pTheme.accent);
+            SkyKit.Anchor(lObject.transform, pLayout.GroundPoint(pItem.s1, pItem.lateral + lDrift), pLayout.field.Normal(pItem.s1), pTheme.accent);
+            return lObject;
+        }
+
+        // Electric pylons holding the rope up : tall lattice masts from the ground, a cross arm, glowing insulators.
+        private static void RopePylons(GrindRail pRail, ItemData pItem, LevelLayout pLayout, Theme pTheme, Transform pParent)
+        {
+            MeshData lData = new MeshData();
+            MeshData lGlow = new MeshData();
+            float lEvery = Mathf.Max(220f, pLayout.profile.cruise * 1.6f);
+            float lSpan = pItem.s1 - pItem.s;
+            int lCount = Mathf.Max(2, Mathf.RoundToInt(lSpan / lEvery) + 1);
+            Vector3 lOrigin = pLayout.spine.Evaluate(pItem.s).position;
+            for (int i = 0; i < lCount; i++)
+            {
+                float lS = pItem.s + lSpan * i / (lCount - 1);
+                SpineSample lSample = pLayout.spine.Evaluate(lS);
+                float lHeight = Mathf.Lerp(pItem.height, pItem.height1, (lS - pItem.s) / Mathf.Max(1f, lSpan));
+                Vector3 lTop = lSample.position + lSample.Right * pItem.lateral + lSample.up * lHeight - lOrigin;
+                Vector3 lFoot = pLayout.GroundPoint(lS, pItem.lateral) - lOrigin - lSample.up * 4f;
+                Vector3 lMast = lTop + lSample.up * 9f;
+                float lLength = Vector3.Distance(lFoot, lMast);
+                Quaternion lRotation = Quaternion.LookRotation(lSample.forward, (lMast - lFoot).normalized);
+                // Two legs leaning together, a cross arm over the rope, insulators glowing at its tips.
+                for (int lLeg = -1; lLeg <= 1; lLeg += 2)
+                {
+                    Vector3 lBase = lFoot + lSample.Right * lLeg * 9f;
+                    Vector3 lDir = lMast - lBase;
+                    lData.Append(BoxMesh(), Matrix4x4.TRS(lBase + lDir * 0.5f, Quaternion.LookRotation(lSample.forward, lDir.normalized), new Vector3(1.6f, lDir.magnitude, 1.6f)), new Color(0.2f, 0.2f, 0.24f));
+                }
+                lData.Append(BoxMesh(), Matrix4x4.TRS(lMast, lRotation, new Vector3(26f, 1.6f, 1.6f)), new Color(0.25f, 0.25f, 0.3f));
+                for (int lTip = -1; lTip <= 1; lTip += 2)
+                    lGlow.Append(BoxMesh(), Matrix4x4.TRS(lMast + lSample.Right * lTip * 12f - lSample.up * 2f, lRotation, new Vector3(2.2f, 4f, 2.2f)), Color.white);
+                lGlow.Append(BoxMesh(), Matrix4x4.TRS(lTop + lSample.up * 4f, lRotation, new Vector3(1.4f, 8f, 1.4f)), Color.white);
+            }
+            GameObject lPylons = new GameObject("Pylons");
+            lPylons.transform.SetParent(pParent, false);
+            lPylons.transform.position = lOrigin;
+            lPylons.AddComponent<MeshFilter>().sharedMesh = lData.ToMesh("Pylons");
+            lPylons.AddComponent<MeshRenderer>().sharedMaterial = Mats.Flat(pTheme.shade, false, new Color(0.22f, 0.22f, 0.27f));
+            GameObject lLit = new GameObject("Insulators");
+            lLit.transform.SetParent(lPylons.transform, false);
+            lLit.AddComponent<MeshFilter>().sharedMesh = lGlow.ToMesh("Insulators");
+            lLit.AddComponent<MeshRenderer>().sharedMaterial = Mats.Glow(Color.Lerp(pTheme.accent, Color.white, 0.5f) * 3f, false, 0f, 0f, true);
+        }
+
+        private static Mesh _box;
+
+        private static Mesh BoxMesh()
+        {
+            if (_box != null) return _box;
+            MeshData lData = new MeshData();
+            GateKit.Box(lData, Vector3.zero, Vector3.one, Color.white);
+            _box = lData.ToMesh("UnitBox");
+            return _box;
         }
 
         // The raised lane : a thick deck following the line, a glowing edge on each side.
@@ -201,26 +352,28 @@ namespace Com.IsartDigital.Hyperspeed
         {
             MeshData lData = new MeshData();
             MeshData lGlow = new MeshData();
-            float lThick = 6f;
+            float lThick = pItem.flag ? 10f : 6f;
             float lHalf = Mathf.Max(4f, pItem.width);
             Vector3 lPrevL = Vector3.zero, lPrevR = Vector3.zero, lPrevDown = Vector3.zero;
             bool lFirst = true;
             for (float lS = pItem.s; lS <= pItem.s1 + 0.1f; lS += 8f)
             {
                 SpineSample lSample = pLayout.spine.Evaluate(Mathf.Min(lS, pItem.s1));
-                Vector3 lUp = lSample.up;
-                Vector3 lCenter = lSample.position + lSample.Right * pItem.lateral + lUp * pItem.height;
-                Vector3 lL = lCenter - lSample.Right * lHalf;
-                Vector3 lR = lCenter + lSample.Right * lHalf;
+                // flag : a deck of a sky lane, a level shelf at an absolute altitude.
+                Vector3 lUp = pItem.flag ? Vector3.up : lSample.up;
+                Vector3 lRight = pItem.flag ? Vector3.Cross(Vector3.up, new Vector3(lSample.forward.x, 0f, lSample.forward.z).normalized) : lSample.Right;
+                Vector3 lCenter = pItem.flag ? SkyKit.Point(pLayout, Mathf.Min(lS, pItem.s1), pItem.lateral, pItem.height) : lSample.position + lSample.Right * pItem.lateral + lUp * pItem.height;
+                Vector3 lL = lCenter - lRight * lHalf;
+                Vector3 lR = lCenter + lRight * lHalf;
                 Vector3 lDown = -lUp * lThick;
                 if (!lFirst)
                 {
                     lData.FacetQuad(lPrevL, lL, lR, lPrevR, lUp, Color.Lerp(pTheme.roadA, Color.white, 0.15f));
-                    lData.FacetQuad(lPrevL + lPrevDown, lPrevL, lL, lL + lDown, -lSample.Right, pTheme.roadSide);
-                    lData.FacetQuad(lPrevR, lPrevR + lPrevDown, lR + lDown, lR, lSample.Right, pTheme.roadSide);
+                    lData.FacetQuad(lPrevL + lPrevDown, lPrevL, lL, lL + lDown, -lRight, pTheme.roadSide);
+                    lData.FacetQuad(lPrevR, lPrevR + lPrevDown, lR + lDown, lR, lRight, pTheme.roadSide);
                     lData.FacetQuad(lPrevL + lPrevDown, lL + lDown, lR + lDown, lPrevR + lPrevDown, -lUp, Color.Lerp(pTheme.roadSide, Color.black, 0.3f));
-                    lGlow.FacetQuad(lPrevL + lUp * 0.2f, lL + lUp * 0.2f, lL + lUp * 0.2f + lSample.Right * 2f, lPrevL + lUp * 0.2f + lSample.Right * 2f, lUp, Color.white);
-                    lGlow.FacetQuad(lPrevR + lUp * 0.2f - lSample.Right * 2f, lR + lUp * 0.2f - lSample.Right * 2f, lR + lUp * 0.2f, lPrevR + lUp * 0.2f, lUp, Color.white);
+                    lGlow.FacetQuad(lPrevL + lUp * 0.2f, lL + lUp * 0.2f, lL + lUp * 0.2f + lRight * 2f, lPrevL + lUp * 0.2f + lRight * 2f, lUp, Color.white);
+                    lGlow.FacetQuad(lPrevR + lUp * 0.2f - lRight * 2f, lR + lUp * 0.2f - lRight * 2f, lR + lUp * 0.2f, lPrevR + lUp * 0.2f, lUp, Color.white);
                 }
                 lPrevL = lL;
                 lPrevR = lR;

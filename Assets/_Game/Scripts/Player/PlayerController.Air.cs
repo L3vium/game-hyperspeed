@@ -8,6 +8,11 @@ namespace Com.IsartDigital.Hyperspeed
     {
         private const float DIVE_PITCH = -18f;
 
+        // Only the track and its props count as somewhere to land : scenery and the plane under the world do not.
+        private const int TRACK_MASK = (1 << 0) | (1 << Layers.DECK) | (1 << Layers.PROP);
+        // Set by a button jump : releasing the button early cuts the rise.
+        private bool _jumpCut;
+
         private int _diveChain;
         private float _lastDiveLanding = -10f;
 
@@ -17,13 +22,14 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _airTime += pDt;
             Vector3 lTargetUp = _layout != null ? _layout.GravityUp(Progress) : Vector3.up;
-            // Lost in the air inside a loop or a corkscrew for too long : the track throws you back on, ahead.
-            _localAirTime = lTargetUp != Vector3.up && _recoverTimer <= 0f ? _localAirTime + pDt : 0f;
-            if (_localAirTime > 1.3f && !_freeRoam && !_autoRun)
+            // In the air inside a loop or a corkscrew : the surface pulls you back down onto it, harder the longer you
+            // float, so a jump or a dash in a loop always lands. Only a really lost flight (several seconds) is a fall.
+            _localAirTime = lTargetUp != Vector3.up ? _localAirTime + pDt : 0f;
+            if (_localAirTime > 4.5f && !_freeRoam && !_autoRun)
             {
                 _localAirTime = 0f;
-                if (Autopilot.Enabled) Debug.Log("[HS-REC] stuck in a carried section s=" + Progress.ToString("F0"));
-                Recover();
+                if (Autopilot.Enabled || Debug.isDebugBuild) Debug.Log("[HS-LD] out (loop air) s=" + Progress.ToString("F0"));
+                Die();
                 return;
             }
             // Thrown far off a loop or a twist : its pull no longer holds, the world's gravity takes over, and the view
@@ -37,22 +43,26 @@ namespace Com.IsartDigital.Hyperspeed
             _gravityUp = Vector3.Slerp(_gravityUp, lTargetUp, 1f - Mathf.Exp(-lUpRate * pDt)).normalized;
 
             float lVertical = Vector3.Dot(_velocity, _gravityUp);
-            bool lRecovering = _recoverTimer > 0f;
-            Diving = State == PlayerState.Air && AimPitch < DIVE_PITCH && !lRecovering;
+            Diving = State == PlayerState.Air && AimPitch < DIVE_PITCH;
 
             float lGravity = Ballistics.Gravity(lVertical);
+            // A jump is as high as the button is held : let go early and the rise is cut short.
+            if (_jumpCut && lVertical > 0f && !HSInput.JumpHeld && !InputLocked && !Autopilot.Enabled) lGravity *= 2.4f;
+            if (lVertical <= 0f) _jumpCut = false;
+            // A short float at the top of the arc : the jump reads soft, then it falls for real.
+            if (Mathf.Abs(lVertical) < 14f && !Diving) lGravity *= 0.6f;
             if (LightForm) lGravity *= 0.25f;
             if (Dashing) lGravity *= 0.2f;
-            // The bounce back to the track is a clean arc : it lands where it was aimed.
-            if (lRecovering)
+            // Loop magnet : after a short hop the surface draws you back, and moving away from it is cancelled.
+            if (_localAirTime > 0.35f)
             {
-                lGravity = 135f;
-                _gravityUp = Vector3.up;
+                lGravity = Mathf.Max(lGravity, Ballistics.G_FALL) * (1f + (_localAirTime - 0.35f) * 2.5f);
+                if (lVertical > 0f) _velocity -= _gravityUp * lVertical * (1f - Mathf.Exp(-4f * pDt));
             }
             _velocity -= _gravityUp * lGravity * pDt;
 
-            if (State == PlayerState.Air && !lRecovering) AirControl(pDt);
-            if (!lRecovering) AirDrag(pDt);
+            if (State == PlayerState.Air) AirControl(pDt);
+            AirDrag(pDt);
 
             Vector3 lFlat = Vector3.ProjectOnPlane(_velocity, _gravityUp);
             if (lFlat.sqrMagnitude > 1f) _heading = lFlat.normalized;
@@ -67,6 +77,7 @@ namespace Com.IsartDigital.Hyperspeed
                 RaycastHit lHit;
                 float lReach = 0.25f + Mathf.Max(0f, -Vector3.Dot(_velocity, _gravityUp)) * pDt;
                 if (Physics.Raycast(transform.position + _gravityUp * 0.6f, -_gravityUp, out lHit, 0.6f + lReach, GroundMask, QueryTriggerInteraction.Ignore)
+                    && (TrackHoles.Count == 0 || !TrackHoles.Inside(lHit.point))
                     && Vector3.Dot(lHit.normal, _gravityUp) > 0.12f)
                 {
                     Land(lHit.normal, lHit.point, lHit.collider);
@@ -87,7 +98,8 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lAim = Vector3.ProjectOnPlane(_aimForward, _gravityUp);
             if (lAim.sqrMagnitude > 0.0001f && lFlatSpeed > 1f)
             {
-                float lTurn = (LightForm ? 2.2f : 3.4f) * pDt;
+                // The flight answers the aim almost like the ground does : a jump is never a fixed direction.
+                float lTurn = (LightForm ? 3f : Mathf.Lerp(6.5f, 4.5f, Speed01)) * pDt;
                 lFlat = Vector3.RotateTowards(lFlat, lAim.normalized * lFlatSpeed, lTurn, 0f);
             }
             if (Mathf.Abs(Steer) > 0.05f)
@@ -95,7 +107,7 @@ namespace Com.IsartDigital.Hyperspeed
                 Vector3 lSide = Vector3.Cross(_gravityUp, lAim.sqrMagnitude > 0.0001f ? lAim.normalized : _heading).normalized;
                 float lMax = _profile.StrafeMax(lFlatSpeed);
                 float lNow = Vector3.Dot(lFlat, lSide);
-                lFlat += lSide * (Mathf.MoveTowards(lNow, Steer * lMax, lMax / 0.25f * pDt) - lNow);
+                lFlat += lSide * (Mathf.MoveTowards(lNow, Steer * lMax, lMax / 0.12f * pDt) - lNow);
             }
             _velocity = lFlat + lVerticalPart;
 
@@ -130,23 +142,56 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lVelocity = _velocity;
             const float STEP = 0.2f;
             HasLandingPrediction = false;
+            HasRouteAhead = false;
             for (float lT = 0f; lT < 3.2f; lT += STEP)
             {
-                Vector3 lNext = lVelocity + -_gravityUp * Ballistics.G_FALL * STEP;
+                // Inside a loop the pull follows the surface under each point of the arc, not the gravity of now.
+                Vector3 lUpHere = _gravityUp;
+                if (_localAirTime > 0f)
+                {
+                    float lLat;
+                    float lS = _layout.spine.ProjectNear(lPosition, Progress, out lLat);
+                    lUpHere = _layout.GravityUp(lS);
+                }
+                Vector3 lNext = lVelocity + -lUpHere * Ballistics.G_FALL * STEP;
                 Vector3 lDelta = (lVelocity + lNext) * 0.5f * STEP;
                 RaycastHit lHit;
-                if (Physics.Raycast(lPosition, lDelta.normalized, out lHit, lDelta.magnitude + 1f, GroundMask, QueryTriggerInteraction.Ignore))
+                bool lFound = Physics.Raycast(lPosition, lDelta.normalized, out lHit, lDelta.magnitude + 1f, TRACK_MASK, QueryTriggerInteraction.Ignore);
+                if (lFound && (TrackHoles.Count == 0 || !TrackHoles.Inside(lHit.point)))
                 {
                     HasLandingPrediction = true;
                     LandingPoint = lHit.point;
                     LandingTime = lT;
                     return;
                 }
+                // A rope to catch or a ring to fly through on the way : a route in the air, not a fall.
+                if (!HasRouteAhead && lT < 2.4f && RouteNear(lPosition + lDelta * 0.5f)) HasRouteAhead = true;
                 lPosition += lDelta;
                 lVelocity = lNext;
             }
-            // Anything solid ahead on the line and within reach of a dash still counts as hope.
-            if (_layout.field.Solid(Progress + Mathf.Max(60f, Speed * 0.8f))) HasLandingPrediction = (_layout.spine.Evaluate(Progress).position - transform.position).sqrMagnitude < 260f * 260f;
+            // Anything solid ahead on the line and within reach of a dash still counts as hope, but only for a runner
+            // still above the track : one that fell through a hole or off a side is not saved by the floor it left.
+            float lAbove = Vector3.Dot(transform.position - _layout.GroundPoint(Progress, Lateral), _layout.field.Normal(Progress));
+            float lHope = 260f * Mathf.Sqrt(Mathf.Max(1f, _profile.scale));
+            if (lAbove > -4f && _layout.field.Solid(Progress + Mathf.Max(60f, Speed * 0.8f)))
+                HasLandingPrediction = (_layout.spine.Evaluate(Progress).position - transform.position).sqrMagnitude < lHope * lHope;
+        }
+
+        private bool RouteNear(Vector3 pPoint)
+        {
+            foreach (GrindRail lRail in GrindRail.All)
+            {
+                float lDistance, lRailDistance;
+                if (lRail.FindNearest(pPoint, lRail.catchRadius * 1.4f, out lDistance, out lRailDistance)) return true;
+            }
+            for (int i = Interactable.All.Count - 1; i >= 0; i--)
+            {
+                Interactable lItem = Interactable.All[i];
+                if (lItem == null || !(lItem is Ring || lItem is Launcher || lItem is BoostPad || lItem is JumpStrip)) continue;
+                float lReach = 70f * Mathf.Sqrt(Mathf.Max(1f, _profile.scale));
+                if ((lItem.transform.position - pPoint).sqrMagnitude < lReach * lReach) return true;
+            }
+            return false;
         }
 
         // ================================================================ landing
@@ -174,19 +219,19 @@ namespace Com.IsartDigital.Hyperspeed
             LastLandingWasDive = lWasDiving;
             if (lWasDiving) _diveSlideTimer = 0.45f;
             Diving = false;
-            _recoverTimer = 0f;
+            _jumpCut = false;
             SetState(_autoRun ? PlayerState.Finished : PlayerState.Ground);
             HasDoubleJump = true;
             _groundLayer = pCollider != null ? pCollider.gameObject.layer : 0;
-            // The net under the world : it never holds you, it throws you straight back to the track.
+            // The plane far under the world : touching it means you left the stage long ago.
             if (pCollider != null && pCollider.GetComponent<SafetyNet>() != null && !_freeRoam && !_autoRun)
             {
-                Recover();
+                if (Autopilot.Enabled || Debug.isDebugBuild) Debug.Log("[HS-LD] out (kill plane) s=" + Progress.ToString("F0"));
+                Die();
                 return;
             }
 
             float lPower = Mathf.Clamp01(lImpact / 220f);
-            Color lDust = RaceContext.Theme != null ? Color.Lerp(RaceContext.Theme.roadA, Color.white, 0.25f) : Color.white;
             if (lWasDiving)
             {
                 float lBonus = Mathf.Min(_profile.cruise * 0.8f, 0.5f * lImpact);
@@ -194,31 +239,14 @@ namespace Com.IsartDigital.Hyperspeed
                 else _diveChain = 0;
                 lBonus *= 1f + Mathf.Min(0.5f, _diveChain * 0.1f);
                 _lastDiveLanding = Time.time;
-                _speed = Mathf.Min(SpeedProfile.SAFETY_MAX, _speed + lBonus);
+                _speed = Mathf.Min(_profile.SafetyMax, _speed + lBonus);
                 _boostTimer = Mathf.Max(_boostTimer, 1f);
-                Juice.FovKick(10f);
-                Juice.Pulse(0.8f);
-                Juice.Rollback(10f);
-                AudioManager.Play("sfx_land_perfect", 0.9f);
             }
-            // Only a dive or a long drop hits hard : a plain jump lands softly and keeps the run flowing.
-            if ((lWasDiving ? lImpact > 22f : lImpact > 90f) && !lWasCrash)
-            {
-                // A real hit on the ground : ring, column of debris, dust.
-                float lSize = Mathf.Lerp(14f, 80f, lPower);
-                Juice.Shake(Mathf.Lerp(0.2f, 0.75f, lPower));
-                FX.Shockwave(pPoint + pNormal * 0.3f, pNormal, Color.white, lSize, 0.4f);
-                FX.Shockwave(pPoint + pNormal * 0.5f, pNormal, lDust, lSize * 0.6f, 0.3f);
-                FX.Shards(pPoint, RaceContext.Theme != null ? RaceContext.Theme.roadSide : Color.gray, Mathf.RoundToInt(Mathf.Lerp(10f, 44f, lPower)), Mathf.Lerp(26f, 80f, lPower), Mathf.Lerp(1.6f, 3.6f, lPower), pNormal * Mathf.Lerp(20f, 70f, lPower));
-                FX.Puff(pPoint, lDust, Mathf.RoundToInt(Mathf.Lerp(8f, 26f, lPower)), Mathf.Lerp(4f, 16f, lPower), Mathf.Lerp(8f, 30f, lPower));
-                FX.Sparks(pPoint, lDust, Mathf.RoundToInt(Mathf.Lerp(16f, 70f, lPower)), Mathf.Lerp(30f, 90f, lPower), 0.8f, 0.5f);
-                if (!lWasDiving) AudioManager.Play("sfx_land_heavy", 0.8f);
-            }
-            else
-            {
-                FX.Puff(pPoint, lDust, 6, 3f, 5f);
-                AudioManager.Play("sfx_land", 0.6f);
-            }
+            JuiceContext lJuice = new JuiceContext { position = pPoint, direction = _heading, normal = pNormal, intensity = lPower, size = 1f };
+            // A dive lands as a kick ; a long drop hits hard ; a plain jump lands softly and keeps the run flowing.
+            if (lWasDiving && !lWasCrash) HSJuice.Play(JuiceId.DiveLanding, lJuice);
+            else if (lImpact > 90f && !lWasCrash) HSJuice.Play(JuiceId.LandHard, lJuice);
+            else HSJuice.Play(JuiceId.Land, lJuice);
             OnLanded?.Invoke(lImpact);
             ReprojectProgress();
         }

@@ -8,6 +8,8 @@ namespace Com.IsartDigital.Hyperspeed
         public static Theme Theme;
         public static float PlayerProgress;
         public static bool Running;
+        // Final sprint : no freeze, no impact frame, nothing that hides the line (2026-11-12).
+        public static bool Climax;
 
         public static void Clear()
         {
@@ -16,6 +18,7 @@ namespace Com.IsartDigital.Hyperspeed
             Theme = null;
             PlayerProgress = 0f;
             Running = false;
+            Climax = false;
         }
     }
 }

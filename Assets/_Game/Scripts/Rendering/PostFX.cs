@@ -4,9 +4,57 @@ using UnityEngine.Rendering.Universal;
 
 namespace Com.IsartDigital.Hyperspeed
 {
+    // A burst of post process that fades over its duration (juice events : dash, pads, breaks...).
+    public struct PostKick
+    {
+        public float aberration;
+        public float radial;
+        public float bloom;
+        public float exposure;
+        public float lens;
+        public float saturation;
+        public float duration;
+        public AnimationCurve fade;
+        public float start;
+    }
+
     // Runtime volume + global values for the Stylize fullscreen pass, driven by speed and juice events.
     public class PostFX : MonoBehaviour
     {
+        private const int MAX_KICKS = 16;
+        private readonly System.Collections.Generic.List<PostKick> _kicks = new System.Collections.Generic.List<PostKick>();
+        // Sum of the running kicks, this frame.
+        private float _kAberration, _kRadial, _kBloom, _kExposure, _kLens, _kSaturation;
+
+        public void Kick(PostKick pKick)
+        {
+            pKick.start = Time.unscaledTime;
+            if (_kicks.Count >= MAX_KICKS) _kicks.RemoveAt(0);
+            _kicks.Add(pKick);
+        }
+
+        private void SumKicks()
+        {
+            _kAberration = _kRadial = _kBloom = _kExposure = _kLens = _kSaturation = 0f;
+            float lNow = Time.unscaledTime;
+            for (int i = _kicks.Count - 1; i >= 0; i--)
+            {
+                PostKick lKick = _kicks[i];
+                float lT = (lNow - lKick.start) / lKick.duration;
+                if (lT >= 1f)
+                {
+                    _kicks.RemoveAt(i);
+                    continue;
+                }
+                float lW = lKick.fade != null ? lKick.fade.Evaluate(lT) : 1f - lT;
+                _kAberration += lKick.aberration * lW;
+                _kRadial += lKick.radial * lW;
+                _kBloom += lKick.bloom * lW;
+                _kExposure += lKick.exposure * lW;
+                _kLens += lKick.lens * lW;
+                _kSaturation += lKick.saturation * lW;
+            }
+        }
         private static readonly int ABERRATION = Shader.PropertyToID("_HS_Aberration");
         private static readonly int RADIAL_BLUR = Shader.PropertyToID("_HS_RadialBlur");
         private static readonly int DITHER = Shader.PropertyToID("_HS_Dither");
@@ -20,6 +68,7 @@ namespace Com.IsartDigital.Hyperspeed
         private static readonly int FADE = Shader.PropertyToID("_HS_Fade");
         private static readonly int LETTERBOX = Shader.PropertyToID("_HS_Letterbox");
         private static readonly int INTENSITY = Shader.PropertyToID("_HS_Intensity");
+        private static readonly int WRONG_WAY = Shader.PropertyToID("_HS_WrongWay");
 
         public static PostFX Instance { get; private set; }
 
@@ -34,6 +83,9 @@ namespace Com.IsartDigital.Hyperspeed
         public float fade;
         public float letterbox;
         public float intensity;
+        // 0..1 : the red wrong-way vignette (fades in and out softly).
+        public float wrongWay;
+        private float _wrongWay;
         private float _fade;
         private float _letterbox;
         private float _intensity;
@@ -109,6 +161,7 @@ namespace Com.IsartDigital.Hyperspeed
             Shader.SetGlobalFloat(FADE, 0f);
             Shader.SetGlobalFloat(LETTERBOX, 0f);
             Shader.SetGlobalFloat(INTENSITY, 0f);
+            Shader.SetGlobalFloat(WRONG_WAY, 0f);
         }
 
         public void Pulse(float pAmount) => _pulse = Mathf.Max(_pulse, pAmount);
@@ -142,23 +195,36 @@ namespace Com.IsartDigital.Hyperspeed
             _vignetteBoost = Mathf.MoveTowards(_vignetteBoost, 0f, lDt * 1.5f);
 
             float lSpeed = speed01;
+            SumKicks();
+            // The wide angle view already bends the picture : no Panini, no camera motion blur (wrong on a recomposed
+            // image), a lighter lens. The speed state looks add their own screen.
+            const bool lWide = false;
+            HSSpeedStateLook lHyper = HSSpeedStateLook.Get(SpeedState.Hyper);
+            HSSpeedStateLook lLight = HSSpeedStateLook.Get(SpeedState.Light);
+            float lStateAberration = hyper01 * lHyper.aberration + _light * lLight.aberration;
+            float lStateRadial = hyper01 * lHyper.radialBlur + _light * lLight.radialBlur;
+            float lStateBloom = hyper01 * lHyper.bloom + _light * lLight.bloom;
+            float lStateSaturation = hyper01 * lHyper.saturation + _light * lLight.saturation;
             _rewind = Mathf.MoveTowards(_rewind, rewind, lDt * 6f);
             _pause = Mathf.MoveTowards(_pause, pause, lDt * 6f);
             // Clarity first : the center of the screen (runner + route) stays sharp at any speed.
-            _chromatic.intensity.Override(Mathf.Clamp01(0.18f + lSpeed * 0.7f + _pulse * 0.7f + hyper01 * 0.25f + _light * 0.3f + _rewind * 0.6f));
+            // 2026-11-12 : a constant chromatic aberration in the whole race (stronger at the edges, the centre stays sharp).
+            _chromatic.intensity.Override(Mathf.Clamp01((0.38f + lSpeed * 0.6f + _pulse * 0.7f + hyper01 * 0.25f + _light * 0.3f + lStateAberration * 0.3f) * GameSession.AberrationAmount + _kAberration * 0.5f + _rewind * 0.6f));
             _vignette.intensity.Override(0.2f + lSpeed * 0.16f + _vignetteBoost * 0.2f + _pause * 0.25f);
             _vignette.color.Override(Color.Lerp(Color.black, _vignetteColor, Mathf.Clamp01(_vignetteBoost * 1.5f)));
             _light = Mathf.MoveTowards(_light, light01, lDt * 2f);
-            _lens.intensity.Override(-(lSpeed * 0.3f + _pulse * 0.14f + _light * 0.14f));
+            _lens.intensity.Override(Mathf.Clamp(-(lSpeed * 0.3f + _pulse * 0.14f + _light * 0.14f + _kLens) * (lWide ? 0.35f : 1f), -0.85f, 0f));
             _lens.scale.Override(1f);
-            _panini.distance.Override(Mathf.Clamp01((lSpeed - 0.15f) * 0.7f));
-            _motionBlur.intensity.Override(0.05f + lSpeed * 0.3f);
-            _bloom.intensity.Override(0.8f + lSpeed * 0.5f + hyper01 * 0.3f + _pulse * 0.8f + _light * 0.6f);
-            _color.postExposure.Override(_pulse * 0.15f + hyper01 * 0.1f - _pause * 0.35f);
-            _color.saturation.Override(30f - _pause * 40f);
+            _panini.distance.Override(lWide ? 0f : Mathf.Clamp01((lSpeed - 0.15f) * 0.7f));
+            // Readability first (2026-11-12) : speed is shown by lines and colour, not by smearing the track ahead.
+            _motionBlur.intensity.Override(lWide ? 0f : 0.03f + lSpeed * 0.12f);
+            // The sun and the glows must never blind the track ahead (2026-11-12).
+            _bloom.intensity.Override(Mathf.Min(1.6f, 0.55f + lSpeed * 0.25f + hyper01 * 0.15f + _pulse * 0.4f + _light * 0.4f + _kBloom * 0.5f + lStateBloom * 0.5f));
+            _color.postExposure.Override(_pulse * 0.15f + hyper01 * 0.1f - _pause * 0.35f + _kExposure);
+            _color.saturation.Override(Mathf.Clamp(30f - _pause * 40f + _kSaturation + lStateSaturation, -100f, 100f));
 
-            Shader.SetGlobalFloat(ABERRATION, 0.3f + lSpeed * 2f + _pulse * 2.4f + hyper01 * 1.2f + _light * 1.2f + _rewind * 2f);
-            Shader.SetGlobalFloat(RADIAL_BLUR, Mathf.Min(2.2f, Mathf.Clamp01(lSpeed - 0.06f) * 1.35f + _pulse * 0.8f + hyper01 * 0.35f + _light * 0.5f));
+            Shader.SetGlobalFloat(ABERRATION, (0.9f + lSpeed * 2f + _pulse * 2.4f + hyper01 * 1.2f + _light * 1.2f + lStateAberration * 2f) * GameSession.AberrationAmount + _kAberration * 2.4f + _rewind * 2f);
+            Shader.SetGlobalFloat(RADIAL_BLUR, Mathf.Min(1.2f, Mathf.Clamp01(lSpeed - 0.2f) * 0.3f + _pulse * 0.4f + hyper01 * 0.08f + _light * 0.25f + _kRadial * 0.5f + lStateRadial * 0.5f));
             Shader.SetGlobalFloat(REWIND, _rewind);
             Shader.SetGlobalFloat(DESATURATE, _rewind * 0.75f);
             // Flat colour : no dither, no posterize.
@@ -166,10 +232,12 @@ namespace Com.IsartDigital.Hyperspeed
             _fade = Mathf.MoveTowards(_fade, fade, lDt * 5f);
             _letterbox = Mathf.MoveTowards(_letterbox, letterbox, lDt * 0.6f);
             _intensity = Mathf.MoveTowards(_intensity, intensity, lDt * 1.5f);
-            Shader.SetGlobalFloat(FISHEYE, _light * 1.1f);
+            Shader.SetGlobalFloat(FISHEYE, 0f);
             Shader.SetGlobalFloat(FADE, _fade);
             Shader.SetGlobalFloat(LETTERBOX, _letterbox);
             Shader.SetGlobalFloat(INTENSITY, _intensity);
+            _wrongWay = Mathf.MoveTowards(_wrongWay, wrongWay, lDt * (wrongWay > _wrongWay ? 2.5f : 1.2f));
+            Shader.SetGlobalFloat(WRONG_WAY, _wrongWay);
             Shader.SetGlobalFloat(FLASH, _flash);
             Shader.SetGlobalColor(FLASH_COLOR, _flashColor);
 

@@ -71,7 +71,7 @@ Shader "Hyperspeed/Glow"
                 output.color = input.color;
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 output.viewWS = GetWorldSpaceViewDir(lPos.positionWS);
-                output.fogFactor = ComputeFogFactor(lPos.positionCS.z);
+                output.fogFactor = ComputeFogFactorZ0ToFar(distance(lPos.positionWS, GetCameraPositionWS()));
                 return output;
             }
 

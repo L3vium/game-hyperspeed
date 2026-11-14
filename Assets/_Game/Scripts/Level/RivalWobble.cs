@@ -71,21 +71,24 @@ namespace Com.IsartDigital.Hyperspeed
         {
             switch (pKind)
             {
-                case RivalKind.Moto: return new Character { squash = 0.18f, wobble = 10f, hop = 1.2f, hopEvery = 0.9f, wheelie = 26f, flail = 1f };
-                case RivalKind.Bus: return new Character { squash = 0.22f, wobble = 16f, hop = 0.9f, hopEvery = 1.4f, flail = 0.8f };
+                // Vehicles : only their suspension moves. No spin, no flail, no roll : they drive.
+                case RivalKind.Moto:
+                case RivalKind.Bus:
                 case RivalKind.SportsCar:
-                case RivalKind.RaceCar: return new Character { squash = 0.16f, wobble = 8f, hop = 1.4f, hopEvery = 0.7f, wheelie = 8f, flail = 1f };
-                case RivalKind.Train: return new Character { squash = 0.1f, wobble = 6f, hop = 0.4f, hopEvery = 1.8f, snake = 14f, flail = 0.6f };
+                case RivalKind.RaceCar:
+                case RivalKind.Train: return new Character { squash = 0.03f, hop = 0.12f, hopEvery = 0.45f };
                 case RivalKind.Birds: return new Character { squash = 0.25f, wobble = 18f, hop = 2f, hopEvery = 0.5f, flail = 1.4f };
                 case RivalKind.Plane:
                 case RivalKind.FighterJet:
-                case RivalKind.Spaceship: return new Character { squash = 0.14f, wobble = 22f, hop = 1f, hopEvery = 1.6f, flail = 1.6f };
+                case RivalKind.Spaceship:
                 case RivalKind.Bullet:
+                case RivalKind.Rockets: return new Character { hopEvery = 2f };
                 case RivalKind.Light: return new Character { squash = 0.08f, wobble = 6f, stretch = 0.5f, hopEvery = 2f, flail = 1f };
-                case RivalKind.Rockets: return new Character { squash = 0.2f, wobble = 20f, hop = 1.2f, hopEvery = 0.6f, snake = 6f, flail = 1.4f };
                 case RivalKind.Time: return new Character { squash = 0.3f, wobble = 14f, hop = 2f, hopEvery = 0.8f, flail = 1.2f };
                 case RivalKind.TRex: return new Character { squash = 0.2f, wobble = 12f, hop = 1.6f, hopEvery = 0.45f, wheelie = 10f, flail = 1.2f };
                 case RivalKind.Death: return new Character { squash = 0.2f, wobble = 18f, hop = 0.8f, hopEvery = 1.2f, snake = 8f, flail = 1f };
+                // The pack runs on its own legs (DogPack) : the root barely moves.
+                case RivalKind.Dogs: return new Character { hopEvery = 2f };
                 default: return new Character { squash = 0.1f, wobble = 6f, hopEvery = 2f, flail = 0.5f };
             }
         }
@@ -95,7 +98,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             pAmount = Mathf.Clamp(pAmount, -3f, 3f);
             _squashVelocity -= pAmount * _c.squash * 1.5f;
-            _tiltVelocity.x -= pAmount * (_c.wheelie + 6f) * 2f;
+            _tiltVelocity.x -= pAmount * (_c.wheelie + (_c.flail > 0f ? 6f : 0.5f)) * 2f;
         }
 
         public void Turn(float pYawRate) => _turn = Mathf.Clamp(pYawRate, -90f, 90f);
@@ -103,6 +106,7 @@ namespace Com.IsartDigital.Hyperspeed
         // Passed or passing : a goofy flail, a hop and a half spin.
         public void Hiccup(float pStrength)
         {
+            if (_c.flail <= 0f) return;
             _flail = Mathf.Max(_flail, pStrength * _c.flail);
             _flailSide = Random.value < 0.5f ? -1f : 1f;
             _hopVelocity += 30f * pStrength * RivalFactory.GROW;
@@ -155,7 +159,7 @@ namespace Com.IsartDigital.Hyperspeed
             Vector3 lLocalMove = _pivot.InverseTransformVector(lMove);
             for (int i = 0; i < _parts.Length; i++)
             {
-                if (_parts[i] == null) continue;
+                if (_parts[i] == null || _c.flail <= 0f) continue;
                 float lLag = 0.6f + i * 0.25f;
                 _offsetVelocity[i] += (-_offset[i] * 120f - _offsetVelocity[i] * 9f) * lDt - Vector3.ClampMagnitude(lLocalMove, 30f) * lLag;
                 _offset[i] += _offsetVelocity[i] * lDt;

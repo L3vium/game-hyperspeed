@@ -24,8 +24,16 @@ namespace Com.IsartDigital.Hyperspeed
 
         public Action onBack;
         public bool active = true;
-        // Perspective canvases hit-test through their own camera.
+        // Perspective canvases hit-test through their own camera (found on the canvas when left empty).
         public Camera eventCamera;
+        // Off : nothing is selected until the mouse or the arrows pick something (a lone back arrow must not be
+        // "pressed" by the confirm button).
+        public bool autoSelect = true;
+        // Off : only the mouse clicks this nav's items (keys and pad confirm belong to something else on screen).
+        public bool keysSubmit = true;
+        // Off : Start does not confirm here (where Start pauses / resumes).
+        public bool startSubmits = true;
+        private bool _cameraLookedUp;
         public int Selected => _selected;
 
         public static UINav Create(GameObject pHost)
@@ -57,14 +65,25 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void Update()
         {
-            if (!active || _items.Count == 0 || Time.frameCount <= _enabledFrame + 1 || SceneTransition.IsBusy) return;
-            if (_selected < 0) Select(0);
+            if (!active || _items.Count == 0 || Time.frameCount <= _enabledFrame + 1 || SceneTransition.IsBusy || HSBindings.Rebinding) return;
+            if (!_cameraLookedUp)
+            {
+                _cameraLookedUp = true;
+                if (eventCamera == null)
+                {
+                    Canvas lCanvas = GetComponentInParent<Canvas>();
+                    if (lCanvas != null) lCanvas = lCanvas.rootCanvas;
+                    if (lCanvas != null && lCanvas.renderMode != RenderMode.ScreenSpaceOverlay) eventCamera = lCanvas.worldCamera;
+                }
+            }
+            if (_selected < 0 && autoSelect) Select(0);
 
             Vector2Int lMove = HSInput.MenuMove;
-            Item lCurrent = _items[_selected];
-            if (lMove != Vector2Int.zero)
+            Item lCurrent = _selected >= 0 ? _items[_selected] : null;
+            if (lMove != Vector2Int.zero && keysSubmit)
             {
-                if (lCurrent.onAdjust != null && lMove.x != 0) lCurrent.onAdjust(lMove.x);
+                if (lCurrent == null) Select(0, true);
+                else if (lCurrent.onAdjust != null && lMove.x != 0) lCurrent.onAdjust(lMove.x);
                 else
                 {
                     int lBest = FindNeighbour(lMove);
@@ -88,7 +107,8 @@ namespace Com.IsartDigital.Hyperspeed
                 }
             }
 
-            if (HSInput.SubmitPressed) Submit();
+            bool lSubmit = HSInput.SubmitPressed && (startSubmits || !HSInput.PausePressed);
+            if (keysSubmit && _selected >= 0 && lSubmit) Submit();
             else if (HSInput.BackPressed && onBack != null)
             {
                 AudioManager.Play("ui_back", 0.7f);
@@ -98,6 +118,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         private int FindNeighbour(Vector2Int pDir)
         {
+            if (_selected < 0) return 0;
             Vector2 lFrom = _items[_selected].position;
             Vector2 lDir = new Vector2(pDir.x, pDir.y);
             int lBest = -1;
@@ -121,6 +142,7 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void Submit()
         {
+            if (_selected < 0) return;
             Item lItem = _items[_selected];
             if (!lItem.enabled) return;
             AudioManager.Play("ui_select", 0.9f);

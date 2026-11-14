@@ -75,6 +75,17 @@ namespace Com.IsartDigital.Hyperspeed
             {
                 lUp = _layout.field.Normal(_s);
                 lBase = _layout.field.Point(_s, lLateral);
+                // Beside a narrow, tilted slab the plane of the slab rises in the air : the convoy stays below the
+                // slab's nearest edge, so from the slab you always drop onto it, you never run into its side.
+                TrackBlock lBlock = _layout.field.BlockAt(_s);
+                if (lBlock != null && Mathf.Abs(lLateral - lBlock.offset) > lBlock.halfWidth)
+                {
+                    float lEdge = Mathf.Clamp(lLateral, lBlock.offset - lBlock.halfWidth, lBlock.offset + lBlock.halfWidth);
+                    float lEdgeHeight = Vector3.Dot(_layout.field.Point(_s, lEdge) - lSample.position, lSample.up);
+                    float lTop = Vector3.Dot(lBase - lSample.position, lSample.up) + _lift * 2f;
+                    float lLimit = lEdgeHeight - 6f;
+                    if (lTop > lLimit) lBase -= lSample.up * (lTop - lLimit);
+                }
                 _baseHeight = Vector3.Dot(lBase - lSample.position, lSample.up);
             }
             else

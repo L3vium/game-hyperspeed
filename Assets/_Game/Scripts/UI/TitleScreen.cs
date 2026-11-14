@@ -21,24 +21,22 @@ namespace Com.IsartDigital.Hyperspeed
         private Canvas _canvas;
         private Canvas _canvas3D;
         private RectTransform _main;
-        private RectTransform _settings;
+        private SettingsMenu _settingsMenu;
         private RectTransform _stages;
         private UINav _mainNav;
-        private UINav _settingsNav;
-        private UINav _creditsNav;
-        private RectTransform _credits;
-        private TextMeshProUGUI _musicValue;
-        private TextMeshProUGUI _sfxValue;
-        private TextMeshProUGUI _mouseValue;
-        private TextMeshProUGUI _invertValue;
         private DevCheatBar _cheats;
         private ScreenId _screen;
 
         private void Awake()
         {
             Time.timeScale = 1f;
+            CursorGuard.Set(CursorMode.Menu);
+            HSJuice.Warmup();
             RaceContext.Clear();
             AudioManager.LoadVolumes();
+            GameSession.ApplyDisplay();
+            // The test hook only : a normal visit never starts on autopilot.
+            Autopilot.Enabled = false;
             BuildWorld();
             BuildUI();
             if (OpenLevelSelect)
@@ -59,6 +57,7 @@ namespace Com.IsartDigital.Hyperspeed
                 for (int i = 0; i < lArgs.Length - 1; i++)
                 {
                     int lStage;
+                    if (lArgs[i] == "-hsRoute" && lArgs[i + 1] == "sky") Autopilot.Sky = true;
                     if (lArgs[i] == "-hsStage" && int.TryParse(lArgs[i + 1], out lStage))
                     {
                         Autopilot.Enabled = true;
@@ -71,8 +70,6 @@ namespace Com.IsartDigital.Hyperspeed
 
         private void OnDestroy()
         {
-            Cursor.lockState = CursorLockMode.None;
-            Cursor.visible = true;
             RaceContext.Clear();
             Interactable.All.Clear();
             Breakable.All.Clear();
@@ -86,7 +83,7 @@ namespace Com.IsartDigital.Hyperspeed
         {
             Theme lTheme = Theme.Islands();
             RaceContext.Theme = lTheme;
-            SpeedProfile lProfile = SpeedProfile.For(150f * LevelDatabase.SPEED_SCALE);
+            SpeedProfile lProfile = SpeedProfile.For(200f);
             SpeedProfile.Current = lProfile;
             _world = new GameObject("TitleWorld").transform;
             EnvironmentBuilder.Build(lTheme, _world, lProfile);
@@ -138,7 +135,7 @@ namespace Com.IsartDigital.Hyperspeed
             // Settings and credits float with the mouse too : created last, drawn on top.
             _canvas = UIPerspective.Create("TitleFlat3D", 22, transform, _camera);
             BuildMain();
-            BuildSettings();
+            _settingsMenu = SettingsMenu.Create(_canvas.transform, true, () => SetScreen(ScreenId.Main));
             _select = StageSelect.Create(lStages, Launch, () => SetScreen(ScreenId.Main));
             BuildStages();
             if (GameSession.CheatsEnabled) _cheats = DevCheatBar.Create();
@@ -160,12 +157,16 @@ namespace Com.IsartDigital.Hyperspeed
             Slash("Slash6", UIKit.GOLD, new Vector2(1160f, -385f), new Vector2(760f, 12f), -20f);
             UIKit.OutlineText(_main, "HYPER", 300f, new Color(1f, 1f, 1f, 0.75f), new Vector2(0.5f, 0.5f), new Vector2(640f, 430f), new Vector2(1200f, 340f), -20f, 0.05f).raycastTarget = false;
 
-            // Left side : the red slash carrying the name, chevrons running in it.
-            UIShape lRed = UIKit.Tile(_main, "RedPanel", UIKit.RED, new Vector2(0.5f, 0.5f), new Vector2(-640f, 40f), new Vector2(1260f, 1500f), 0.26f, 0f);
+            // Left side : the red slash carrying the name, chevrons running in it. Its right edge is the slanted line
+            // through (-10, 40) ; it reaches far past the left, top and bottom of the screen so no tilt of the panel
+            // (mouse in a corner : about 10° of yaw, 2° of pitch, a 14 px slide) ever opens a corner (2026-11-12).
+            const float PANEL_HEIGHT = 2900f;
+            const float PANEL_WIDTH = 2900f;
+            UIShape lRed = UIKit.Tile(_main, "RedPanel", UIKit.RED, new Vector2(0.5f, 0.5f), new Vector2(-10f - PANEL_WIDTH * 0.5f, 40f), new Vector2(PANEL_WIDTH, PANEL_HEIGHT), 0.26f, 0f);
             UIKit.Chevrons(lRed.transform, "Chevrons", UIKit.RED, UIKit.RED_DARK, 60f);
             lRed.gameObject.AddComponent<UnityEngine.UI.Mask>().showMaskGraphic = true;
-            UIKit.Tile(_main, "RedEdge", UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(0f, 40f), new Vector2(10f, 1500f), 0.26f, 0f);
-            UIKit.Tile(_main, "RedEdge2", UIKit.RED_DEEP, new Vector2(0.5f, 0.5f), new Vector2(28f, 40f), new Vector2(26f, 1500f), 0.26f, 0f);
+            UIKit.Tile(_main, "RedEdge", UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(0f, 40f), new Vector2(10f, PANEL_HEIGHT), 0.26f, 0f);
+            UIKit.Tile(_main, "RedEdge2", UIKit.RED_DEEP, new Vector2(0.5f, 0.5f), new Vector2(28f, 40f), new Vector2(26f, PANEL_HEIGHT), 0.26f, 0f);
 
             // The name of the game : extruded, but it only ever moves with the panel.
             UI3DText lHyper = UI3DText.Create(_main, "HYPER", 250f, new Vector2(0f, 1f), new Vector2(480f, -170f), new Vector2(820f, 220f), UIKit.WHITE, UIKit.RED_DEEP, 12, 3f, TextAlignmentOptions.Left, 2f);
@@ -214,122 +215,13 @@ namespace Com.IsartDigital.Hyperspeed
             _mainNav.Add(lHolder, pNav, pAction, lTile.SetSelected);
         }
 
-        private void BuildSettings()
-        {
-            _settings = UIFactory.Stretch(UIFactory.CreateRect(_canvas.transform, "Settings", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
-            _settings.gameObject.AddComponent<PerspectivePanel>();
-            UIKit.FullScreen(_settings, "Dim", new Color(0.04f, 0.02f, 0.06f, 0.72f));
-            TextMeshProUGUI lTitle = UIKit.Text(_settings, "SETTINGS", 120f, UIKit.WHITE, new Vector2(0.5f, 1f), new Vector2(0f, -110f), new Vector2(1100f, 150f), UIKit.Font.Heavy);
-            lTitle.enableAutoSizing = true;
-            lTitle.fontSizeMin = 50f;
-            lTitle.fontSizeMax = 120f;
-
-            _settingsNav = UINav.Create(_settings.gameObject);
-            NavTile lMusic = SettingRow("MUSIC", 180f, out _musicValue);
-            NavTile lSfx = SettingRow("EFFECTS", 60f, out _sfxValue);
-            NavTile lMouse = SettingRow("MOUSE", -60f, out _mouseValue);
-            NavTile lInvert = SettingRow("INVERT Y", -180f, out _invertValue);
-            _settingsNav.Add((RectTransform)lMusic.transform, new Vector2(0f, 2f), () => ChangeVolume(true, 1), lMusic.SetSelected, pDirection => ChangeVolume(true, pDirection));
-            _settingsNav.Add((RectTransform)lSfx.transform, new Vector2(0f, 1f), () => ChangeVolume(false, 1), lSfx.SetSelected, pDirection => ChangeVolume(false, pDirection));
-            _settingsNav.Add((RectTransform)lMouse.transform, new Vector2(0f, 0f), () => ChangeMouse(1), lMouse.SetSelected, ChangeMouse);
-            _settingsNav.Add((RectTransform)lInvert.transform, new Vector2(0f, -1f), () => ChangeInvert(), lInvert.SetSelected, pDirection => ChangeInvert());
-            _settingsNav.onBack = () => SetScreen(ScreenId.Main);
-            BackArrow(_settings, _settingsNav, () => SetScreen(ScreenId.Main));
-
-            TextMeshProUGUI lIgnored;
-            NavTile lCreditsRow = SettingRow("CREDITS", -300f, out lIgnored);
-            _settingsNav.Add((RectTransform)lCreditsRow.transform, new Vector2(0f, -2f), () => ShowCredits(true), lCreditsRow.SetSelected);
-
-            _credits = UIFactory.Stretch(UIFactory.CreateRect(_canvas.transform, "Credits", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
-            _credits.gameObject.AddComponent<PerspectivePanel>();
-            UIKit.FullScreen(_credits, "Dim", new Color(0.04f, 0.02f, 0.06f, 0.92f));
-            TextAsset lCredits = Resources.Load<TextAsset>("Credits");
-            RectTransform lTextRect = UIFactory.Stretch(UIFactory.CreateRect(_credits, "Text", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
-            lTextRect.offsetMin = new Vector2(120f, 50f);
-            lTextRect.offsetMax = new Vector2(-120f, -110f);
-            TextMeshProUGUI lText = lTextRect.gameObject.AddComponent<TextMeshProUGUI>();
-            lText.font = GameAssets.BodyFont;
-            lText.text = lCredits != null ? lCredits.text : "";
-            lText.enableAutoSizing = true;
-            lText.fontSizeMin = 8f;
-            lText.fontSizeMax = 24f;
-            lText.alignment = TextAlignmentOptions.Center;
-            lText.color = UIKit.WHITE;
-            lText.raycastTarget = false;
-            _creditsNav = UINav.Create(_credits.gameObject);
-            _creditsNav.onBack = () => ShowCredits(false);
-            BackArrow(_credits, _creditsNav, () => ShowCredits(false));
-            _credits.gameObject.SetActive(false);
-            RefreshVolumes();
-        }
-
-        private NavTile SettingRow(string pLabel, float pY, out TextMeshProUGUI pValue)
-        {
-            RectTransform lHolder = UIFactory.CreateRect(_settings, pLabel, new Vector2(0.5f, 0.5f), new Vector2(0f, pY + 110f), new Vector2(760f, 96f));
-            UIShape lFrame = UIKit.Tile(lHolder, "Frame", UIKit.WHITE, new Vector2(0.5f, 0.5f), new Vector2(10f, -8f), new Vector2(774f, 110f), 0.3f);
-            UIShape lBack = UIKit.Tile(lHolder, "Back", UIKit.WHITE, new Vector2(0.5f, 0.5f), Vector2.zero, new Vector2(760f, 96f), 0.3f);
-            TextMeshProUGUI lLabel = UIKit.Text(lHolder, pLabel, 50f, UIKit.INK, new Vector2(0.5f, 0.5f), new Vector2(-150f, 0f), new Vector2(380f, 80f), UIKit.Font.Heavy, TextAlignmentOptions.Left);
-            pValue = UIKit.Text(lHolder, "", 50f, UIKit.INK, new Vector2(0.5f, 0.5f), new Vector2(190f, 0f), new Vector2(280f, 80f), UIKit.Font.Heavy, TextAlignmentOptions.Right);
-            NavTile lTile = lHolder.gameObject.AddComponent<NavTile>();
-            lTile.back = lBack;
-            lTile.frame = lFrame;
-            lTile.label = lLabel;
-            lTile.normalBack = UIKit.WHITE;
-            lTile.selectedBack = UIKit.RED;
-            lTile.normalText = UIKit.INK;
-            lTile.selectedText = UIKit.WHITE;
-            TextMeshProUGUI lValue = pValue;
-            lHolder.gameObject.AddComponent<UIFollowColor>().Init(lLabel, lValue);
-            return lTile;
-        }
-
-        private void ShowCredits(bool pShow)
-        {
-            _credits.gameObject.SetActive(pShow);
-            _settingsNav.active = !pShow;
-        }
-
-        private void ChangeVolume(bool pMusic, int pDirection)
-        {
-            float lValue = pMusic ? AudioManager.MusicMaster : AudioManager.MasterSfx;
-            lValue += pDirection * 0.1f;
-            if (lValue > 1.04f) lValue = 0f;
-            lValue = Mathf.Clamp01(lValue);
-            if (pMusic) AudioManager.MusicMaster = lValue;
-            else AudioManager.MasterSfx = lValue;
-            AudioManager.SaveVolumes();
-            RefreshVolumes();
-        }
-
-        private void RefreshVolumes()
-        {
-            _musicValue.text = "< " + Mathf.RoundToInt(AudioManager.MusicMaster * 100f) + "% >";
-            _sfxValue.text = "< " + Mathf.RoundToInt(AudioManager.MasterSfx * 100f) + "% >";
-            _mouseValue.text = "< " + GameSession.MouseSensitivity.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + " >";
-            _invertValue.text = GameSession.InvertY ? "< ON >" : "< OFF >";
-        }
-
-        // Look sensitivity, 0.2 to 3, by steps of 0.1 ; past the top it wraps to the bottom.
-        private void ChangeMouse(int pDirection)
-        {
-            float lValue = GameSession.MouseSensitivity + pDirection * 0.1f;
-            if (lValue > 3.04f) lValue = 0.2f;
-            GameSession.MouseSensitivity = Mathf.Clamp(lValue, 0.2f, 3f);
-            AudioManager.Play("ui_move", 0.5f);
-            RefreshVolumes();
-        }
-
-        private void ChangeInvert()
-        {
-            GameSession.InvertY = !GameSession.InvertY;
-            AudioManager.Play("ui_move", 0.5f);
-            RefreshVolumes();
-        }
-
         private void BuildStages()
         {
             _stages = UIFactory.Stretch(UIFactory.CreateRect(_canvas.transform, "Stages", new Vector2(0.5f, 0.5f), Vector2.zero, Vector2.zero));
             UINav lNav = UINav.Create(_stages.gameObject);
+            // The arrow is for the mouse : A / Enter launch the stage, B / Esc go back.
+            lNav.autoSelect = false;
+            lNav.keysSubmit = false;
             BackArrow(_stages, lNav, () => SetScreen(ScreenId.Main));
         }
 
@@ -350,16 +242,15 @@ namespace Com.IsartDigital.Hyperspeed
         {
             _screen = pScreen;
             _main.gameObject.SetActive(pScreen == ScreenId.Main);
-            _settings.gameObject.SetActive(pScreen == ScreenId.Settings);
+            if (pScreen == ScreenId.Settings && !_settingsMenu.IsOpen) _settingsMenu.Open();
             _stages.gameObject.SetActive(pScreen == ScreenId.Stages);
             if (pScreen == ScreenId.Stages)
             {
-                _select.Show(Mathf.Clamp(GameSession.UnlockedCount - 1, 0, LevelDatabase.Count - 1));
+                _select.Show(GameSession.StageToShow);
                 AudioManager.Play("ui_whoosh", 0.8f);
             }
             else _select.Hide();
             if (pScreen == ScreenId.Main) _mainNav.Select(0);
-            if (pScreen == ScreenId.Settings) _settingsNav.Select(0);
         }
 
         // One click, one launch.
@@ -372,7 +263,7 @@ namespace Com.IsartDigital.Hyperspeed
             }
             if (SceneTransition.IsBusy) return;
             AudioManager.Play("ui_select", 1f);
-            GameSession.SelectedLevel = pIndex;
+            GameSession.RememberStage(pIndex);
             SceneTransition.LoadStage(pIndex);
         }
 
