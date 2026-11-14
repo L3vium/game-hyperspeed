@@ -103,6 +103,7 @@ namespace Com.IsartDigital.Hyperspeed
             float lStart = _level.chaser ? _level.chaserStart * lProfile.k : _layout.spawnS + 15f;
             _rival = Rival.Create(_level.rival, LevelDatabase.RivalSpeed(_level), _level.rivalDelay, _level.chaser, lStart, lRoot);
             _respawn = RespawnDirector.Create(_player, _rig);
+            ViewProbe.Create();
 
             if (_level.chaser) _player.OnRespawned += () => StartCoroutine(PushChaserBack());
             _hud = HUD.Create(_player, _rival, _layout, _level);

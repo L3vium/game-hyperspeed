@@ -41,3 +41,18 @@ Rules learned from the user's corrections. Read at the start of every session on
   a stale image (17 stage cards were overwritten with HUD shots that way).
 - The autopilot matrix (Dev build, -hsStage N -hsRoute ground|sky) is the proof a stage is finishable. Every
   death in it is a bug to read in the log ([HS-LD] out (...)), not noise.
+
+## 2026-11-14 rebuild on 2398ecf5
+- When the user names a commit as the base for some systems (movement, camera), keep those files and port the
+  rest onto them hook by hook ; never let a later rewrite of those systems come back through a bulk merge.
+- Kill zones must test real support (a landing on the arc, a rope or a ring ahead), never distances to the centre line :
+  side platforms, decks and dives killed runners standing on the track. The kill plane must look ahead by seconds of
+  travel, not metres.
+- Anything sized in metres must follow the stage size : widths fully, heights and props with the square root (gravity
+  and the jump do not scale), lengths through the cruise. Check the last stage at its top speed, not only cruise.
+- A carried section (loop, spiral) must hold a runner at light speed : gravity follows its surface and its rims are high.
+- "Crater" means a hole in the level : shader cut + collider cut + nothing drawn over it.
+- Rivals that rubber-band make the lead on the line meaningless : rank on average speed instead.
+- Readability : no full-screen white at the screen centre, radial blur capped, fog capped on the track, far clip over the
+  whole stage, clouds and the floor sheet never between the eye and the road.
+

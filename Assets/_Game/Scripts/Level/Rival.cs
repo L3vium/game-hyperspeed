@@ -132,8 +132,12 @@ namespace Com.IsartDigital.Hyperspeed
             float lWanted;
             if (chaser)
             {
-                // Hunts from behind at its distance : it only catches you if you stop running.
-                lWanted = lPlayerSpeed * Mathf.Clamp(1f + lSeconds * 0.12f, 0.8f, Mathf.Lerp(1.08f, 1.18f, lDifficulty));
+                // Hunts from behind a few seconds back (in time, not metres : at light speed metres are nothing). It
+                // keeps your pace there, closes in when it is further, and never slows under its own cruise : it only
+                // catches a runner who stops running or keeps falling.
+                float lHold = Mathf.Max(lCruise * 0.9f, lPlayerSpeed * Mathf.Lerp(3f, 1.8f, lDifficulty));
+                float lBehind = (lGap - lHold) / Mathf.Max(1f, Mathf.Max(lPlayerSpeed, lCruise));
+                lWanted = Mathf.Max(lBase, lPlayerSpeed * Mathf.Clamp(1f + lBehind * 0.12f, 0.8f, Mathf.Lerp(1.08f, 1.18f, lDifficulty)));
             }
             else if (lSeconds > 0f)
             {
@@ -145,7 +149,7 @@ namespace Com.IsartDigital.Hyperspeed
             else
             {
                 // It leads : it eases off below your pace (a lot on the first stages, a little on the last ones).
-                float lEase = Mathf.Lerp(0.4f, 0.08f, lDifficulty) * Mathf.Clamp01(-lSeconds / 2f);
+                float lEase = Mathf.Lerp(0.45f, 0.15f, lDifficulty) * Mathf.Clamp01(-lSeconds / 2f);
                 lWanted = Mathf.Min(lBase * 1.6f, lPlayerSpeed * (1f - lEase));
             }
             float lBefore = _rate;
