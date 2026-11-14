@@ -219,7 +219,10 @@ namespace Com.IsartDigital.Hyperspeed
         private IEnumerator PushChaserBack()
         {
             yield return null;
-            _rival.distance = Mathf.Min(_rival.distance, _player.Progress - 200f * _layout.profile.k);
+            // Three seconds of cruise behind the respawned runner, back at its own pace (it was running at the speed of
+            // the runner that just died : at light speed it caught the respawn on the spot).
+            _rival.distance = Mathf.Min(_rival.distance, _player.Progress - Mathf.Max(200f * _layout.profile.k, _layout.profile.cruise * 3f));
+            _rival.ResetPace();
         }
 
         private void BeginRace()

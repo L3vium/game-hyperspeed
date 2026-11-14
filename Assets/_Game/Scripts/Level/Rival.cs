@@ -171,6 +171,9 @@ namespace Com.IsartDigital.Hyperspeed
             if (Passing && !lSurging && lGap > lCruise * 0.15f) Passing = false;
         }
 
+        // Back to its own base pace at once (after the runner respawned).
+        public void ResetPace() => _rate = speed;
+
         public void SetDistance(float pDistance)
         {
             distance = pDistance;
