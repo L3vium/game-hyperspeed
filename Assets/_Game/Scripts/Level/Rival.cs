@@ -127,7 +127,13 @@ namespace Com.IsartDigital.Hyperspeed
             // 2026-11-14, rubber band on YOUR real speed (asked) : behind you it speeds up to stay in the race, ahead of you
             // it eases off so you can catch it. Gentle on the first stages (an easy race), tighter on the last ones.
             float lDifficulty = pLayout.profile.difficulty;
-            float lPlayerSpeed = RaceContext.Player != null ? Mathf.Max(RaceContext.Player.Speed, lCruise * 0.5f) : lBase;
+            // Your pace ALONG THE TRACK (progress per second), not your speed : in a corkscrew or a spiral you run far
+            // from the line and your progress grows slower than your speed (the chaser caught a runner at 5 km/s there).
+            float lProgress = RaceContext.PlayerProgress;
+            if (pDt > 0f && _lastPlayerProgress > -1e8f)
+                _playerRate = Mathf.Lerp(_playerRate, Mathf.Max(0f, (lProgress - _lastPlayerProgress) / pDt), 1f - Mathf.Exp(-5f * pDt));
+            _lastPlayerProgress = lProgress;
+            float lPlayerSpeed = RaceContext.Player != null ? Mathf.Max(Mathf.Min(_playerRate, RaceContext.Player.Speed * 1.2f), lCruise * 0.5f) : lBase;
             float lSeconds = (lGap - lTarget) / Mathf.Max(1f, Mathf.Max(lPlayerSpeed, lCruise));
             float lWanted;
             if (chaser)
@@ -171,8 +177,16 @@ namespace Com.IsartDigital.Hyperspeed
             if (Passing && !lSurging && lGap > lCruise * 0.15f) Passing = false;
         }
 
+        private float _playerRate;
+        private float _lastPlayerProgress = -1e9f;
+
         // Back to its own base pace at once (after the runner respawned).
-        public void ResetPace() => _rate = speed;
+        public void ResetPace()
+        {
+            _rate = speed;
+            _playerRate = speed;
+            _lastPlayerProgress = -1e9f;
+        }
 
         public void SetDistance(float pDistance)
         {
